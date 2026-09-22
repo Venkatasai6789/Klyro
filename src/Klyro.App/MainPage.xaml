@@ -31,8 +31,8 @@
             <!-- Brand Identity -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Border Width="28" Height="28" Background="#1E40AF" CornerRadius="6">
-                        <FontIcon Glyph="&#xE7EF;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Border Width="28" Height="28" CornerRadius="6" Background="Transparent">
+                        <Image Source="ms-appx:///Assets/Klyro_Logo.png" Width="28" Height="28" Stretch="Uniform" />
                     </Border>
                     <TextBlock Text="KLYRO" FontWeight="ExtraBold" FontSize="16" Foreground="#1E40AF" VerticalAlignment="Center" CharacterSpacing="30" />
                 </StackPanel>

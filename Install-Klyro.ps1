@@ -60,6 +60,7 @@ $wshShell = New-Object -ComObject WScript.Shell
 # Desktop Shortcut
 $desktopPath = [Environment]::GetFolderPath("Desktop")
 $desktopLnk = Join-Path $desktopPath "Klyro Secure Assessment Browser.lnk"
+Remove-Item $desktopLnk -Force -ErrorAction SilentlyContinue
 $desktopShortcut = $wshShell.CreateShortcut($desktopLnk)
 $desktopShortcut.TargetPath = $exePath
 $desktopShortcut.WorkingDirectory = $installDir
@@ -74,6 +75,7 @@ $desktopShortcut.Save()
 $startMenuDir = [Environment]::GetFolderPath("StartMenu")
 $startPrograms = Join-Path $startMenuDir "Programs"
 $startLnk = Join-Path $startPrograms "Klyro Secure Assessment Browser.lnk"
+Remove-Item $startLnk -Force -ErrorAction SilentlyContinue
 $startShortcut = $wshShell.CreateShortcut($startLnk)
 $startShortcut.TargetPath = $exePath
 $startShortcut.WorkingDirectory = $installDir
@@ -82,6 +84,13 @@ if (Test-Path $iconPath) {
 }
 $startShortcut.Description = "Klyro - Secure Assessment Browser"
 $startShortcut.Save()
+
+# Notify Windows Explorer of icon and association changes
+try {
+    $sig = '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
+    $type = Add-Type -MemberDefinition $sig -Name "ShellChangeNotifierInstall" -Namespace "Win32" -PassThru
+    $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
+} catch { }
 
 # 5. Launch Application
 Write-Host "[5/5] Launching Klyro..." -ForegroundColor Yellow
