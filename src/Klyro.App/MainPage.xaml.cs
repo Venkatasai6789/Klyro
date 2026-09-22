@@ -1226,19 +1226,13 @@ public sealed partial class MainPage : Page
             // 3. Uninstall unmanaged low-level keyboard hook immediately
             try { _keyboardHook?.UninstallHook(); } catch { }
 
-            // 4. Request WinUI Application exit on UI thread
-            try { Application.Current?.Exit(); } catch { }
+            // 4. Dispose background network engine & audit logger
+            try { _networkMonitor?.Stop(); } catch { }
+            try { _networkMonitor?.Dispose(); } catch { }
+            try { _auditLogger?.Dispose(); } catch { }
 
-            // 5. Fire off asynchronous clean-up and forced process termination so UI thread never deadlocks
-            Task.Run(async () =>
-            {
-                try { _networkMonitor?.Stop(); } catch { }
-                try { _networkMonitor?.Dispose(); } catch { }
-                try { _auditLogger?.Dispose(); } catch { }
-                try { await Task.Delay(100); } catch { }
-                try { Environment.Exit(0); } catch { }
-                try { Process.GetCurrentProcess().Kill(); } catch { }
-            });
+            // 5. Completely terminate application and process tree (guarantees no background zombie remains)
+            App.ExitCompletely();
         }
         else
         {

@@ -43,6 +43,8 @@ public sealed partial class MainWindow : Window
 
         // Intercept closing attempts to require Invigilator PIN authorization
         AppWindow.Closing += AppWindow_Closing;
+        AppWindow.Destroying += (s, e) => App.ExitCompletely();
+        Closed += (s, e) => App.ExitCompletely();
 
         // Navigate the root frame to the main page on startup.
         try
@@ -98,11 +100,16 @@ public sealed partial class MainWindow : Window
             {
                 args.Cancel = true;
                 mainPage.PromptForExitPin();
+                return;
             }
         }
         else
         {
             args.Cancel = true;
+            return;
         }
+
+        // When authorized to exit, ensure entire process terminates cleanly
+        App.ExitCompletely();
     }
 }

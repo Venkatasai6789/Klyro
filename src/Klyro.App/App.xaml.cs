@@ -57,11 +57,17 @@ public partial class App : Application
 
     /// <summary>
     /// Brings the active MainWindow to the foreground when a secondary launch is detected.
+    /// If the window is null or destroyed (zombie state), terminates this process so the new instance launches fresh.
     /// </summary>
     public static void BringToFront()
     {
         var win = _instance?._window;
-        if (win == null) return;
+        if (win == null)
+        {
+            // Headless zombie state: exit immediately so new instance can take over
+            ExitCompletely();
+            return;
+        }
 
         win.DispatcherQueue?.TryEnqueue(() =>
         {
@@ -72,10 +78,49 @@ public partial class App : Application
                 if (hWnd != IntPtr.Zero)
                 {
                     Program.RestoreAndActivateWindow(hWnd);
+                    Program.SignalActivationAcknowledged();
+                }
+                else
+                {
+                    // Window handle is invalid/closed — exit zombie
+                    ExitCompletely();
                 }
             }
-            catch { }
+            catch
+            {
+                ExitCompletely();
+            }
         });
+    }
+
+    /// <summary>
+    /// Cleanly and completely terminates the application process.
+    /// Prevents zombie processes from lingering in Task Manager after window closure.
+    /// </summary>
+    public static void ExitCompletely()
+    {
+        try
+        {
+            var bootLog = System.IO.Path.Combine(System.AppContext.BaseDirectory, "boot.log");
+            System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [App.ExitCompletely] Exiting entire process tree immediately.\n");
+        }
+        catch { }
+
+        try { _instance?._window?.Close(); } catch { }
+        try { Application.Current?.Exit(); } catch { }
+
+        // Start background terminator thread to guarantee fast, unconditional termination
+        var terminator = new System.Threading.Thread(() =>
+        {
+            try { System.Threading.Thread.Sleep(120); } catch { }
+            try { Environment.Exit(0); } catch { }
+            try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
+        })
+        {
+            IsBackground = true,
+            Name = "Klyro_Process_Terminator"
+        };
+        terminator.Start();
     }
 
     /// <summary>

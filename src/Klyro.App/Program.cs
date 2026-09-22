@@ -12,10 +12,21 @@ public static class Program
     public const string WindowTitle = "Klyro Secure Assessment Browser";
     private const string MutexName = @"Local\Klyro_Secure_Assessment_Browser_SingleInstance";
     private const string ActivateEventName = @"Local\Klyro_Secure_Assessment_Browser_ActivateEvent";
+    private const string ActivateAckEventName = @"Local\Klyro_Secure_Assessment_Browser_ActivateAckEvent";
 
     private static Mutex? _singleInstanceMutex;
     private static EventWaitHandle? _activationEvent;
+    private static EventWaitHandle? _activationAckEvent;
     private static volatile bool _isExiting;
+
+    public static void SignalActivationAcknowledged()
+    {
+        try
+        {
+            _activationAckEvent?.Set();
+        }
+        catch { }
+    }
 
     // WER: Disable Windows Error Reporting crash dialogs to prevent 0xc000027b terminations
     [DllImport("kernel32.dll")]
@@ -121,25 +132,46 @@ public static class Program
                 if (others.Count > 0)
                 {
                     Log($"Secondary instance detected running primary process (PID {others[0].Id}). Signaling activation event...");
+                    bool activatedSuccessfully = false;
                     try
                     {
                         if (EventWaitHandle.TryOpenExisting(ActivateEventName, out var existingEvent))
                         {
                             existingEvent.Set();
                             existingEvent.Dispose();
-                            Log("Primary instance signaled to activate window. Exiting secondary instance cleanly.");
-                        }
-                        else
-                        {
-                            Log("Could not open activation event. Exiting secondary instance.");
+
+                            // Wait up to 1200ms for primary instance to acknowledge window activation
+                            if (EventWaitHandle.TryOpenExisting(ActivateAckEventName, out var ackEvent))
+                            {
+                                activatedSuccessfully = ackEvent.WaitOne(1200);
+                                ackEvent.Dispose();
+                            }
                         }
                     }
                     catch (Exception exSignal)
                     {
-                        Log($"Activation signaling failed: {exSignal.Message}. Exiting secondary instance.");
+                        Log($"Activation signaling failed: {exSignal.Message}.");
                     }
 
-                    return;
+                    if (activatedSuccessfully)
+                    {
+                        Log("Primary instance confirmed active window brought to front. Exiting secondary instance cleanly.");
+                        return;
+                    }
+
+                    // If primary process exists but did not acknowledge (e.g. headless background zombie with no window),
+                    // terminate the zombie process and take over as the fresh primary instance!
+                    Log($"Primary process PID {others[0].Id} did not acknowledge activation (headless/zombie process). Terminating zombie...");
+                    foreach (var other in others)
+                    {
+                        try
+                        {
+                            other.Kill(entireProcessTree: true);
+                            other.WaitForExit(1000);
+                        }
+                        catch { }
+                    }
+                    Log("Zombie process terminated. Proceeding as fresh primary instance.");
                 }
                 else
                 {
@@ -147,10 +179,12 @@ public static class Program
                 }
             }
 
-            // 2. Initialize Activation Listener Event
+            // 2. Initialize Activation & Acknowledgment Listener Events
             try
             {
                 _activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
+                _activationAckEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateAckEventName);
+
                 var listener = new Thread(() =>
                 {
                     while (!_isExiting)
@@ -225,6 +259,7 @@ public static class Program
         finally
         {
             _isExiting = true;
+            try { _activationAckEvent?.Dispose(); } catch { }
             try { _activationEvent?.Dispose(); } catch { }
             try { _singleInstanceMutex?.Dispose(); } catch { }
         }
