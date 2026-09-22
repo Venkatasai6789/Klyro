@@ -1,0 +1,46 @@
+{
+  "application": {
+    "name": "Klyro",
+    "version": "1.0.0-dev",
+    "environment": "Development"
+  },
+  "exam": {
+    "provider": "CodeChef",
+    "startUrl": "https://www.codechef.com/",
+    "timerPolicy": "PauseDuringVerifiedNetworkFailure",
+    "durationMinutes": 60
+  },
+  "network": {
+    "portalUrl": "http://172.16.103.254:8090/",
+    "probeIntervalMs": 2000,
+    "probeTimeoutMs": 1000,
+    "failureThreshold": 2,
+    "recoveryTimeoutMs": 30000,
+    "connectivityEndpoints": [
+      "http://clients3.google.com/generate_204"
+    ],
+    "enableNetworkSimulator": true
+  },
+  "security": {
+    "allowNewWindows": false,
+    "allowNewTabs": false,
+    "allowDownloads": false,
+    "allowPrinting": false,
+    "allowDevTools": true,
+    "allowExternalProtocols": false,
+    "strictNavigationAllowlist": true,
+    "clipboardPolicy": "Allowed"
+  },
+  "browser": {
+    "allowedOrigins": [
+      "https://www.codechef.com",
+      "https://cdn.codechef.com",
+      "https://campus.codechef.com",
+      "http://localhost:5000"
+    ],
+    "recoveryAllowedOrigins": [
+      "http://172.16.103.254:8090",
+      "http://localhost:8090"
+    ]
+  }
+}

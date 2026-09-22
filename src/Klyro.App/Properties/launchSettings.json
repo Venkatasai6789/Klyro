@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Klyro.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Klyro.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

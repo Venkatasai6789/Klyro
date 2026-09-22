@@ -1,0 +1,30 @@
+namespace Klyro.Core.Logging;
+
+/// <summary>
+/// Structured audit event types for Klyro examination sessions.
+/// </summary>
+public enum EventType
+{
+    EXAM_STARTED,
+    EXAM_COMPLETED,
+    EXAM_PAUSED,
+    EXAM_RESUMED,
+    NETWORK_DEGRADED,
+    NETWORK_LOST,
+    CAPTIVE_PORTAL_DETECTED,
+    RECOVERY_UI_SHOWN,
+    RECOVERY_UI_DISMISSED,
+    PORTAL_AUTH_STARTED,
+    PORTAL_AUTH_SUCCESS,
+    PORTAL_AUTH_FAILED,
+    NETWORK_RESTORED,
+    CODECHEF_UNAVAILABLE,
+    WEBVIEW_CRASH,
+    KLYRO_CRASH,
+    KLYRO_RESTARTED,
+    NAVIGATION_BLOCKED,
+    POPUP_BLOCKED,
+    DOWNLOAD_BLOCKED,
+    PROTOCOL_BLOCKED,
+    SECURITY_VIOLATION
+}
