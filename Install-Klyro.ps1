@@ -11,22 +11,30 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  Installing Klyro Secure Assessment Browser              " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
 $installDir = "C:\Klyro"
 $exePath = Join-Path $installDir "Klyro.App.exe"
 
-# 1. Build and Publish Self-Contained Binaries
-Write-Host "[1/4] Publishing application binaries..." -ForegroundColor Yellow
+# 1. Stop any running Klyro processes before building
+Write-Host "[1/5] Stopping any existing Klyro processes..." -ForegroundColor Yellow
+Get-Process -Name "Klyro*" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 500
+
+# 2. Build and Publish Self-Contained Binaries
+Write-Host "[2/5] Publishing application binaries..." -ForegroundColor Yellow
 $dotnet = if (Test-Path "$HOME\.dotnet\dotnet.exe") { "$HOME\.dotnet\dotnet.exe" } else { "dotnet" }
 $projPath = Join-Path $PSScriptRoot "src\Klyro.App\Klyro.App.csproj"
 & $dotnet publish $projPath -c Debug -r win-x64 -p:Platform=x64 --self-contained true
-
-if (-not (Test-Path $sourcePublish)) {
-    $sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE"
 }
 
-# 2. Deploy to Installation Directory
-Write-Host "[2/4] Deploying to $installDir..." -ForegroundColor Yellow
+if (-not (Test-Path $sourcePublish)) {
+    $sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+}
+
+# 3. Deploy to Installation Directory
+Write-Host "[3/5] Deploying to $installDir..." -ForegroundColor Yellow
 Get-Process -Name "Klyro*" -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
 
@@ -45,8 +53,8 @@ if (Test-Path $configSource) {
 }
 Get-ChildItem -Path $installDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
 
-# 3. Create Windows Shortcuts (Desktop & Start Menu)
-Write-Host "[3/4] Creating Desktop and Start Menu shortcuts..." -ForegroundColor Yellow
+# 4. Create Windows Shortcuts (Desktop & Start Menu)
+Write-Host "[4/5] Creating Desktop and Start Menu shortcuts..." -ForegroundColor Yellow
 $wshShell = New-Object -ComObject WScript.Shell
 
 # Desktop Shortcut
@@ -75,8 +83,8 @@ if (Test-Path $iconPath) {
 $startShortcut.Description = "Klyro - Secure Assessment Browser"
 $startShortcut.Save()
 
-# 4. Launch Application
-Write-Host "[4/4] Launching Klyro..." -ForegroundColor Yellow
+# 5. Launch Application
+Write-Host "[5/5] Launching Klyro..." -ForegroundColor Yellow
 Start-Process -FilePath $exePath -WorkingDirectory $installDir
 
 Write-Host ""

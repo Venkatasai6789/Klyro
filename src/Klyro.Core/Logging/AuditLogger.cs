@@ -34,7 +34,11 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
             "Klyro",
             "Logs");
 
-        Directory.CreateDirectory(baseDir);
+        try
+        {
+            Directory.CreateDirectory(baseDir);
+        }
+        catch { }
         _logFilePath = Path.Combine(baseDir, $"klyro_audit_{DateTime.UtcNow:yyyyMMdd}.jsonl");
 
         _logChannel = Channel.CreateUnbounded<AuditEvent>(new UnboundedChannelOptions
@@ -72,12 +76,12 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
     {
         try
         {
-            await foreach (var auditEvent in _logChannel.Reader.ReadAllAsync(_cts.Token))
+            await foreach (var auditEvent in _logChannel.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
             {
                 try
                 {
                     var line = JsonSerializer.Serialize(auditEvent, JsonOptions);
-                    await File.AppendAllTextAsync(_logFilePath, line + Environment.NewLine, CancellationToken.None);
+                    await File.AppendAllTextAsync(_logFilePath, line + Environment.NewLine, CancellationToken.None).ConfigureAwait(false);
                 }
                 catch { }
             }
@@ -115,11 +119,11 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
         if (_isDisposed) return;
         _isDisposed = true;
 
-        _logChannel.Writer.Complete();
+        _logChannel.Writer.TryComplete();
 
         try
         {
-            await _writerTask;
+            await _writerTask.ConfigureAwait(false);
         }
         catch { }
 
@@ -129,6 +133,14 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
 
     public void Dispose()
     {
-        DisposeAsync().AsTask().GetAwaiter().GetResult();
+        if (_isDisposed) return;
+        _isDisposed = true;
+
+        try
+        {
+            _logChannel.Writer.TryComplete();
+            _cts.Cancel();
+        }
+        catch { }
     }
 }

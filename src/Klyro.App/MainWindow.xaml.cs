@@ -18,17 +18,25 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Title = Program.WindowTitle;
 
-        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        if (hWnd != IntPtr.Zero)
+        try
         {
-            SetWindowText(hWnd, Program.WindowTitle);
+            var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            if (hWnd != IntPtr.Zero)
+            {
+                SetWindowText(hWnd, Program.WindowTitle);
+            }
         }
+        catch { }
 
-        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-        if (File.Exists(iconPath))
+        try
         {
-            AppWindow.SetIcon(iconPath);
+            string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+            if (File.Exists(iconPath))
+            {
+                AppWindow.SetIcon(iconPath);
+            }
         }
+        catch { }
 
         // Enforce true full-screen mode upon window activation to cover entire display and hide taskbar
         Activated += MainWindow_Activated;
@@ -37,7 +45,15 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += AppWindow_Closing;
 
         // Navigate the root frame to the main page on startup.
-        RootFrame.Navigate(typeof(MainPage));
+        try
+        {
+            RootFrame.Navigate(typeof(MainPage));
+        }
+        catch (Exception ex)
+        {
+            string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
+            try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow Navigation Exception] {ex}\n"); } catch { }
+        }
     }
 
     private bool _isFullScreenConfigured;
@@ -47,21 +63,27 @@ public sealed partial class MainWindow : Window
         if (!_isFullScreenConfigured && args.WindowActivationState != WindowActivationState.Deactivated)
         {
             _isFullScreenConfigured = true;
-            try
+
+            // Defer full-screen to the next dispatcher tick to avoid WinUI render pipeline crash
+            // on Chrome Remote Desktop / RDP virtual displays
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
-                AppWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
-            }
-            catch
-            {
-                // Fallback: maximize with hidden title bar if FullScreen presenter fails (e.g., remote desktop sessions)
                 try
                 {
-                    var presenter = Microsoft.UI.Windowing.OverlappedPresenter.CreateForToolWindow();
-                    presenter.Maximize();
-                    AppWindow.SetPresenter(presenter);
+                    AppWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
                 }
-                catch { }
-            }
+                catch
+                {
+                    // Fallback: maximize with hidden title bar if FullScreen presenter fails
+                    try
+                    {
+                        var presenter = Microsoft.UI.Windowing.OverlappedPresenter.CreateForToolWindow();
+                        presenter.Maximize();
+                        AppWindow.SetPresenter(presenter);
+                    }
+                    catch { }
+                }
+            });
         }
     }
 

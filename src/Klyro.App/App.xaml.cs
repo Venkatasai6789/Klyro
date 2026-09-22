@@ -39,6 +39,9 @@ public partial class App : Application
 
         UnhandledException += (sender, e) =>
         {
+            // ALWAYS mark handled first to guarantee WinRT fail-fast stowed exception (0xc000027b) is prevented
+            e.Handled = true;
+
             try
             {
                 var baseDir = System.AppContext.BaseDirectory;
@@ -49,9 +52,6 @@ public partial class App : Application
                 System.IO.File.AppendAllText(bootLog, msg);
             }
             catch { }
-
-            // Mark handled to prevent WinRT fail-fast stowed exception (0xc000027b)
-            e.Handled = true;
         };
     }
 
@@ -95,10 +95,14 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            var crashFile = System.IO.Path.Combine(System.AppContext.BaseDirectory, "crash.log");
-            System.IO.File.AppendAllText(crashFile, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
-            System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
-            throw;
+            try
+            {
+                var crashFile = System.IO.Path.Combine(System.AppContext.BaseDirectory, "crash.log");
+                System.IO.File.AppendAllText(crashFile, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
+                System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
+            }
+            catch { }
+            // Do NOT rethrow; rethrowing causes immediate process termination
         }
     }
 }

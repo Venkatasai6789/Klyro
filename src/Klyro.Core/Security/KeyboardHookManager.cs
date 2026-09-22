@@ -72,24 +72,35 @@ public sealed class KeyboardHookManager : IDisposable
     {
         if (_hookId != IntPtr.Zero) return;
 
-        // 1. Enforce GameDVR suppression in current user registry
-        ApplyGameDVRRestrictions();
+        try
+        {
+            // 1. Enforce GameDVR suppression in current user registry
+            ApplyGameDVRRestrictions();
 
-        // 2. Install low-level keyboard hook
-        _proc = HookCallback;
-        using var curProcess = Process.GetCurrentProcess();
-        using var curModule = curProcess.MainModule;
-        _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule?.ModuleName), 0);
+            // 2. Install low-level keyboard hook
+            _proc = HookCallback;
+            using var curProcess = Process.GetCurrentProcess();
+            using var curModule = curProcess.MainModule;
+            _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule?.ModuleName), 0);
+        }
+        catch
+        {
+            // Fail safely without crashing the host process if permissions or platform restricts hooks
+        }
     }
 
     public void UninstallHook()
     {
-        if (_hookId != IntPtr.Zero)
+        try
         {
-            UnhookWindowsHookEx(_hookId);
-            _hookId = IntPtr.Zero;
-            _proc = null;
+            if (_hookId != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_hookId);
+                _hookId = IntPtr.Zero;
+                _proc = null;
+            }
         }
+        catch { }
     }
 
     private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -280,6 +281,15 @@ public sealed partial class MainPage : Page
         ExamWebView.CoreWebView2.FrameNavigationStarting += ExamWebView_FrameNavigationStarting;
         ExamWebView.CoreWebView2.NewWindowRequested += ExamWebView_NewWindowRequested;
         ExamWebView.CoreWebView2.DownloadStarting += ExamWebView_DownloadStarting;
+        ExamWebView.CoreWebView2.ProcessFailed += (s, e) =>
+        {
+            _auditLogger?.Log(EventType.WEBVIEW_CRASH, "PROCESS_FAILED", $"Exam WebView2 process failure: {e.ProcessFailedKind}, reason: {e.Reason}");
+            if (e.ProcessFailedKind == Microsoft.Web.WebView2.Core.CoreWebView2ProcessFailedKind.RenderProcessExited ||
+                e.ProcessFailedKind == Microsoft.Web.WebView2.Core.CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+            {
+                try { ExamWebView.CoreWebView2?.Reload(); } catch { }
+            }
+        };
 
         _isExamWebViewInitialized = true;
 
@@ -706,6 +716,12 @@ public sealed partial class MainPage : Page
                 };
 
                 RecoveryWebView.CoreWebView2.NewWindowRequested += (s, e) => e.Handled = true;
+
+                RecoveryWebView.CoreWebView2.ProcessFailed += (s, e) =>
+                {
+                    _auditLogger?.Log(EventType.WEBVIEW_CRASH, "RECOVERY_PROCESS_FAILED", $"Recovery WebView2 process failure: {e.ProcessFailedKind}");
+                    try { RecoveryWebView.CoreWebView2?.Reload(); } catch { }
+                };
 
                 // Monitor navigation completion to immediately trigger connectivity probe
                 RecoveryWebView.CoreWebView2.NavigationCompleted += async (s, e) =>
@@ -1199,17 +1215,30 @@ public sealed partial class MainPage : Page
             string.Equals(enteredPin, "123456", StringComparison.Ordinal))
         {
             IsAuthorizedToExit = true;
-            _auditLogger?.Log(EventType.EXAM_COMPLETED, "EXIT", "Invigilator PIN verified. Shell exiting.");
-            try { _keyboardHook?.UninstallHook(); } catch { }
-            try { _networkMonitor?.Stop(); } catch { }
-            try { _networkMonitor?.Dispose(); } catch { }
-            try { _auditLogger?.Dispose(); } catch { }
 
-            // Immediately dismiss overlay to unblock screen
+            // 1. Immediately dismiss overlay to unblock screen visually
             PinModalOverlay.Visibility = Visibility.Collapsed;
 
-            Application.Current.Exit();
-            Environment.Exit(0);
+            // 2. Log exit to boot log & audit logger
+            try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "boot.log"), $"[{DateTime.UtcNow:O}] [MainPage] Invigilator PIN verified. Shell exiting...\n"); } catch { }
+            try { _auditLogger?.Log(EventType.EXAM_COMPLETED, "EXIT", "Invigilator PIN verified. Shell exiting."); } catch { }
+
+            // 3. Uninstall unmanaged low-level keyboard hook immediately
+            try { _keyboardHook?.UninstallHook(); } catch { }
+
+            // 4. Request WinUI Application exit on UI thread
+            try { Application.Current?.Exit(); } catch { }
+
+            // 5. Fire off asynchronous clean-up and forced process termination so UI thread never deadlocks
+            Task.Run(async () =>
+            {
+                try { _networkMonitor?.Stop(); } catch { }
+                try { _networkMonitor?.Dispose(); } catch { }
+                try { _auditLogger?.Dispose(); } catch { }
+                try { await Task.Delay(100); } catch { }
+                try { Environment.Exit(0); } catch { }
+                try { Process.GetCurrentProcess().Kill(); } catch { }
+            });
         }
         else
         {
@@ -1278,14 +1307,22 @@ public sealed partial class MainPage : Page
         string[] relativeCandidates = { "config/exam.json", "config/default.json", "config/development.json" };
         foreach (var rel in relativeCandidates)
         {
-            var fullPath = Path.Combine(AppContext.BaseDirectory, rel);
-            if (File.Exists(fullPath))
+            try
             {
-                return ConfigurationLoader.LoadFromFile(fullPath);
+                var fullPath = Path.Combine(AppContext.BaseDirectory, rel);
+                if (File.Exists(fullPath))
+                {
+                    return ConfigurationLoader.LoadFromFile(fullPath);
+                }
+                if (File.Exists(rel))
+                {
+                    return ConfigurationLoader.LoadFromFile(rel);
+                }
             }
-            if (File.Exists(rel))
+            catch (Exception ex)
             {
-                return ConfigurationLoader.LoadFromFile(rel);
+                string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
+                try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [Config Load Warning] Failed to load {rel}: {ex.Message}. Falling back.\n"); } catch { }
             }
         }
         return new KlyroConfiguration();

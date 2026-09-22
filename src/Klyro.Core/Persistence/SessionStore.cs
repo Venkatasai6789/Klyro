@@ -25,7 +25,11 @@ public sealed class SessionStore : ISessionStore
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Klyro");
 
-        Directory.CreateDirectory(baseDir);
+        try
+        {
+            Directory.CreateDirectory(baseDir);
+        }
+        catch { }
         _storagePath = Path.Combine(baseDir, "session_recovery.json");
     }
 
