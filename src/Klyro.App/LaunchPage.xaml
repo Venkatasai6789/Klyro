@@ -11,13 +11,22 @@
     mc:Ignorable="d">
 
     <!-- Root 50/50 Split Container matching 1536 x 1024 reference layout -->
-    <Grid Background="#0E121A">
+    <Grid x:Name="RootGrid" Background="#0F1219">
         <Grid.ColumnDefinitions>
-            <!-- Left Branding Panel (approx 50% width) -->
-            <ColumnDefinition Width="*" MinWidth="450" />
-            <!-- Right Content & Status Panel (approx 50% width) -->
-            <ColumnDefinition Width="*" MinWidth="520" />
+            <!-- Left Branding Panel (exact 50% width) -->
+            <ColumnDefinition Width="1*" />
+            <!-- Right Content & Status Panel (exact 50% width) -->
+            <ColumnDefinition Width="1*" />
         </Grid.ColumnDefinitions>
+
+        <!-- Background Artwork (Full Window 1.5 aspect ratio, preserving circular spiral geometry) -->
+        <Image Source="ms-appx:///Assets/StartUp_Screen_Bg.png"
+               Grid.Column="0"
+               Grid.ColumnSpan="2"
+               Stretch="Fill"
+               HorizontalAlignment="Stretch"
+               VerticalAlignment="Stretch"
+               IsHitTestVisible="False" />
 
         <!-- ============================================================ -->
         <!-- LEFT PANEL: Visual Artwork & Centered Klyro Logo             -->
@@ -25,27 +34,22 @@
         <Grid Grid.Column="0"
               Background="Transparent"
               PointerPressed="TitleBar_PointerPressed">
-            <!-- Background Artwork (StartUp_Screen_Bg.png) -->
-            <Image Source="ms-appx:///Assets/StartUp_Screen_Bg.png"
-                   Stretch="UniformToFill"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   IsHitTestVisible="False" />
 
-            <!-- Centered Official Klyro Logo (340 x 340 px) -->
+            <!-- Official Klyro Logo (295 x 295 DIPs = 442 physical px, shifted upward into the visual eye of the spiral) -->
             <Image Source="ms-appx:///Assets/Klyro_Logo.png"
-                   Width="340"
-                   Height="340"
+                   Width="295"
+                   Height="295"
                    Stretch="Uniform"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
+                   Margin="8,-53,0,0"
                    IsHitTestVisible="False" />
         </Grid>
 
         <!-- ============================================================ -->
         <!-- RIGHT PANEL: Window Controls, Brand Info, Progress & Features-->
         <!-- ============================================================ -->
-        <Grid Grid.Column="1" Background="#0E121A">
+        <Grid Grid.Column="1" Background="#0F1219">
             <Grid.RowDefinitions>
                 <!-- Top Title / Window Control Bar (44px) -->
                 <RowDefinition Height="Auto" />
@@ -111,12 +115,12 @@
             <StackPanel Grid.Row="1"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Left"
-                        Margin="84,0,40,0"
-                        MaxWidth="600">
+                        Margin="48,0,0,0"
+                        MaxWidth="380">
 
                 <!-- Brand Title: "Klyro" -->
                 <TextBlock Text="Klyro"
-                           FontSize="64"
+                           FontSize="52"
                            FontWeight="Bold"
                            Foreground="#FFFFFF"
                            CharacterSpacing="10"
@@ -124,43 +128,43 @@
 
                 <!-- Product Subtitle: "Secure Assessment Browser" -->
                 <TextBlock Text="Secure Assessment Browser"
-                           FontSize="26"
+                           FontSize="20"
                            FontWeight="SemiBold"
                            Foreground="#CBD5E1"
-                           Margin="0,0,0,24" />
+                           Margin="0,0,0,20" />
 
                 <!-- Description (Two lines on desktop) -->
-                <TextBlock FontSize="18"
-                           LineHeight="28"
+                <TextBlock FontSize="15"
+                           LineHeight="24"
                            Foreground="#94A3B8"
                            TextWrapping="Wrap"
-                           MaxWidth="560"
-                           Margin="0,0,0,36">
+                           MaxWidth="380"
+                           Margin="0,0,0,30">
                     <Run Text="A safe and controlled browsing environment" /><LineBreak />
                     <Run Text="for fair and secure assessments." />
                 </TextBlock>
 
-                <!-- Startup Horizontal Progress Bar Track (575 x 16 px) -->
-                <Grid Width="575"
-                      Height="16"
+                <!-- Startup Horizontal Progress Bar Track (380 x 14 px) -->
+                <Grid Width="380"
+                      Height="14"
                       HorizontalAlignment="Left"
-                      Margin="0,0,0,16">
+                      Margin="0,0,0,14">
                     <!-- Dark Gray Track -->
-                    <Border Background="#1E2638" CornerRadius="8" />
+                    <Border Background="#1E2638" CornerRadius="7" />
 
                     <!-- Blue Progress Fill Bar -->
                     <Border x:Name="ProgressBarFill"
                             Width="0"
-                            Height="16"
+                            Height="14"
                             Background="#0066FF"
-                            CornerRadius="8"
+                            CornerRadius="7"
                             HorizontalAlignment="Left" />
                 </Grid>
 
                 <!-- Dynamic Status Text -->
                 <TextBlock x:Name="StatusTextBlock"
                            Text="Starting Klyro..."
-                           FontSize="15"
+                           FontSize="14"
                            FontWeight="Normal"
                            Foreground="#94A3B8"
                            Margin="0,0,0,0" />
@@ -173,7 +177,7 @@
                         CornerRadius="8"
                         Padding="16,12"
                         Margin="0,18,0,0"
-                        MaxWidth="575"
+                        MaxWidth="380"
                         HorizontalAlignment="Left"
                         Visibility="Collapsed">
                     <StackPanel Spacing="10">
@@ -210,44 +214,44 @@
 
             <!-- 3. Feature Indicators Row (Bottom of Right Panel) -->
             <Grid Grid.Row="2"
-                  Width="575"
+                  Width="380"
                   HorizontalAlignment="Left"
-                  Margin="84,0,40,70">
+                  Margin="48,0,0,48">
                 <Grid.ColumnDefinitions>
                     <!-- Feature 1: Secure Environment -->
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="125" />
                     <!-- Vertical Separator 1 -->
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="1" />
                     <!-- Feature 2: Distraction Free -->
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="128" />
                     <!-- Vertical Separator 2 -->
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="1" />
                     <!-- Feature 3: Trusted by Institutions -->
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="125" />
                 </Grid.ColumnDefinitions>
 
                 <!-- FEATURE 1: Secure Environment -->
                 <StackPanel Grid.Column="0"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                    <Border Width="48" Height="48"
+                    <Border Width="44" Height="44"
                             CornerRadius="10"
                             Background="#131B2E"
                             BorderBrush="#1E2C48"
                             BorderThickness="1"
                             HorizontalAlignment="Center">
                         <Image Source="ms-appx:///Assets/Secure_Environment.png"
-                               Width="30" Height="30"
+                               Width="26" Height="26"
                                Stretch="Uniform"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock FontSize="13"
+                    <TextBlock FontSize="12"
                                FontWeight="Medium"
                                Foreground="#94A3B8"
                                TextAlignment="Center"
-                               LineHeight="18"
-                               Margin="0,10,0,0">
+                               LineHeight="16"
+                               Margin="0,8,0,0">
                         <Run Text="Secure" /><LineBreak />
                         <Run Text="Environment" />
                     </TextBlock>
@@ -256,33 +260,32 @@
                 <!-- Vertical Separator 1 -->
                 <Border Grid.Column="1"
                         Width="1"
-                        Height="56"
+                        Height="48"
                         Background="#1E293B"
-                        VerticalAlignment="Center"
-                        Margin="12,0" />
+                        VerticalAlignment="Center" />
 
                 <!-- FEATURE 2: Distraction Free -->
                 <StackPanel Grid.Column="2"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                    <Border Width="48" Height="48"
+                    <Border Width="44" Height="44"
                             CornerRadius="10"
                             Background="#131B2E"
                             BorderBrush="#1E2C48"
                             BorderThickness="1"
                             HorizontalAlignment="Center">
                         <Image Source="ms-appx:///Assets/distraction_free.png"
-                               Width="30" Height="30"
+                               Width="26" Height="26"
                                Stretch="Uniform"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock FontSize="13"
+                    <TextBlock FontSize="12"
                                FontWeight="Medium"
                                Foreground="#94A3B8"
                                TextAlignment="Center"
-                               LineHeight="18"
-                               Margin="0,10,0,0">
+                               LineHeight="16"
+                               Margin="0,8,0,0">
                         <Run Text="Distraction" /><LineBreak />
                         <Run Text="Free" />
                     </TextBlock>
@@ -291,33 +294,32 @@
                 <!-- Vertical Separator 2 -->
                 <Border Grid.Column="3"
                         Width="1"
-                        Height="56"
+                        Height="48"
                         Background="#1E293B"
-                        VerticalAlignment="Center"
-                        Margin="12,0" />
+                        VerticalAlignment="Center" />
 
                 <!-- FEATURE 3: Trusted by Institutions -->
                 <StackPanel Grid.Column="4"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                    <Border Width="48" Height="48"
+                    <Border Width="44" Height="44"
                             CornerRadius="10"
                             Background="#131B2E"
                             BorderBrush="#1E2C48"
                             BorderThickness="1"
                             HorizontalAlignment="Center">
                         <Image Source="ms-appx:///Assets/Trusted_Instructions.png"
-                               Width="30" Height="30"
+                               Width="26" Height="26"
                                Stretch="Uniform"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock FontSize="13"
+                    <TextBlock FontSize="12"
                                FontWeight="Medium"
                                Foreground="#94A3B8"
                                TextAlignment="Center"
-                               LineHeight="18"
-                               Margin="0,10,0,0">
+                               LineHeight="16"
+                               Margin="0,8,0,0">
                         <Run Text="Trusted by" /><LineBreak />
                         <Run Text="Institutions" />
                     </TextBlock>

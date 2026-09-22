@@ -14,7 +14,7 @@ namespace Klyro_App;
 
 public sealed partial class LaunchPage : Page
 {
-    private const double MaxProgressBarWidth = 575.0;
+    private const double MaxProgressBarWidth = 380.0;
     private readonly StartupPipeline _pipeline = new();
     private readonly OnboardingStateStore _onboardingStore = new();
     private CancellationTokenSource? _startupCts;
@@ -76,6 +76,35 @@ public sealed partial class LaunchPage : Page
                 UpdateProgress(p.Percentage, p.StatusText);
             });
 
+            var cmdArgs = Environment.GetCommandLineArgs();
+            string? screenshotPath = null;
+            string? screenshotReadyPath = null;
+            bool stayOnLaunch = false;
+
+            for (int i = 0; i < cmdArgs.Length; i++)
+            {
+                if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                {
+                    screenshotPath = cmdArgs[i + 1];
+                }
+                else if (cmdArgs[i].Equals("--screenshot-ready", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                {
+                    screenshotReadyPath = cmdArgs[i + 1];
+                }
+                else if (cmdArgs[i].Equals("--stay-on-launch", StringComparison.OrdinalIgnoreCase) ||
+                         cmdArgs[i].Equals("--preview", StringComparison.OrdinalIgnoreCase))
+                {
+                    stayOnLaunch = true;
+                }
+            }
+
+            // If a screenshot was requested at startup state
+            if (!string.IsNullOrEmpty(screenshotPath))
+            {
+                await Task.Delay(400); // Allow full visual layout and image assets to decode
+                await CaptureScreenshotAsync(screenshotPath);
+            }
+
             PageLog("Calling _pipeline.RunAsync...");
             var result = await _pipeline.RunAsync(progressHandler, ct);
             PageLog($"_pipeline.RunAsync completed. Result: {result.IsSuccess}, Error: {result.ErrorMessage}");
@@ -83,6 +112,19 @@ public sealed partial class LaunchPage : Page
             if (result.IsSuccess)
             {
                 UpdateProgress(100, "Ready.");
+
+                if (!string.IsNullOrEmpty(screenshotReadyPath))
+                {
+                    await Task.Delay(200);
+                    await CaptureScreenshotAsync(screenshotReadyPath);
+                }
+
+                if (stayOnLaunch)
+                {
+                    PageLog("Staying on launch screen for user preview (--stay-on-launch / --preview specified).");
+                    return;
+                }
+
                 await Task.Delay(400);
 
                 // Mark first run completed in persistent store
@@ -195,6 +237,52 @@ public sealed partial class LaunchPage : Page
                 ReleaseCapture();
                 SendMessage(hWnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
             }
+        }
+    }
+
+    private async Task CaptureScreenshotAsync(string filePath)
+    {
+        try
+        {
+            PageLog($"Capturing screenshot to {filePath}...");
+            var rtb = new Microsoft.UI.Xaml.Media.Imaging.RenderTargetBitmap();
+            await rtb.RenderAsync(RootGrid);
+            var pixelBuffer = await rtb.GetPixelsAsync();
+
+            var fullPath = System.IO.Path.GetFullPath(filePath);
+            var dir = System.IO.Path.GetDirectoryName(fullPath) ?? AppContext.BaseDirectory;
+            System.IO.Directory.CreateDirectory(dir);
+
+            var folder = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(dir);
+            var file = await folder.CreateFileAsync(System.IO.Path.GetFileName(fullPath), Windows.Storage.CreationCollisionOption.ReplaceExisting);
+
+            using (var stream = await file.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite))
+            {
+                var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
+                    Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId,
+                    stream);
+
+                var reader = Windows.Storage.Streams.DataReader.FromBuffer(pixelBuffer);
+                byte[] pixels = new byte[pixelBuffer.Length];
+                reader.ReadBytes(pixels);
+
+                encoder.SetPixelData(
+                    Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+                    Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied,
+                    (uint)rtb.PixelWidth,
+                    (uint)rtb.PixelHeight,
+                    96,
+                    96,
+                    pixels);
+
+                await encoder.FlushAsync();
+            }
+
+            PageLog($"Screenshot successfully saved to {fullPath} ({rtb.PixelWidth}x{rtb.PixelHeight}, {new System.IO.FileInfo(fullPath).Length} bytes).");
+        }
+        catch (Exception ex)
+        {
+            PageLog($"CaptureScreenshotAsync failed: {ex}");
         }
     }
 }
