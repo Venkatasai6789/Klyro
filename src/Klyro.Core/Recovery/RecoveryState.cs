@@ -10,5 +10,6 @@ public enum RecoveryState
     LoginRequired,
     Authenticating,
     ConnectionRestored,
-    RecoveryFailed
+    RecoveryFailed,
+    ActiveInBackground
 }

@@ -11,7 +11,7 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  Installing Klyro Secure Assessment Browser              " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
 $installDir = "C:\Klyro"
 $exePath = Join-Path $installDir "Klyro.App.exe"
 
@@ -19,18 +19,30 @@ $exePath = Join-Path $installDir "Klyro.App.exe"
 Write-Host "[1/4] Publishing application binaries..." -ForegroundColor Yellow
 $dotnet = if (Test-Path "$HOME\.dotnet\dotnet.exe") { "$HOME\.dotnet\dotnet.exe" } else { "dotnet" }
 $projPath = Join-Path $PSScriptRoot "src\Klyro.App\Klyro.App.csproj"
-& $dotnet publish $projPath -c Debug -r win-x64 --self-contained true
+& $dotnet publish $projPath -c Debug -r win-x64 -p:Platform=x64 --self-contained true
+
+if (-not (Test-Path $sourcePublish)) {
+    $sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+}
 
 # 2. Deploy to Installation Directory
 Write-Host "[2/4] Deploying to $installDir..." -ForegroundColor Yellow
-Get-Process -Name "Klyro.App" -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process -Name "Klyro*" -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
+
+Remove-Item -Path "$sourcePublish\*.log" -Force -ErrorAction SilentlyContinue
 
 if (-not (Test-Path $installDir)) {
     New-Item -Path $installDir -ItemType Directory -Force | Out-Null
+} else {
+    Remove-Item -Path "$installDir\*.log" -Force -ErrorAction SilentlyContinue
 }
 
 Copy-Item -Path "$sourcePublish\*" -Destination $installDir -Recurse -Force
+$configSource = Join-Path $PSScriptRoot "config"
+if (Test-Path $configSource) {
+    Copy-Item -Path "$configSource\*" -Destination (Join-Path $installDir "config") -Recurse -Force
+}
 Get-ChildItem -Path $installDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
 
 # 3. Create Windows Shortcuts (Desktop & Start Menu)
@@ -65,7 +77,7 @@ $startShortcut.Save()
 
 # 4. Launch Application
 Write-Host "[4/4] Launching Klyro..." -ForegroundColor Yellow
-Start-Process -FilePath $exePath
+Start-Process "explorer.exe" -ArgumentList "`"$exePath`""
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green

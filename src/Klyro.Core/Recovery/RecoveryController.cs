@@ -41,16 +41,16 @@ public sealed class RecoveryController : IDisposable
     {
         lock (_lock)
         {
-            if (newState == NetworkState.PORTAL_REQUIRED && CurrentState == RecoveryState.Hidden)
+            if (newState == NetworkState.PORTAL_REQUIRED && (CurrentState == RecoveryState.Hidden || CurrentState == RecoveryState.ActiveInBackground))
             {
                 TransitionTo(RecoveryState.LoginRequired);
                 _auditLogger?.Log(EventType.RECOVERY_UI_SHOWN, CurrentState.ToString(), "Captive portal recovery modal displayed.");
             }
-            else if (newState == NetworkState.ONLINE && CurrentState != RecoveryState.Hidden)
+            else if (newState == NetworkState.ONLINE && CurrentState != RecoveryState.Hidden && CurrentState != RecoveryState.ActiveInBackground)
             {
                 TransitionTo(RecoveryState.ConnectionRestored);
-                _auditLogger?.Log(EventType.RECOVERY_UI_DISMISSED, CurrentState.ToString(), "Network online confirmed; dismissing recovery modal.");
-                TransitionTo(RecoveryState.Hidden);
+                _auditLogger?.Log(EventType.RECOVERY_UI_DISMISSED, CurrentState.ToString(), "Network online confirmed; keeping portal session active in background.");
+                TransitionTo(RecoveryState.ActiveInBackground);
                 ExamResumeRequested?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -76,7 +76,7 @@ public sealed class RecoveryController : IDisposable
             if (success)
             {
                 TransitionTo(RecoveryState.ConnectionRestored);
-                TransitionTo(RecoveryState.Hidden);
+                TransitionTo(RecoveryState.ActiveInBackground);
                 ExamResumeRequested?.Invoke(this, EventArgs.Empty);
                 return true;
             }
@@ -84,6 +84,22 @@ public sealed class RecoveryController : IDisposable
             {
                 TransitionTo(RecoveryState.RecoveryFailed);
                 return false;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Explicitly transitions the recovery UI to active background state,
+    /// keeping the captive portal session alive without closing its process.
+    /// </summary>
+    public void KeepActiveInBackground()
+    {
+        lock (_lock)
+        {
+            if (CurrentState != RecoveryState.ActiveInBackground)
+            {
+                TransitionTo(RecoveryState.ActiveInBackground);
+                ExamResumeRequested?.Invoke(this, EventArgs.Empty);
             }
         }
     }

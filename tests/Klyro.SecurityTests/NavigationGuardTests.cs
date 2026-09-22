@@ -134,4 +134,34 @@ public class NavigationGuardTests
         var decision = _guard.EvaluateRecoveryNavigation("https://www.google.com");
         Assert.False(decision.IsAllowed);
     }
+
+    [Fact]
+    public void AllowsGoogleOAuthAndTwoStepVerification()
+    {
+        var oauthConfig = new KlyroConfiguration
+        {
+            Browser = new BrowserOptions
+            {
+                AllowedOrigins = new()
+                {
+                    "https://www.codechef.com",
+                    "https://accounts.google.com"
+                }
+            }
+        };
+        var manager = new AllowlistManager(oauthConfig);
+        var guard = new NavigationGuard(manager);
+
+        // Standard Google OAuth
+        Assert.True(guard.EvaluateExamNavigation("https://accounts.google.com/o/oauth2/auth").IsAllowed);
+        // Localized 2-Step Verification (India)
+        Assert.True(guard.EvaluateExamNavigation("https://accounts.google.co.in/signin/v2/challenge/ipp").IsAllowed);
+        // Google Identity backend
+        Assert.True(guard.EvaluateExamNavigation("https://oauth2.googleapis.com/token").IsAllowed);
+        Assert.True(guard.EvaluateExamNavigation("https://ssl.gstatic.com/accounts/static/pwd.js").IsAllowed);
+
+        // General search engine should remain strictly blocked
+        Assert.False(guard.EvaluateExamNavigation("https://www.google.com/search?q=cheat").IsAllowed);
+        Assert.False(guard.EvaluateExamNavigation("https://www.google.co.in/search?q=cheat").IsAllowed);
+    }
 }

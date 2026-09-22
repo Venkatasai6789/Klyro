@@ -96,6 +96,16 @@ public sealed class AllowlistManager
         // Strict Origin Matching: Scheme, Host, and Port must match exactly
         bool matched = allowedOrigins.Contains(targetOrigin);
 
+        if (!matched && context == "Exam" && string.Equals(targetUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            // When Google OAuth is allowlisted, permit legitimate Google Identity & 2SV endpoints
+            bool hasGoogleAuth = allowedOrigins.Any(o => o.Host.Contains("accounts.google.", StringComparison.OrdinalIgnoreCase));
+            if (hasGoogleAuth && IsGoogleAuthDomain(targetUri.Host))
+            {
+                matched = true;
+            }
+        }
+
         if (matched)
         {
             return NavigationDecision.Allow(url, $"Origin '{targetOrigin}' matched {context} allowlist.");
@@ -104,6 +114,21 @@ public sealed class AllowlistManager
         // Check for common phishing / lookalike domain attacks to provide precise audit logs
         string threatDetail = DetectLookalikeThreat(targetUri.Host, allowedOrigins);
         return NavigationDecision.Block(url, $"Origin '{targetOrigin}' is not permitted in {context} allowlist.{threatDetail}");
+    }
+
+    private static bool IsGoogleAuthDomain(string host)
+    {
+        var lower = host.ToLowerInvariant();
+        return lower.StartsWith("accounts.google.") ||
+               lower.StartsWith("myaccount.google.") ||
+               lower.Equals("oauth2.googleapis.com", StringComparison.Ordinal) ||
+               lower.Equals("ssl.gstatic.com", StringComparison.Ordinal) ||
+               lower.Equals("www.gstatic.com", StringComparison.Ordinal) ||
+               lower.Equals("fonts.gstatic.com", StringComparison.Ordinal) ||
+               lower.Equals("fonts.googleapis.com", StringComparison.Ordinal) ||
+               lower.Equals("apis.google.com", StringComparison.Ordinal) ||
+               lower.Equals("content.googleapis.com", StringComparison.Ordinal) ||
+               lower.Equals("accounts.youtube.com", StringComparison.Ordinal);
     }
 
     private static string DetectLookalikeThreat(string host, HashSet<UriOrigin> allowedOrigins)

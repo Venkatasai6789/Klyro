@@ -24,12 +24,16 @@ public sealed class NetworkMonitor : INetworkMonitor
     public INetworkSimulator Simulator { get; } = new NetworkSimulator();
 
     public NetworkState CurrentState => StateMachine.CurrentState;
+    public long LastLatencyMs { get; private set; }
+    public string ConnectionSpeedTier { get; private set; } = "Unknown";
 
     public event NetworkStateChangedEventHandler? StateChanged
     {
         add => StateMachine.StateChanged += value;
         remove => StateMachine.StateChanged -= value;
     }
+
+    public event EventHandler<ProbeMatrix>? ProbeCompleted;
 
     public NetworkMonitor(
         KlyroConfiguration config,
@@ -62,7 +66,24 @@ public sealed class NetworkMonitor : INetworkMonitor
     public async Task<NetworkState> TriggerImmediateProbeAsync(CancellationToken cancellationToken = default)
     {
         var matrix = await ExecuteAllProbesAsync(cancellationToken);
-        return StateMachine.ProcessProbeMatrix(matrix);
+        if (matrix.Internet.IsSuccess)
+        {
+            LastLatencyMs = matrix.Internet.LatencyMs;
+            ConnectionSpeedTier = LastLatencyMs switch
+            {
+                < 80 => "Fast",
+                < 250 => "Good",
+                _ => "Slow"
+            };
+        }
+        else
+        {
+            ConnectionSpeedTier = "Offline";
+        }
+
+        var state = StateMachine.ProcessProbeMatrix(matrix);
+        ProbeCompleted?.Invoke(this, matrix);
+        return state;
     }
 
     private async Task MonitorLoopAsync()

@@ -12,16 +12,18 @@
   },
   "network": {
     "portalUrl": "http://172.16.103.254:8090/",
-    "probeIntervalMs": 3000,
+    "probeIntervalMs": 2000,
     "probeTimeoutMs": 1500,
-    "failureThreshold": 3,
+    "failureThreshold": 2,
     "recoveryTimeoutMs": 60000,
     "connectivityEndpoints": [
       "http://clients3.google.com/generate_204",
+      "http://www.google.com/generate_204",
       "http://www.msftconnecttest.com/connecttest.txt"
     ]
   },
   "security": {
+    "exitPin": "123456",
     "allowNewWindows": false,
     "allowNewTabs": false,
     "allowDownloads": false,
@@ -34,11 +36,25 @@
   "browser": {
     "allowedOrigins": [
       "https://www.codechef.com",
+      "https://codechef.com",
       "https://cdn.codechef.com",
-      "https://campus.codechef.com"
+      "https://campus.codechef.com",
+      "https://discuss.codechef.com",
+      "https://accounts.google.com",
+      "https://accounts.google.co.in",
+      "https://myaccount.google.com",
+      "https://myaccount.google.co.in",
+      "https://ssl.gstatic.com",
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com",
+      "https://www.gstatic.com",
+      "https://apis.google.com",
+      "https://accounts.youtube.com",
+      "https://oauth2.googleapis.com"
     ],
     "recoveryAllowedOrigins": [
-      "http://172.16.103.254:8090"
+      "http://172.16.103.254:8090",
+      "http://172.16.103.254"
     ]
   }
 }

@@ -91,6 +91,44 @@ public class NetworkStateMachineTests
         Assert.Equal((NetworkState.ONLINE, NetworkState.OFFLINE), transitions[1]);
     }
 
+    [Fact]
+    public void MidExam_SessionExpiration_DetectsPortalRequiredAfterOnline()
+    {
+        // 1. Student is actively taking exam (ONLINE)
+        var onlineMatrix = CreateMatrix(gatewayUp: true, portalUp: true, internetUp: true, assessmentUp: true);
+        _stateMachine.ProcessProbeMatrix(onlineMatrix);
+        Assert.Equal(NetworkState.ONLINE, _stateMachine.CurrentState);
+
+        // 2. In the middle of using Wi-Fi, the university RADIUS/portal lease expires unexpectedly
+        // Gateway is still up, Portal controller is reachable, but Internet & CodeChef are redirected/intercepted
+        var expiredMatrix = CreateMatrix(gatewayUp: true, portalUp: true, internetUp: false, assessmentUp: false);
+
+        // Process failures up to threshold
+        for (int i = 0; i < _options.FailureThreshold; i++)
+        {
+            _stateMachine.ProcessProbeMatrix(expiredMatrix);
+        }
+
+        // State must transition to PORTAL_REQUIRED to automatically popup the login UI without manual tab sifting
+        Assert.Equal(NetworkState.PORTAL_REQUIRED, _stateMachine.CurrentState);
+    }
+
+    [Fact]
+    public void MidExam_TotalWifiLoss_DetectsOfflineState()
+    {
+        // 1. Student is actively taking exam
+        var onlineMatrix = CreateMatrix(gatewayUp: true, portalUp: true, internetUp: true, assessmentUp: true);
+        _stateMachine.ProcessProbeMatrix(onlineMatrix);
+        Assert.Equal(NetworkState.ONLINE, _stateMachine.CurrentState);
+
+        // 2. Wi-Fi adapter disconnects or router drops association (Gateway fails)
+        var offlineMatrix = CreateMatrix(gatewayUp: false, portalUp: false, internetUp: false, assessmentUp: false);
+        _stateMachine.ProcessProbeMatrix(offlineMatrix);
+
+        // Must immediately transition to OFFLINE so Klyro alerts the student to reconnect
+        Assert.Equal(NetworkState.OFFLINE, _stateMachine.CurrentState);
+    }
+
     private static ProbeMatrix CreateMatrix(bool gatewayUp, bool portalUp, bool internetUp, bool assessmentUp)
     {
         return new ProbeMatrix

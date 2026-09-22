@@ -1,14 +1,11 @@
+using System;
+using System.IO;
 using Microsoft.UI.Xaml;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
 
 namespace Klyro_App;
 
 /// <summary>
-/// The application window. This hosts a Frame that displays pages. Add your
-/// UI and logic to MainPage.xaml / MainPage.xaml.cs instead of here so you
-/// can use Page features such as navigation events and the Loaded lifecycle.
+/// The application window hosting Klyro in locked full-screen presentation mode.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
@@ -16,16 +13,28 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
-
-        string iconPath = System.IO.Path.Combine(System.AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-        if (System.IO.File.Exists(iconPath))
+        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        if (File.Exists(iconPath))
         {
             AppWindow.SetIcon(iconPath);
         }
 
+        // Enforce true full-screen mode to cover the entire display and hide the Windows taskbar
+        AppWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
+
+        // Intercept closing attempts to require Invigilator PIN authorization
+        AppWindow.Closing += AppWindow_Closing;
+
         // Navigate the root frame to the main page on startup.
         RootFrame.Navigate(typeof(MainPage));
+    }
+
+    private void AppWindow_Closing(Microsoft.UI.Windowing.AppWindow sender, Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+    {
+        if (RootFrame.Content is MainPage mainPage && !mainPage.IsAuthorizedToExit)
+        {
+            args.Cancel = true;
+            mainPage.PromptForExitPin();
+        }
     }
 }

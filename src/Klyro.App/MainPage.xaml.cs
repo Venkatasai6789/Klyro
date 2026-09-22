@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -27,6 +30,7 @@ public sealed partial class MainPage : Page
     private PopupGuard? _popupGuard;
     private DownloadGuard? _downloadGuard;
     private ProtocolGuard? _protocolGuard;
+    private KeyboardHookManager? _keyboardHook;
 
     private SessionStore? _sessionStore;
     private NetworkMonitor? _networkMonitor;
@@ -35,10 +39,27 @@ public sealed partial class MainPage : Page
 
     private bool _isExamWebViewInitialized;
     private bool _isRecoveryWebViewInitialized;
+    private CancellationTokenSource? _modalRecoveryPollCts;
+
+    public bool IsAuthorizedToExit { get; set; }
 
     public MainPage()
     {
         InitializeComponent();
+        KeyDown += MainPage_KeyDown;
+    }
+
+    private void MainPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (WifiPickerOverlay.Visibility == Visibility.Visible)
+            {
+                WifiPickerOverlay.Visibility = Visibility.Collapsed;
+                WifiPasswordCard.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+            }
+        }
     }
 
     private async void Page_Loaded(object sender, RoutedEventArgs e)
@@ -57,7 +78,7 @@ public sealed partial class MainPage : Page
             _auditLogger = new AuditLogger();
             _auditLogger.Log(EventType.EXAM_STARTED, "INITIALIZING", "Klyro shell launched.");
 
-            // 3. Initialize Security Guards
+            // 3. Initialize Security & Keyboard Hooks
             _allowlistManager = new AllowlistManager(_config);
             _navigationGuard = new NavigationGuard(_allowlistManager);
             _frameGuard = new FrameNavigationGuard(_allowlistManager);
@@ -65,24 +86,37 @@ public sealed partial class MainPage : Page
             _downloadGuard = new DownloadGuard(_allowlistManager, _config.Security);
             _protocolGuard = new ProtocolGuard();
 
+            _keyboardHook = new KeyboardHookManager();
+            _keyboardHook.ExitRequested += (s, ev) => PromptForExitPin();
+            _keyboardHook.InstallHook();
+
             // 4. Initialize Persistence & Recovery
             _sessionStore = new SessionStore();
             var existingSession = _sessionStore.LoadActiveSession();
 
-            // 5. Initialize Network Engine
+            // 5. Initialize Network Engine & Autonomous Monitor
             _networkMonitor = new NetworkMonitor(_config, auditLogger: _auditLogger);
             _recoveryController = new RecoveryController(_networkMonitor, _config.Network, _auditLogger);
 
             _networkMonitor.StateChanged += OnNetworkStateChanged;
+            _networkMonitor.ProbeCompleted += OnNetworkProbeCompleted;
             _recoveryController.StateChanged += OnRecoveryStateChanged;
             _recoveryController.ExamResumeRequested += OnExamResumeRequested;
 
             _networkMonitor.Start();
 
-            // 6. Initialize Exam State Machine & Native Timer
+            // 5.5 Autonomous Campus Wi-Fi Auto-Connect (KLU_WIFI or lab APs)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await WifiNetworkManager.AutoConnectCampusWifiAsync();
+                }
+                catch { }
+            });
+
+            // 6. Initialize Exam State Machine
             _examStateMachine = new ExamStateMachine(_config, _sessionStore, _auditLogger, existingSession);
-            _examStateMachine.Timer.Tick += OnTimerTick;
-            _examStateMachine.Timer.TimeExpired += OnTimerExpired;
 
             // Show dev simulation toggle if configured
             if (_config.Network.EnableNetworkSimulator || string.Equals(_config.Application.Environment, "Development", StringComparison.OrdinalIgnoreCase))
@@ -104,6 +138,7 @@ public sealed partial class MainPage : Page
         PreflightProgressBar.IsIndeterminate = true;
         PreflightErrorMessage.Visibility = Visibility.Collapsed;
         PreflightRetryButton.Visibility = Visibility.Collapsed;
+        PreflightWifiButton.Visibility = Visibility.Collapsed;
 
         var checker = PreflightChecker.CreateDefault(_config, auditLogger: _auditLogger);
         var report = await checker.RunAllChecksAsync();
@@ -124,14 +159,23 @@ public sealed partial class MainPage : Page
             PfCheckAssessment.Text = "✓ Assessment platform verified";
             PfCheckAssessment.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
 
-            await Task.Delay(800); // brief institutional confirmation
+            await Task.Delay(400);
             PreflightOverlay.Visibility = Visibility.Collapsed;
 
-            await InitializeExamWebViewAsync();
+            try
+            {
+                await InitializeExamWebViewAsync();
+            }
+            catch (Exception ex)
+            {
+                _auditLogger?.Log(EventType.SECURITY_VIOLATION, "EXAM_WEBVIEW_ERROR", $"Failed to initialize ExamWebView: {ex.Message} | Stack: {ex.StackTrace}");
+                ShowNotice($"Browser initialization failed: {ex.Message}", InfoBarSeverity.Error);
+            }
         }
         else
         {
-            ShowPreflightError("One or more critical pre-flight security checks failed. Please contact the invigilator.");
+            PreflightWifiButton.Visibility = Visibility.Visible;
+            ShowPreflightError("One or more critical pre-flight security checks failed. Please connect to campus Wi-Fi or contact the invigilator.");
         }
     }
 
@@ -141,6 +185,7 @@ public sealed partial class MainPage : Page
         PreflightErrorMessage.Text = message;
         PreflightErrorMessage.Visibility = Visibility.Visible;
         PreflightRetryButton.Visibility = Visibility.Visible;
+        PreflightWifiButton.Visibility = Visibility.Visible;
     }
 
     private async void PreflightRetry_Click(object sender, RoutedEventArgs e)
@@ -153,25 +198,74 @@ public sealed partial class MainPage : Page
         if (_isExamWebViewInitialized) return;
 
         var profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", "Exam");
-        var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
+        Directory.CreateDirectory(profileDir);
 
-        await ExamWebView.EnsureCoreWebView2Async(environment);
+        Microsoft.Web.WebView2.Core.CoreWebView2Environment? environment = null;
+        try
+        {
+            environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
+            await ExamWebView.EnsureCoreWebView2Async(environment);
+        }
+        catch (Exception exInit)
+        {
+            _auditLogger?.Log(EventType.WEBVIEW_CRASH, "WEBVIEW_FALLBACK", $"Primary profile init failed: {exInit.Message}. Using isolated session directory.");
+            var fallbackDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", $"Exam_{Environment.ProcessId}");
+            Directory.CreateDirectory(fallbackDir);
+            environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, fallbackDir, null);
+            await ExamWebView.EnsureCoreWebView2Async(environment);
+        }
+
+        if (ExamWebView.CoreWebView2 == null)
+        {
+            throw new InvalidOperationException("CoreWebView2 runtime could not be initialized on ExamWebView.");
+        }
 
         var settings = ExamWebView.CoreWebView2.Settings;
-        settings.AreDevToolsEnabled = _config.Security.AllowDevTools;
-        settings.AreDefaultContextMenusEnabled = false;
-        settings.AreDefaultScriptDialogsEnabled = false;
-        settings.IsStatusBarEnabled = false;
+        if (settings != null)
+        {
+            settings.AreDevToolsEnabled = _config?.Security?.AllowDevTools ?? false;
+            settings.AreDefaultContextMenusEnabled = false;
+            settings.AreDefaultScriptDialogsEnabled = false;
+            settings.AreBrowserAcceleratorKeysEnabled = false;
+            settings.IsStatusBarEnabled = false;
+        }
+
+        // Block shortcut keys: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+P, Ctrl+S, Ctrl+U, F12
+        ExamWebView.PreviewKeyDown += (s, args) =>
+        {
+            var key = args.Key;
+            bool isCtrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+            if (isCtrl)
+            {
+                if (key is Windows.System.VirtualKey.C or Windows.System.VirtualKey.V or Windows.System.VirtualKey.X or Windows.System.VirtualKey.P or Windows.System.VirtualKey.S or Windows.System.VirtualKey.U)
+                {
+                    args.Handled = true;
+                }
+            }
+            if (key == Windows.System.VirtualKey.F12)
+            {
+                args.Handled = true;
+            }
+        };
+
+        // Suppress right-click context menu and clipboard events inside web content
+        await ExamWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
+            "document.addEventListener('contextmenu', e => e.preventDefault(), true);" +
+            "document.addEventListener('copy', e => e.preventDefault(), true);" +
+            "document.addEventListener('cut', e => e.preventDefault(), true);" +
+            "document.addEventListener('paste', e => e.preventDefault(), true);");
 
         // Attach strict security guards
         ExamWebView.CoreWebView2.NavigationStarting += ExamWebView_NavigationStarting;
+        ExamWebView.CoreWebView2.NavigationCompleted += ExamWebView_NavigationCompleted;
+        ExamWebView.CoreWebView2.SourceChanged += ExamWebView_SourceChanged;
         ExamWebView.CoreWebView2.FrameNavigationStarting += ExamWebView_FrameNavigationStarting;
         ExamWebView.CoreWebView2.NewWindowRequested += ExamWebView_NewWindowRequested;
         ExamWebView.CoreWebView2.DownloadStarting += ExamWebView_DownloadStarting;
 
         _isExamWebViewInitialized = true;
 
-        var targetUrl = _examStateMachine?.CurrentSession.LastKnownAssessmentUrl ?? _config.Exam.StartUrl;
+        var targetUrl = _examStateMachine?.CurrentSession?.LastKnownAssessmentUrl ?? _config?.Exam?.StartUrl ?? "https://www.codechef.com/";
         ExamWebView.CoreWebView2.Navigate(targetUrl);
 
         _examStateMachine?.TransitionTo(ExamState.ACTIVE);
@@ -179,13 +273,40 @@ public sealed partial class MainPage : Page
 
     private void ExamWebView_NavigationStarting(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs e)
     {
+        PageLoadingProgressBar.Visibility = Visibility.Visible;
+
         var decision = _navigationGuard?.EvaluateExamNavigation(e.Uri);
         if (decision is { IsAllowed: false })
         {
             e.Cancel = true;
+            PageLoadingProgressBar.Visibility = Visibility.Collapsed;
             _auditLogger?.Log(EventType.NAVIGATION_BLOCKED, "ACTIVE", decision.Reason, e.Uri);
             ShowNotice($"Navigation blocked: {decision.Reason}", InfoBarSeverity.Error);
         }
+    }
+
+    private void ExamWebView_NavigationCompleted(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+    {
+        PageLoadingProgressBar.Visibility = Visibility.Collapsed;
+        NavBackButton.IsEnabled = ExamWebView.CanGoBack;
+        NavForwardButton.IsEnabled = ExamWebView.CanGoForward;
+
+        if (!e.IsSuccess && e.WebErrorStatus != Microsoft.Web.WebView2.Core.CoreWebView2WebErrorStatus.OperationCanceled)
+        {
+            ExamErrorMessage.Text = $"Unable to reach assessment platform (Status: {e.WebErrorStatus}). Please ensure your campus Wi-Fi authentication is active.";
+            ExamErrorOverlay.Visibility = Visibility.Visible;
+        }
+        else if (e.IsSuccess)
+        {
+            ExamErrorOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void ExamWebView_SourceChanged(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2SourceChangedEventArgs e)
+    {
+        CurrentUrlTextBlock.Text = ExamWebView.Source?.ToString() ?? _config.Exam.StartUrl;
+        NavBackButton.IsEnabled = ExamWebView.CanGoBack;
+        NavForwardButton.IsEnabled = ExamWebView.CanGoForward;
     }
 
     private void ExamWebView_FrameNavigationStarting(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs e)
@@ -200,7 +321,7 @@ public sealed partial class MainPage : Page
 
     private void ExamWebView_NewWindowRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NewWindowRequestedEventArgs e)
     {
-        e.Handled = true; // Block popups and new tabs unconditionally
+        e.Handled = true;
         _auditLogger?.Log(EventType.POPUP_BLOCKED, "ACTIVE", "Popup or new window request suppressed.", e.Uri);
     }
 
@@ -218,39 +339,164 @@ public sealed partial class MainPage : Page
 
     private void OnNetworkStateChanged(NetworkState previousState, NetworkState newState, ProbeMatrix matrix)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(async () =>
         {
+            UpdateNetworkQualityDisplay(matrix);
+
             switch (newState)
             {
                 case NetworkState.ONLINE:
-                    NetworkStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-                    NetworkStatusTextBlock.Text = "Connected";
                     NoticeBar.IsOpen = false;
+                    ExamErrorOverlay.Visibility = Visibility.Collapsed;
+
+                    // If recovery popup is currently visible, verify and smoothly minimize to background
+                    if (RecoveryModalOverlay.Opacity > 0)
+                    {
+                        RecoveryStatusPanel.Visibility = Visibility.Visible;
+                        RecoveryStatusText.Text = "✓ Connection verified! Keeping Wi-Fi session active in background...";
+                        await Task.Delay(800);
+                        KeepRecoveryActiveInBackground();
+                        ExamWebView.Focus(FocusState.Programmatic);
+                        ShowNotice("Campus Wi-Fi session active in background. Wi-Fi connection preserved.", InfoBarSeverity.Success);
+                    }
                     break;
 
                 case NetworkState.DEGRADED:
-                    NetworkStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
-                    NetworkStatusTextBlock.Text = "Connection Unstable";
                     break;
 
                 case NetworkState.PORTAL_REQUIRED:
-                    NetworkStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
-                    NetworkStatusTextBlock.Text = "Authentication Required";
+                    // Mid-exam automatic popup: prompt student immediately without tab sifting
+                    ShowRecoveryModal(forceNavigate: true);
+                    ShowNotice("Campus Wi-Fi session expired. Please sign in below to reconnect.", InfoBarSeverity.Warning);
                     break;
 
                 case NetworkState.OFFLINE:
-                    NetworkStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
-                    NetworkStatusTextBlock.Text = "Offline";
-                    ShowNotice("Campus Wi-Fi connection lost. Searching for signal...", InfoBarSeverity.Warning);
+                    ShowNotice("Campus Wi-Fi connection lost. Searching for campus signal...", InfoBarSeverity.Warning);
+                    _ = Task.Run(async () =>
+                    {
+                        try { await WifiNetworkManager.AutoConnectCampusWifiAsync(); } catch { }
+                    });
+                    // Automatic popup to reconnect when internet is lost
+                    ShowRecoveryModal(forceNavigate: false);
                     break;
 
                 case NetworkState.ASSESSMENT_SERVICE_UNAVAILABLE:
-                    NetworkStatusDot.Fill = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
-                    NetworkStatusTextBlock.Text = "Service Unavailable";
-                    ShowNotice("Assessment service temporarily unavailable. Your session is preserved. Do not reload.", InfoBarSeverity.Warning);
+                    ShowNotice("Assessment service temporarily unavailable. Your session is preserved.", InfoBarSeverity.Warning);
                     break;
             }
         });
+    }
+
+    private void OnNetworkProbeCompleted(object? sender, ProbeMatrix matrix)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateNetworkQualityDisplay(matrix);
+        });
+    }
+
+    private void UpdateNetworkQualityDisplay(ProbeMatrix matrix)
+    {
+        var wifiInfo = WifiSignalService.GetCurrentWifiSignal();
+        if (wifiInfo.signalPercentage > 0)
+        {
+            WifiSignalTextBlock.Text = $"{wifiInfo.signalPercentage}%";
+        }
+        else if (_networkMonitor?.CurrentState == NetworkState.ONLINE)
+        {
+            WifiSignalTextBlock.Text = "Wi-Fi";
+        }
+        else
+        {
+            WifiSignalTextBlock.Text = "--%";
+        }
+
+        if (_networkMonitor?.CurrentState == NetworkState.PORTAL_REQUIRED)
+        {
+            PingTextBlock.Text = "Login Needed";
+            PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235)); // #2563EB
+            WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+            NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254)); // #BFDBFE
+            NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)); // #EFF6FF
+
+            // Tab Badge
+            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+            WifiTabBadgeText.Text = "Login Needed";
+            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255));
+            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254));
+            return;
+        }
+
+        if (_networkMonitor?.CurrentState == NetworkState.OFFLINE)
+        {
+            PingTextBlock.Text = "No Internet";
+            PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38)); // #DC2626
+            WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+            NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202)); // #FECACA
+            NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242)); // #FEF2F2
+
+            // Tab Badge
+            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+            WifiTabBadgeText.Text = "No Internet";
+            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242));
+            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202));
+            return;
+        }
+
+        long latency = matrix.Internet.LatencyMs > 0 ? matrix.Internet.LatencyMs : matrix.Gateway.LatencyMs;
+        string tier = _networkMonitor?.ConnectionSpeedTier ?? (latency < 80 ? "Fast" : latency < 250 ? "Good" : "Slow");
+
+        if (latency > 0)
+        {
+            PingTextBlock.Text = $"{latency} ms • {tier}";
+            if (latency < 80)
+            {
+                // Optimal (Green #16A34A)
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
+            }
+            else if (latency < 250)
+            {
+                // Moderate (Amber #D97706)
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 253, 230, 138));
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 251, 235));
+            }
+            else
+            {
+                // High latency (Orange #EA580C)
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 215, 170));
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 247, 237));
+            }
+
+            // Tab Badge: Active in BG
+            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+            WifiTabBadgeText.Text = $"Active in BG ({latency}ms)";
+            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
+            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
+            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+        }
+        else
+        {
+            PingTextBlock.Text = "-- ms";
+            PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
+            WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
+            NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
+            NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
+
+            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+            WifiTabBadgeText.Text = "Active in BG";
+            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
+            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
+            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+        }
     }
 
     private void OnRecoveryStateChanged(RecoveryState previousState, RecoveryState newState)
@@ -260,10 +506,7 @@ public sealed partial class MainPage : Page
             switch (newState)
             {
                 case RecoveryState.LoginRequired:
-                    RecoveryModalOverlay.Visibility = Visibility.Visible;
-                    RecoveryStatusPanel.Visibility = Visibility.Collapsed;
-                    RecoveryRetryButton.Visibility = Visibility.Collapsed;
-                    await InitializeRecoveryWebViewAsync();
+                    ShowRecoveryModal(forceNavigate: true);
                     break;
 
                 case RecoveryState.Authenticating:
@@ -272,61 +515,197 @@ public sealed partial class MainPage : Page
                     break;
 
                 case RecoveryState.ConnectionRestored:
+                case RecoveryState.ActiveInBackground:
                     RecoveryStatusPanel.Visibility = Visibility.Visible;
-                    RecoveryStatusText.Text = "Connection Restored! Returning to assessment...";
-                    await Task.Delay(1000);
-                    RecoveryModalOverlay.Visibility = Visibility.Collapsed;
+                    RecoveryStatusText.Text = "✓ Connection Restored! Keeping captive portal active in background...";
+                    await Task.Delay(800);
+                    KeepRecoveryActiveInBackground();
                     break;
 
                 case RecoveryState.RecoveryFailed:
                     RecoveryStatusPanel.Visibility = Visibility.Visible;
-                    RecoveryStatusText.Text = "Network connection could not be restored.";
+                    RecoveryStatusText.Text = "Network connection could not be restored. Please verify your credentials.";
                     RecoveryRetryButton.Visibility = Visibility.Visible;
                     break;
 
                 case RecoveryState.Hidden:
-                    RecoveryModalOverlay.Visibility = Visibility.Collapsed;
+                    KeepRecoveryActiveInBackground();
                     break;
             }
         });
     }
 
-    private async Task InitializeRecoveryWebViewAsync()
+    private void ShowRecoveryModal(bool forceNavigate = false)
+    {
+        RecoveryModalOverlay.Opacity = 1;
+        RecoveryModalOverlay.IsHitTestVisible = true;
+        Canvas.SetZIndex(RecoveryModalOverlay, 35);
+        RecoveryStatusPanel.Visibility = Visibility.Collapsed;
+
+        if (_networkMonitor?.CurrentState is NetworkState.PORTAL_REQUIRED or NetworkState.OFFLINE)
+        {
+            RecoveryModalTitle.Text = "RECONNECT INTERNET OR LOGIN TO CAMPUS WI-FI (KLU_WIFI)";
+            RecoveryModalSubtitle.Text = "No internet connection detected. Please sign in below to restore access. Your exam progress and code are safely preserved.";
+        }
+        else
+        {
+            RecoveryModalTitle.Text = "CAMPUS WI-FI SESSION (KLU_WIFI)";
+            RecoveryModalSubtitle.Text = "Campus Wi-Fi session is active in the background. Return to CodeChef whenever ready.";
+        }
+
+        UpdateTabHeaderState(isWifiTabActive: true);
+        _ = InitializeRecoveryWebViewAsync(forceNavigate);
+        StartModalConnectivityPolling();
+    }
+
+    private void KeepRecoveryActiveInBackground()
+    {
+        _modalRecoveryPollCts?.Cancel();
+        RecoveryModalOverlay.Opacity = 0;
+        RecoveryModalOverlay.IsHitTestVisible = false;
+        Canvas.SetZIndex(RecoveryModalOverlay, 0);
+
+        UpdateTabHeaderState(isWifiTabActive: false);
+        _recoveryController?.KeepActiveInBackground();
+    }
+
+    private void UpdateTabHeaderState(bool isWifiTabActive)
+    {
+        if (isWifiTabActive)
+        {
+            TabWifiPortalButton.Background = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            TabWifiPortalButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253));
+            TabWifiPortalButton.BorderThickness = new Thickness(1);
+            TabWifiTitle.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+
+            TabAssessmentButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            TabAssessmentButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            TabAssessmentButton.BorderThickness = new Thickness(0);
+            TabAssessmentText.Foreground = new SolidColorBrush(Color.FromArgb(255, 71, 85, 105));
+        }
+        else
+        {
+            TabAssessmentButton.Background = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            TabAssessmentButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253));
+            TabAssessmentButton.BorderThickness = new Thickness(1);
+            TabAssessmentText.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+
+            TabWifiPortalButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            TabWifiPortalButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            TabWifiPortalButton.BorderThickness = new Thickness(0);
+            TabWifiTitle.Foreground = new SolidColorBrush(Color.FromArgb(255, 71, 85, 105));
+        }
+    }
+
+    private async Task InitializeRecoveryWebViewAsync(bool forceNavigate = false)
     {
         if (!_isRecoveryWebViewInitialized)
         {
             var recoveryProfileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", "Recovery");
-            var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, recoveryProfileDir, null);
-
-            await RecoveryWebView.EnsureCoreWebView2Async(environment);
-
-            var settings = RecoveryWebView.CoreWebView2.Settings;
-            settings.AreDevToolsEnabled = false;
-            settings.AreDefaultContextMenusEnabled = false;
-
-            // Strict recovery allowlist guard
-            RecoveryWebView.CoreWebView2.NavigationStarting += (s, e) =>
+            Directory.CreateDirectory(recoveryProfileDir);
+            var envOptions = new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions
             {
-                var decision = _navigationGuard?.EvaluateRecoveryNavigation(e.Uri);
-                if (decision is { IsAllowed: false })
+                AdditionalBrowserArguments = "--disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion"
+            };
+
+            Microsoft.Web.WebView2.Core.CoreWebView2Environment? environment = null;
+            try
+            {
+                environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, recoveryProfileDir, envOptions);
+                await RecoveryWebView.EnsureCoreWebView2Async(environment);
+            }
+            catch (Exception exInit)
+            {
+                _auditLogger?.Log(EventType.WEBVIEW_CRASH, "RECOVERY_WEBVIEW_FALLBACK", $"Primary recovery profile failed: {exInit.Message}. Using isolated directory.");
+                var fallbackDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", $"Recovery_{Environment.ProcessId}");
+                Directory.CreateDirectory(fallbackDir);
+                environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, fallbackDir, envOptions);
+                await RecoveryWebView.EnsureCoreWebView2Async(environment);
+            }
+
+            if (RecoveryWebView.CoreWebView2 != null)
+            {
+                var settings = RecoveryWebView.CoreWebView2.Settings;
+                if (settings != null)
                 {
-                    e.Cancel = true;
-                    _auditLogger?.Log(EventType.NAVIGATION_BLOCKED, "PORTAL_RECOVERY", $"Recovery navigation blocked: {decision.Reason}", e.Uri);
+                    settings.AreDevToolsEnabled = false;
+                    settings.AreDefaultContextMenusEnabled = false;
                 }
-            };
 
-            RecoveryWebView.CoreWebView2.NewWindowRequested += (s, e) => e.Handled = true;
+                // Strict recovery allowlist guard
+                RecoveryWebView.CoreWebView2.NavigationStarting += (s, e) =>
+                {
+                    var decision = _navigationGuard?.EvaluateRecoveryNavigation(e.Uri);
+                    if (decision is { IsAllowed: false })
+                    {
+                        e.Cancel = true;
+                        _auditLogger?.Log(EventType.NAVIGATION_BLOCKED, "PORTAL_RECOVERY", $"Recovery navigation blocked: {decision.Reason}", e.Uri);
+                    }
+                };
 
-            // Detect portal login form submission
-            RecoveryWebView.CoreWebView2.WebMessageReceived += async (s, e) =>
-            {
-                await _recoveryController!.HandleCredentialsSubmittedAsync();
-            };
+                RecoveryWebView.CoreWebView2.NewWindowRequested += (s, e) => e.Handled = true;
 
-            _isRecoveryWebViewInitialized = true;
+                // Monitor navigation completion to immediately trigger connectivity probe
+                RecoveryWebView.CoreWebView2.NavigationCompleted += async (s, e) =>
+                {
+                    if (e.IsSuccess && _recoveryController != null)
+                    {
+                        await _recoveryController.HandleCredentialsSubmittedAsync();
+                    }
+                };
+
+                _isRecoveryWebViewInitialized = true;
+            }
         }
 
-        RecoveryWebView.CoreWebView2.Navigate(_config.Network.PortalUrl);
+        if (forceNavigate || RecoveryWebView.Source == null)
+        {
+            var portalUrl = _config?.Network?.PortalUrl ?? "http://172.16.103.254:8090/";
+            RecoveryWebView.CoreWebView2?.Navigate(portalUrl);
+        }
+    }
+
+    private void StartModalConnectivityPolling()
+    {
+        _modalRecoveryPollCts?.Cancel();
+        _modalRecoveryPollCts = new CancellationTokenSource();
+        var token = _modalRecoveryPollCts.Token;
+
+        Task.Run(async () =>
+        {
+            using var probe = new ConnectivityProbe();
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(1500, token);
+                    var result = await probe.ExecuteAsync(ProbeType.InternetConnectivity, "http://clients3.google.com/generate_204", 1200, token);
+                    if (result.IsSuccess)
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            KeepRecoveryActiveInBackground();
+                            WifiPortalButton.Visibility = Visibility.Collapsed;
+                            ExamErrorOverlay.Visibility = Visibility.Collapsed;
+
+                            if (_isExamWebViewInitialized)
+                            {
+                                ExamWebView.Reload();
+                            }
+                        });
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch
+                {
+                    // Continue polling
+                }
+            }
+        }, token);
     }
 
     private void OnExamResumeRequested(object? sender, EventArgs e)
@@ -336,32 +715,435 @@ public sealed partial class MainPage : Page
             ExamWebView.Focus(FocusState.Programmatic);
             _examStateMachine?.TransitionTo(ExamState.ACTIVE);
             ShowNotice("Connection verified. Examination resumed.", InfoBarSeverity.Success);
+            if (ExamErrorOverlay.Visibility == Visibility.Visible)
+            {
+                ExamErrorOverlay.Visibility = Visibility.Collapsed;
+                ExamWebView.Reload();
+            }
         });
     }
 
     private async void RecoveryRetry_Click(object sender, RoutedEventArgs e)
     {
-        if (_recoveryController != null)
+        RecoveryStatusPanel.Visibility = Visibility.Visible;
+        RecoveryStatusText.Text = "Verifying Internet connection...";
+        var state = await _networkMonitor!.TriggerImmediateProbeAsync();
+        if (state == NetworkState.ONLINE)
         {
-            await _recoveryController.HandleCredentialsSubmittedAsync();
+            RecoveryStatusText.Text = "✓ Connection Restored! Keeping session active in background...";
+            await Task.Delay(600);
+            KeepRecoveryActiveInBackground();
+            ExamErrorOverlay.Visibility = Visibility.Collapsed;
+            ExamWebView.Reload();
+            ShowNotice("Internet restored. Campus Wi-Fi session running in background.", InfoBarSeverity.Success);
+        }
+        else
+        {
+            RecoveryStatusText.Text = "Internet not yet accessible. Please sign in above or check connection.";
         }
     }
 
-    private void OnTimerTick(TimeSpan remaining, TimeSpan elapsed)
+    private void RecoveryReload_Click(object sender, RoutedEventArgs e)
+    {
+        RecoveryWebView.CoreWebView2?.Navigate(_config.Network.PortalUrl);
+    }
+
+    private void RecoveryDismiss_Click(object sender, RoutedEventArgs e)
+    {
+        KeepRecoveryActiveInBackground();
+        ShowNotice("Campus Wi-Fi session is active in the background. Exam resumed.", InfoBarSeverity.Informational);
+    }
+
+    // Tab Navigation Handlers
+    private void TabAssessment_Click(object sender, RoutedEventArgs e)
+    {
+        KeepRecoveryActiveInBackground();
+        ExamWebView.Focus(FocusState.Programmatic);
+    }
+
+    private void TabWifiPortal_Click(object sender, RoutedEventArgs e)
+    {
+        ShowRecoveryModal(forceNavigate: false);
+    }
+
+    private void WifiPortalButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowRecoveryModal(forceNavigate: false);
+    }
+
+    // Wi-Fi Network Picker Handlers
+    private WifiNetworkItem? _selectedNetworkForPassword;
+
+    private void NetworkQualityButton_Click(object sender, RoutedEventArgs e)
+    {
+        OpenWifiPicker();
+    }
+
+    private void WifiPickerOpen_Click(object sender, RoutedEventArgs e)
+    {
+        OpenWifiPicker();
+    }
+
+    private void WifiPickerClose_Click(object sender, RoutedEventArgs e)
+    {
+        WifiPickerOverlay.Visibility = Visibility.Collapsed;
+        WifiPasswordCard.Visibility = Visibility.Collapsed;
+    }
+
+    private void WifiPickerOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        WifiPickerOverlay.Visibility = Visibility.Collapsed;
+        WifiPasswordCard.Visibility = Visibility.Collapsed;
+    }
+
+    private void DialogContent_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        e.Handled = true; // Prevent click inside dialog card from dismissing modal
+    }
+
+    private async void WifiRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshWifiListAsync();
+    }
+
+    private void OpenWifiPicker()
+    {
+        WifiPickerOverlay.Visibility = Visibility.Visible;
+        WifiPasswordCard.Visibility = Visibility.Collapsed;
+        WifiConnectingBanner.Visibility = Visibility.Collapsed;
+        _ = RefreshWifiListAsync();
+    }
+
+    private async Task RefreshWifiListAsync()
+    {
+        WifiRefreshButton.IsEnabled = false;
+        WifiNetworksListPanel.Children.Clear();
+
+        var loadingRing = new ProgressRing
+        {
+            Width = 24,
+            Height = 24,
+            IsActive = true,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 24, 0, 24)
+        };
+        WifiNetworksListPanel.Children.Add(loadingRing);
+
+        var networks = await WifiNetworkManager.ScanNetworksAsync();
+
+        WifiNetworksListPanel.Children.Clear();
+        WifiRefreshButton.IsEnabled = true;
+
+        if (networks.Count == 0)
+        {
+            WifiNetworksListPanel.Children.Add(new TextBlock
+            {
+                Text = "No Wi-Fi networks found. Check your wireless adapter.",
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139)),
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 16, 0, 16)
+            });
+            return;
+        }
+
+        foreach (var net in networks)
+        {
+            WifiNetworksListPanel.Children.Add(BuildWifiNetworkCard(net));
+        }
+    }
+
+    private Border BuildWifiNetworkCard(WifiNetworkItem net)
+    {
+        var card = new Border
+        {
+            Background = net.IsConnected ? new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)) : new SolidColorBrush(Color.FromArgb(255, 248, 250, 252)),
+            BorderBrush = net.IsConnected ? new SolidColorBrush(Color.FromArgb(255, 147, 197, 253)) : new SolidColorBrush(Color.FromArgb(255, 226, 232, 240)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new FontIcon
+        {
+            Glyph = "\uE701",
+            FontSize = 14,
+            Foreground = net.IsCampusNetwork ? new SolidColorBrush(Color.FromArgb(255, 22, 163, 74)) : new SolidColorBrush(Color.FromArgb(255, 100, 116, 139)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(icon, 0);
+        grid.Children.Add(icon);
+
+        var details = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var topRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        topRow.Children.Add(new TextBlock
+        {
+            Text = net.Ssid,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 15, 23, 42))
+        });
+
+        if (net.IsCampusNetwork)
+        {
+            var campusBadge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 1, 6, 1)
+            };
+            campusBadge.Child = new TextBlock
+            {
+                Text = "Campus Wi-Fi",
+                FontSize = 10,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61))
+            };
+            topRow.Children.Add(campusBadge);
+        }
+
+        if (net.IsConnected)
+        {
+            var connectedBadge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(255, 219, 234, 254)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 1, 6, 1)
+            };
+            connectedBadge.Child = new TextBlock
+            {
+                Text = "Connected",
+                FontSize = 10,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216))
+            };
+            topRow.Children.Add(connectedBadge);
+        }
+
+        if (!net.IsOpen)
+        {
+            topRow.Children.Add(new FontIcon
+            {
+                Glyph = "\uE72E",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        details.Children.Add(topRow);
+
+        var subText = new TextBlock
+        {
+            Text = $"{net.SignalPercent}% signal \u2022 {net.SecurityDisplay}",
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139))
+        };
+        details.Children.Add(subText);
+
+        Grid.SetColumn(details, 1);
+        grid.Children.Add(details);
+
+        if (net.IsConnected)
+        {
+            var activeText = new TextBlock
+            {
+                Text = "\u2713 Active",
+                FontSize = 12,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(activeText, 2);
+            grid.Children.Add(activeText);
+        }
+        else
+        {
+            var connectBtn = new Button
+            {
+                Content = "Connect",
+                FontSize = 11,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Padding = new Thickness(12, 4, 12, 4),
+                CornerRadius = new CornerRadius(4),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            if (net.IsCampusNetwork)
+            {
+                connectBtn.Background = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+                connectBtn.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            }
+            connectBtn.Click += (s, e) => InitiateWifiConnection(net);
+
+            Grid.SetColumn(connectBtn, 2);
+            grid.Children.Add(connectBtn);
+        }
+
+        card.Child = grid;
+        return card;
+    }
+
+    private void InitiateWifiConnection(WifiNetworkItem net)
+    {
+        if (!net.IsOpen && !net.HasProfile)
+        {
+            _selectedNetworkForPassword = net;
+            WifiPasswordPromptText.Text = $"Enter password for \"{net.Ssid}\":";
+            WifiPasswordInput.Password = string.Empty;
+            WifiPasswordCard.Visibility = Visibility.Visible;
+            WifiPasswordInput.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        _ = ExecuteWifiConnectAsync(net.Ssid);
+    }
+
+    private void WifiPasswordCancel_Click(object sender, RoutedEventArgs e)
+    {
+        WifiPasswordCard.Visibility = Visibility.Collapsed;
+        _selectedNetworkForPassword = null;
+    }
+
+    private void WifiPasswordSubmit_Click(object sender, RoutedEventArgs e)
+    {
+        SubmitWifiPassword();
+    }
+
+    private void WifiPasswordInput_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            SubmitWifiPassword();
+        }
+    }
+
+    private void SubmitWifiPassword()
+    {
+        if (_selectedNetworkForPassword == null) return;
+
+        string pwd = WifiPasswordInput.Password?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(pwd)) return;
+
+        var target = _selectedNetworkForPassword.Ssid;
+        WifiPasswordCard.Visibility = Visibility.Collapsed;
+        _ = ExecuteWifiConnectAsync(target, pwd);
+    }
+
+    private async Task ExecuteWifiConnectAsync(string ssid, string? password = null)
+    {
+        WifiConnectingBanner.Visibility = Visibility.Visible;
+        WifiConnectingText.Text = $"Connecting to {ssid}...";
+
+        bool success = await WifiNetworkManager.ConnectToNetworkAsync(ssid, password);
+
+        if (success)
+        {
+            WifiConnectingText.Text = $"\u2713 Associated with {ssid}. Verifying connection...";
+            await Task.Delay(800);
+            WifiConnectingBanner.Visibility = Visibility.Collapsed;
+            WifiPickerOverlay.Visibility = Visibility.Collapsed;
+
+            ShowNotice($"Connected to {ssid}.", InfoBarSeverity.Success);
+            _ = RefreshWifiListAsync();
+
+            if (_networkMonitor != null)
+            {
+                await _networkMonitor.TriggerImmediateProbeAsync();
+            }
+        }
+        else
+        {
+            WifiConnectingBanner.Visibility = Visibility.Collapsed;
+            ShowNotice($"Failed to connect to {ssid}. Please check signal and credentials.", InfoBarSeverity.Error);
+            await RefreshWifiListAsync();
+        }
+    }
+
+    // Navigation Toolbar Event Handlers
+    private void NavBack_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExamWebView.CanGoBack) ExamWebView.GoBack();
+    }
+
+    private void NavForward_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExamWebView.CanGoForward) ExamWebView.GoForward();
+    }
+
+    private void NavRefresh_Click(object sender, RoutedEventArgs e)
+    {
+        ExamErrorOverlay.Visibility = Visibility.Collapsed;
+        ExamWebView.Reload();
+    }
+
+    private void NavHome_Click(object sender, RoutedEventArgs e)
+    {
+        ExamErrorOverlay.Visibility = Visibility.Collapsed;
+        ExamWebView.CoreWebView2?.Navigate(_config.Exam.StartUrl);
+    }
+
+    // Invigilator Exit PIN Dialog Handlers
+    private void ExitExamButton_Click(object sender, RoutedEventArgs e)
+    {
+        PromptForExitPin();
+    }
+
+    public void PromptForExitPin()
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            TimerTextBlock.Text = $"{remaining.Hours:D2}:{remaining.Minutes:D2}:{remaining.Seconds:D2}";
+            PinErrorMessage.Visibility = Visibility.Collapsed;
+            ExitPinPasswordBox.Password = string.Empty;
+            PinModalOverlay.Visibility = Visibility.Visible;
+            ExitPinPasswordBox.Focus(FocusState.Programmatic);
         });
     }
 
-    private void OnTimerExpired(object? sender, EventArgs e)
+    private void AuthorizePin_Click(object sender, RoutedEventArgs e)
     {
-        DispatcherQueue.TryEnqueue(() =>
+        ValidateAndExit();
+    }
+
+    private void ExitPinPasswordBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            TimerTextBlock.Text = "00:00:00";
-            ShowNotice("Examination time has expired. Please submit your assessment.", InfoBarSeverity.Informational);
-        });
+            ValidateAndExit();
+        }
+    }
+
+    private void ValidateAndExit()
+    {
+        var enteredPin = ExitPinPasswordBox.Password?.Trim();
+        var expectedPin = _config.Security.ExitPin ?? "123456";
+
+        if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal))
+        {
+            IsAuthorizedToExit = true;
+            _auditLogger?.Log(EventType.EXAM_COMPLETED, "EXIT", "Invigilator PIN verified. Shell exiting.");
+            _keyboardHook?.UninstallHook();
+            Application.Current.Exit();
+        }
+        else
+        {
+            PinErrorMessage.Visibility = Visibility.Visible;
+            ExitPinPasswordBox.SelectAll();
+            _auditLogger?.Log(EventType.SECURITY_VIOLATION, "PIN_REJECTED", "Invalid invigilator PIN entered.");
+        }
+    }
+
+    private void CancelPin_Click(object sender, RoutedEventArgs e)
+    {
+        PinModalOverlay.Visibility = Visibility.Collapsed;
     }
 
     private void ShowNotice(string message, InfoBarSeverity severity)
@@ -394,12 +1176,17 @@ public sealed partial class MainPage : Page
 
     private static KlyroConfiguration LoadConfiguration()
     {
-        string[] candidates = { "config/exam.json", "config/development.json", "config/default.json" };
-        foreach (var file in candidates)
+        string[] relativeCandidates = { "config/exam.json", "config/default.json", "config/development.json" };
+        foreach (var rel in relativeCandidates)
         {
-            if (File.Exists(file))
+            var fullPath = Path.Combine(AppContext.BaseDirectory, rel);
+            if (File.Exists(fullPath))
             {
-                return ConfigurationLoader.LoadFromFile(file);
+                return ConfigurationLoader.LoadFromFile(fullPath);
+            }
+            if (File.Exists(rel))
+            {
+                return ConfigurationLoader.LoadFromFile(rel);
             }
         }
         return new KlyroConfiguration();

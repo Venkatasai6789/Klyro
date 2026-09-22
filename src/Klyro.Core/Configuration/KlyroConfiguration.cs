@@ -68,13 +68,13 @@ public sealed class NetworkOptions
     public string PortalUrl { get; set; } = "http://172.16.103.254:8090/";
 
     [JsonPropertyName("probeIntervalMs")]
-    public int ProbeIntervalMs { get; set; } = 3000;
+    public int ProbeIntervalMs { get; set; } = 2000;
 
     [JsonPropertyName("probeTimeoutMs")]
     public int ProbeTimeoutMs { get; set; } = 1500;
 
     [JsonPropertyName("failureThreshold")]
-    public int FailureThreshold { get; set; } = 3;
+    public int FailureThreshold { get; set; } = 2;
 
     [JsonPropertyName("recoveryTimeoutMs")]
     public int RecoveryTimeoutMs { get; set; } = 60000;
@@ -83,6 +83,7 @@ public sealed class NetworkOptions
     public List<string> ConnectivityEndpoints { get; set; } = new()
     {
         "http://clients3.google.com/generate_204",
+        "http://www.google.com/generate_204",
         "http://www.msftconnecttest.com/connecttest.txt"
     };
 
@@ -92,6 +93,9 @@ public sealed class NetworkOptions
 
 public sealed class SecurityOptions
 {
+    [JsonPropertyName("exitPin")]
+    public string ExitPin { get; set; } = "123456";
+
     [JsonPropertyName("allowNewWindows")]
     public bool AllowNewWindows { get; set; } = false;
 
@@ -123,14 +127,28 @@ public sealed class BrowserOptions
     public List<string> AllowedOrigins { get; set; } = new()
     {
         "https://www.codechef.com",
+        "https://codechef.com",
         "https://cdn.codechef.com",
-        "https://campus.codechef.com"
+        "https://campus.codechef.com",
+        "https://discuss.codechef.com",
+        "https://accounts.google.com",
+        "https://accounts.google.co.in",
+        "https://myaccount.google.com",
+        "https://myaccount.google.co.in",
+        "https://ssl.gstatic.com",
+        "https://fonts.googleapis.com",
+        "https://fonts.gstatic.com",
+        "https://www.gstatic.com",
+        "https://apis.google.com",
+        "https://accounts.youtube.com",
+        "https://oauth2.googleapis.com"
     };
 
     [JsonPropertyName("recoveryAllowedOrigins")]
     public List<string> RecoveryAllowedOrigins { get; set; } = new()
     {
-        "http://172.16.103.254:8090"
+        "http://172.16.103.254:8090",
+        "http://172.16.103.254"
     };
 
     [JsonPropertyName("approvedDownloadOrigins")]

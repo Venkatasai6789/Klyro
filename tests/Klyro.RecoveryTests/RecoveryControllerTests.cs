@@ -17,8 +17,11 @@ public class RecoveryControllerTests
         public INetworkSimulator Simulator { get; } = new NetworkSimulator();
 
         public event NetworkStateChangedEventHandler? StateChanged;
+        public event EventHandler<ProbeMatrix>? ProbeCompleted;
 
         public NetworkState ImmediateProbeResult { get; set; } = NetworkState.ONLINE;
+        public long LastLatencyMs { get; set; } = 25;
+        public string ConnectionSpeedTier { get; set; } = "Fast";
 
         public MockNetworkMonitor()
         {
@@ -58,7 +61,7 @@ public class RecoveryControllerTests
     }
 
     [Fact]
-    public async Task HandleCredentialsSubmitted_Success_TransitionsToRestoredThenHidden_AndFiresEvent()
+    public async Task HandleCredentialsSubmitted_Success_TransitionsToRestoredThenActiveInBackground_AndFiresEvent()
     {
         var mockMonitor = new MockNetworkMonitor { ImmediateProbeResult = NetworkState.ONLINE };
         var options = new NetworkOptions { RecoveryTimeoutMs = 5000 };
@@ -73,7 +76,7 @@ public class RecoveryControllerTests
         bool success = await controller.HandleCredentialsSubmittedAsync();
 
         Assert.True(success);
-        Assert.Equal(RecoveryState.Hidden, controller.CurrentState);
+        Assert.Equal(RecoveryState.ActiveInBackground, controller.CurrentState);
         Assert.True(resumeFired);
     }
 
@@ -97,7 +100,7 @@ public class RecoveryControllerTests
     }
 
     [Fact]
-    public void SpontaneousNetworkRestoration_DismissesRecoveryOverlay()
+    public void SpontaneousNetworkRestoration_KeepsSessionActiveInBackground()
     {
         var mockMonitor = new MockNetworkMonitor();
         var options = new NetworkOptions();
@@ -112,7 +115,43 @@ public class RecoveryControllerTests
         // Network recovers spontaneously (e.g. backend DHCP re-leased)
         mockMonitor.SimulateStateChange(NetworkState.PORTAL_REQUIRED, NetworkState.ONLINE);
 
-        Assert.Equal(RecoveryState.Hidden, controller.CurrentState);
+        Assert.Equal(RecoveryState.ActiveInBackground, controller.CurrentState);
         Assert.True(resumeFired);
+    }
+
+    [Fact]
+    public void KeepActiveInBackground_TransitionsToActiveInBackground_AndFiresResume()
+    {
+        var mockMonitor = new MockNetworkMonitor();
+        var options = new NetworkOptions();
+        using var controller = new RecoveryController(mockMonitor, options);
+
+        mockMonitor.SimulateStateChange(NetworkState.ONLINE, NetworkState.PORTAL_REQUIRED);
+        Assert.Equal(RecoveryState.LoginRequired, controller.CurrentState);
+
+        bool resumeFired = false;
+        controller.ExamResumeRequested += (s, e) => resumeFired = true;
+
+        controller.KeepActiveInBackground();
+
+        Assert.Equal(RecoveryState.ActiveInBackground, controller.CurrentState);
+        Assert.True(resumeFired);
+    }
+
+    [Fact]
+    public void PortalRequired_WhenActiveInBackground_ReactivatesLoginRequired()
+    {
+        var mockMonitor = new MockNetworkMonitor();
+        var options = new NetworkOptions();
+        using var controller = new RecoveryController(mockMonitor, options);
+
+        // Session was previously active in background
+        controller.KeepActiveInBackground();
+        Assert.Equal(RecoveryState.ActiveInBackground, controller.CurrentState);
+
+        // Session lease expires in middle of exam
+        mockMonitor.SimulateStateChange(NetworkState.ONLINE, NetworkState.PORTAL_REQUIRED);
+
+        Assert.Equal(RecoveryState.LoginRequired, controller.CurrentState);
     }
 }
