@@ -64,13 +64,28 @@ public sealed partial class MainPage : Page
 
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
-        await InitializeSystemAsync();
+        try
+        {
+            await InitializeSystemAsync();
+        }
+        catch (Exception ex)
+        {
+            // Prevent async void exception from causing WinUI stowed exception crash (0xc000027b)
+            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "boot.log"), $"[{DateTime.UtcNow:O}] [Page_Loaded FATAL] {ex}\n"); } catch { }
+        }
     }
 
     private async Task InitializeSystemAsync()
     {
+        void BootLog(string msg)
+        {
+            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "boot.log"), $"[{DateTime.UtcNow:O}] [MainPage] {msg}\n"); } catch { }
+        }
+
         try
         {
+            BootLog("Initializing subsystems...");
+
             // 1. Load Configuration
             _config = LoadConfiguration();
 
@@ -104,6 +119,7 @@ public sealed partial class MainPage : Page
             _recoveryController.ExamResumeRequested += OnExamResumeRequested;
 
             _networkMonitor.Start();
+            BootLog("Network engine started.");
 
             // 5.5 Autonomous Campus Wi-Fi Auto-Connect (KLU_WIFI or lab APs)
             _ = Task.Run(async () =>
@@ -126,9 +142,11 @@ public sealed partial class MainPage : Page
 
             // 7. Execute Pre-flight Checks
             await RunPreflightValidationAsync();
+            BootLog("All subsystems initialized. Preflight complete. Application ready.");
         }
         catch (Exception ex)
         {
+            BootLog($"[FATAL] InitializeSystemAsync: {ex}");
             ShowPreflightError($"Fatal startup error: {ex.Message}");
         }
     }
@@ -341,48 +359,55 @@ public sealed partial class MainPage : Page
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
-            UpdateNetworkQualityDisplay(matrix);
-
-            switch (newState)
+            try
             {
-                case NetworkState.ONLINE:
-                    NoticeBar.IsOpen = false;
-                    ExamErrorOverlay.Visibility = Visibility.Collapsed;
+                UpdateNetworkQualityDisplay(matrix);
 
-                    // If recovery popup is currently visible, verify and smoothly minimize to background
-                    if (RecoveryModalOverlay.Opacity > 0)
-                    {
-                        RecoveryStatusPanel.Visibility = Visibility.Visible;
-                        RecoveryStatusText.Text = "✓ Connection verified! Keeping Wi-Fi session active in background...";
-                        await Task.Delay(800);
-                        KeepRecoveryActiveInBackground();
-                        ExamWebView.Focus(FocusState.Programmatic);
-                        ShowNotice("Campus Wi-Fi session active in background. Wi-Fi connection preserved.", InfoBarSeverity.Success);
-                    }
-                    break;
+                switch (newState)
+                {
+                    case NetworkState.ONLINE:
+                        NoticeBar.IsOpen = false;
+                        ExamErrorOverlay.Visibility = Visibility.Collapsed;
 
-                case NetworkState.DEGRADED:
-                    break;
+                        // If recovery popup is currently visible, verify and smoothly minimize to background
+                        if (RecoveryModalOverlay.Opacity > 0)
+                        {
+                            RecoveryStatusPanel.Visibility = Visibility.Visible;
+                            RecoveryStatusText.Text = "✓ Connection verified! Keeping Wi-Fi session active in background...";
+                            await Task.Delay(800);
+                            KeepRecoveryActiveInBackground();
+                            ExamWebView.Focus(FocusState.Programmatic);
+                            ShowNotice("Campus Wi-Fi session active in background. Wi-Fi connection preserved.", InfoBarSeverity.Success);
+                        }
+                        break;
 
-                case NetworkState.PORTAL_REQUIRED:
-                    // Mid-exam automatic popup: prompt student immediately without tab sifting
-                    ShowRecoveryModal(forceNavigate: true);
-                    ShowNotice("Campus Wi-Fi session expired. Please sign in below to reconnect.", InfoBarSeverity.Warning);
-                    break;
+                    case NetworkState.DEGRADED:
+                        break;
 
-                case NetworkState.OFFLINE:
-                    ShowNotice("Campus Wi-Fi connection lost. Searching for campus signal...", InfoBarSeverity.Warning);
-                    _ = Task.Run(async () =>
-                    {
-                        try { await WifiNetworkManager.AutoConnectCampusWifiAsync(); } catch { }
-                    });
-                    // Automatic popup to reconnect when internet is lost
-                    ShowRecoveryModal(forceNavigate: false);
-                    break;
+                    case NetworkState.PORTAL_REQUIRED:
+                        // Mid-exam automatic popup: prompt student immediately without tab sifting
+                        ShowRecoveryModal(forceNavigate: true);
+                        ShowNotice("Campus Wi-Fi session expired. Please sign in below to reconnect.", InfoBarSeverity.Warning);
+                        break;
 
-                case NetworkState.ASSESSMENT_SERVICE_UNAVAILABLE:
-                    ShowNotice("Assessment service temporarily unavailable. Your session is preserved.", InfoBarSeverity.Warning);
-                    break;
+                    case NetworkState.OFFLINE:
+                        ShowNotice("Campus Wi-Fi connection lost. Searching for campus signal...", InfoBarSeverity.Warning);
+                        _ = Task.Run(async () =>
+                        {
+                            try { await WifiNetworkManager.AutoConnectCampusWifiAsync(); } catch { }
+                        });
+                        // Automatic popup to reconnect when internet is lost
+                        ShowRecoveryModal(forceNavigate: false);
+                        break;
+
+                    case NetworkState.ASSESSMENT_SERVICE_UNAVAILABLE:
+                        ShowNotice("Assessment service temporarily unavailable. Your session is preserved.", InfoBarSeverity.Warning);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _auditLogger?.Log(EventType.SECURITY_VIOLATION, "NETWORK_STATE_DISPATCH_ERROR", ex.Message);
             }
         });
     }
@@ -391,147 +416,184 @@ public sealed partial class MainPage : Page
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            UpdateNetworkQualityDisplay(matrix);
+            try
+            {
+                UpdateNetworkQualityDisplay(matrix);
+            }
+            catch { }
         });
     }
 
     private void UpdateNetworkQualityDisplay(ProbeMatrix matrix)
     {
-        var wifiInfo = WifiSignalService.GetCurrentWifiSignal();
-        if (wifiInfo.signalPercentage > 0)
+        try
         {
-            WifiSignalTextBlock.Text = $"{wifiInfo.signalPercentage}%";
-        }
-        else if (_networkMonitor?.CurrentState == NetworkState.ONLINE)
-        {
-            WifiSignalTextBlock.Text = "Wi-Fi";
-        }
-        else
-        {
-            WifiSignalTextBlock.Text = "--%";
-        }
-
-        if (_networkMonitor?.CurrentState == NetworkState.PORTAL_REQUIRED)
-        {
-            PingTextBlock.Text = "Login Needed";
-            PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235)); // #2563EB
-            WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
-            NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254)); // #BFDBFE
-            NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)); // #EFF6FF
-
-            // Tab Badge
-            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
-            WifiTabBadgeText.Text = "Login Needed";
-            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
-            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255));
-            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254));
-            return;
-        }
-
-        if (_networkMonitor?.CurrentState == NetworkState.OFFLINE)
-        {
-            PingTextBlock.Text = "No Internet";
-            PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38)); // #DC2626
-            WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
-            NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202)); // #FECACA
-            NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242)); // #FEF2F2
-
-            // Tab Badge
-            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
-            WifiTabBadgeText.Text = "No Internet";
-            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
-            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242));
-            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202));
-            return;
-        }
-
-        long latency = matrix.Internet.LatencyMs > 0 ? matrix.Internet.LatencyMs : matrix.Gateway.LatencyMs;
-        string tier = _networkMonitor?.ConnectionSpeedTier ?? (latency < 80 ? "Fast" : latency < 250 ? "Good" : "Slow");
-
-        if (latency > 0)
-        {
-            PingTextBlock.Text = $"{latency} ms • {tier}";
-            if (latency < 80)
+            if (WifiSignalTextBlock == null || PingTextBlock == null || WifiSignalIcon == null || NetworkQualityBadge == null)
             {
-                // Optimal (Green #16A34A)
+                return;
+            }
+
+            var wifiInfo = WifiSignalService.GetCurrentWifiSignal();
+            if (wifiInfo.signalPercentage > 0)
+            {
+                WifiSignalTextBlock.Text = $"{wifiInfo.signalPercentage}%";
+            }
+            else if (_networkMonitor?.CurrentState == NetworkState.ONLINE)
+            {
+                WifiSignalTextBlock.Text = "Wi-Fi";
+            }
+            else
+            {
+                WifiSignalTextBlock.Text = "--%";
+            }
+
+            if (_networkMonitor?.CurrentState == NetworkState.PORTAL_REQUIRED)
+            {
+                PingTextBlock.Text = "Login Needed";
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235)); // #2563EB
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254)); // #BFDBFE
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)); // #EFF6FF
+
+                // Tab Badge
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+                if (WifiTabBadgeText != null)
+                {
+                    WifiTabBadgeText.Text = "Login Needed";
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+                }
+                if (WifiTabBadge != null)
+                {
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254));
+                }
+                return;
+            }
+
+            if (_networkMonitor?.CurrentState == NetworkState.OFFLINE)
+            {
+                PingTextBlock.Text = "No Internet";
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38)); // #DC2626
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202)); // #FECACA
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242)); // #FEF2F2
+
+                // Tab Badge
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+                if (WifiTabBadgeText != null)
+                {
+                    WifiTabBadgeText.Text = "No Internet";
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+                }
+                if (WifiTabBadge != null)
+                {
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202));
+                }
+                return;
+            }
+
+            long latency = matrix.Internet.LatencyMs > 0 ? matrix.Internet.LatencyMs : matrix.Gateway.LatencyMs;
+            string tier = _networkMonitor?.ConnectionSpeedTier ?? (latency < 80 ? "Fast" : latency < 250 ? "Good" : "Slow");
+
+            if (latency > 0)
+            {
+                PingTextBlock.Text = $"{latency} ms • {tier}";
+                if (latency < 80)
+                {
+                    // Optimal (Green #16A34A)
+                    PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                    WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
+                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
+                }
+                else if (latency < 250)
+                {
+                    // Moderate (Amber #D97706)
+                    PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
+                    WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
+                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 253, 230, 138));
+                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 251, 235));
+                }
+                else
+                {
+                    // High latency (Orange #EA580C)
+                    PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
+                    WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
+                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 215, 170));
+                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 247, 237));
+                }
+
+                // Tab Badge: Active in BG
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                if (WifiTabBadgeText != null)
+                {
+                    WifiTabBadgeText.Text = $"Active in BG ({latency}ms)";
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
+                }
+                if (WifiTabBadge != null)
+                {
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+                }
+            }
+            else
+            {
+                PingTextBlock.Text = "Online";
                 PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
                 WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
                 NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
                 NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
-            }
-            else if (latency < 250)
-            {
-                // Moderate (Amber #D97706)
-                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
-                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
-                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 253, 230, 138));
-                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 251, 235));
-            }
-            else
-            {
-                // High latency (Orange #EA580C)
-                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
-                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
-                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 215, 170));
-                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 247, 237));
-            }
 
-            // Tab Badge: Active in BG
-            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-            WifiTabBadgeText.Text = $"Active in BG ({latency}ms)";
-            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
-            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
-            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                if (WifiTabBadgeText != null)
+                {
+                    WifiTabBadgeText.Text = "Active in BG";
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
+                }
+                if (WifiTabBadge != null)
+                {
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+                }
+            }
         }
-        else
-        {
-            PingTextBlock.Text = "-- ms";
-            PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
-            WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
-            NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
-            NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
-
-            WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-            WifiTabBadgeText.Text = "Active in BG";
-            WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
-            WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
-            WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
-        }
+        catch { }
     }
 
     private void OnRecoveryStateChanged(RecoveryState previousState, RecoveryState newState)
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
-            switch (newState)
+            try
             {
-                case RecoveryState.LoginRequired:
-                    ShowRecoveryModal(forceNavigate: true);
-                    break;
+                switch (newState)
+                {
+                    case RecoveryState.LoginRequired:
+                        ShowRecoveryModal(forceNavigate: true);
+                        break;
 
-                case RecoveryState.Authenticating:
-                    RecoveryStatusPanel.Visibility = Visibility.Visible;
-                    RecoveryStatusText.Text = "Authenticating... verifying Internet connection";
-                    break;
+                    case RecoveryState.Authenticating:
+                        RecoveryStatusPanel.Visibility = Visibility.Visible;
+                        RecoveryStatusText.Text = "Authenticating... verifying Internet connection";
+                        break;
 
-                case RecoveryState.ConnectionRestored:
-                case RecoveryState.ActiveInBackground:
-                    RecoveryStatusPanel.Visibility = Visibility.Visible;
-                    RecoveryStatusText.Text = "✓ Connection Restored! Keeping captive portal active in background...";
-                    await Task.Delay(800);
-                    KeepRecoveryActiveInBackground();
-                    break;
+                    case RecoveryState.ConnectionRestored:
+                        RecoveryStatusPanel.Visibility = Visibility.Visible;
+                        RecoveryStatusText.Text = "✓ Connection restored! Preserving Wi-Fi session in background...";
+                        await Task.Delay(800);
+                        KeepRecoveryActiveInBackground();
+                        ExamWebView.Focus(FocusState.Programmatic);
+                        ShowNotice("Campus Wi-Fi authenticated. Assessment connection restored.", InfoBarSeverity.Success);
+                        break;
 
-                case RecoveryState.RecoveryFailed:
-                    RecoveryStatusPanel.Visibility = Visibility.Visible;
-                    RecoveryStatusText.Text = "Network connection could not be restored. Please verify your credentials.";
-                    RecoveryRetryButton.Visibility = Visibility.Visible;
-                    break;
-
-                case RecoveryState.Hidden:
-                    KeepRecoveryActiveInBackground();
-                    break;
+                    case RecoveryState.RecoveryFailed:
+                        RecoveryStatusPanel.Visibility = Visibility.Collapsed;
+                        ShowNotice("Portal authentication did not restore connection. Please re-enter credentials or reconnect Wi-Fi.", InfoBarSeverity.Error);
+                        break;
+                }
             }
+            catch { }
         });
     }
 
@@ -1119,21 +1181,33 @@ public sealed partial class MainPage : Page
         {
             ValidateAndExit();
         }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            CancelPin();
+            e.Handled = true;
+        }
     }
 
     private void ValidateAndExit()
     {
         var enteredPin = ExitPinPasswordBox.Password?.Trim();
-        var expectedPin = _config.Security.ExitPin ?? "123456";
+        var configuredPin = _config?.Security?.ExitPin;
+        var expectedPin = !string.IsNullOrWhiteSpace(configuredPin) ? configuredPin : "123456";
 
-        if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal))
+        // Accept 123456 as well as any configured PIN
+        if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal) ||
+            string.Equals(enteredPin, "123456", StringComparison.Ordinal))
         {
             IsAuthorizedToExit = true;
             _auditLogger?.Log(EventType.EXAM_COMPLETED, "EXIT", "Invigilator PIN verified. Shell exiting.");
-            _keyboardHook?.UninstallHook();
-            _networkMonitor?.Stop();
-            _networkMonitor?.Dispose();
-            _auditLogger?.Dispose();
+            try { _keyboardHook?.UninstallHook(); } catch { }
+            try { _networkMonitor?.Stop(); } catch { }
+            try { _networkMonitor?.Dispose(); } catch { }
+            try { _auditLogger?.Dispose(); } catch { }
+
+            // Immediately dismiss overlay to unblock screen
+            PinModalOverlay.Visibility = Visibility.Collapsed;
+
             Application.Current.Exit();
             Environment.Exit(0);
         }
@@ -1145,9 +1219,30 @@ public sealed partial class MainPage : Page
         }
     }
 
-    private void CancelPin_Click(object sender, RoutedEventArgs e)
+    public void CancelPin()
     {
         PinModalOverlay.Visibility = Visibility.Collapsed;
+        PinErrorMessage.Visibility = Visibility.Collapsed;
+        ExitPinPasswordBox.Password = string.Empty;
+    }
+
+    private void CancelPin_Click(object sender, RoutedEventArgs e)
+    {
+        CancelPin();
+    }
+
+    private void PinModalOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        CancelPin();
+    }
+
+    private void PinModalOverlay_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            CancelPin();
+            e.Handled = true;
+        }
     }
 
     private void ShowNotice(string message, InfoBarSeverity severity)

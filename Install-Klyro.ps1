@@ -11,7 +11,7 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  Installing Klyro Secure Assessment Browser              " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
 $installDir = "C:\Klyro"
 $exePath = Join-Path $installDir "Klyro.App.exe"
 
@@ -22,7 +22,7 @@ $projPath = Join-Path $PSScriptRoot "src\Klyro.App\Klyro.App.csproj"
 & $dotnet publish $projPath -c Debug -r win-x64 -p:Platform=x64 --self-contained true
 
 if (-not (Test-Path $sourcePublish)) {
-    $sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+    $sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
 }
 
 # 2. Deploy to Installation Directory

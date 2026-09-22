@@ -21,6 +21,7 @@ namespace Klyro_App;
 /// </summary>
 public partial class App : Application
 {
+    private static App? _instance;
     private Window? _window;
     
     /// <summary>
@@ -29,17 +30,52 @@ public partial class App : Application
     /// </summary>
     public App()
     {
+        _instance = this;
         InitializeComponent();
+
+        // Prevent WinUI from calling RoFailFastWithErrorContext on internal XAML errors
+        // This is the primary defense against 0xc000027b (STATUS_STOWED_EXCEPTION) crashes
+        try { DebugSettings.FailFastOnErrors = false; } catch { }
 
         UnhandledException += (sender, e) =>
         {
             try
             {
-                var crashFile = System.IO.Path.Combine(System.AppContext.BaseDirectory, "crash.log");
-                System.IO.File.AppendAllText(crashFile, $"[{DateTime.UtcNow:O}] [UnhandledException] {e.Message}\n{e.Exception}\n");
+                var baseDir = System.AppContext.BaseDirectory;
+                var crashFile = System.IO.Path.Combine(baseDir, "crash.log");
+                var bootLog = System.IO.Path.Combine(baseDir, "boot.log");
+                var msg = $"[{DateTime.UtcNow:O}] [WinUI UnhandledException] Message: {e.Message}\nException: {e.Exception}\nStackTrace: {e.Exception?.StackTrace}\n";
+                System.IO.File.AppendAllText(crashFile, msg);
+                System.IO.File.AppendAllText(bootLog, msg);
             }
             catch { }
+
+            // Mark handled to prevent WinRT fail-fast stowed exception (0xc000027b)
+            e.Handled = true;
         };
+    }
+
+    /// <summary>
+    /// Brings the active MainWindow to the foreground when a secondary launch is detected.
+    /// </summary>
+    public static void BringToFront()
+    {
+        var win = _instance?._window;
+        if (win == null) return;
+
+        win.DispatcherQueue?.TryEnqueue(() =>
+        {
+            try
+            {
+                win.Activate();
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(win);
+                if (hWnd != IntPtr.Zero)
+                {
+                    Program.RestoreAndActivateWindow(hWnd);
+                }
+            }
+            catch { }
+        });
     }
 
     /// <summary>
@@ -48,15 +84,20 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        string bootLog = System.IO.Path.Combine(System.AppContext.BaseDirectory, "boot.log");
         try
         {
+            System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] OnLaunched: Creating MainWindow...\n");
             _window = new MainWindow();
+            System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] OnLaunched: Activating MainWindow...\n");
             _window.Activate();
+            System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] OnLaunched: MainWindow activated successfully.\n");
         }
         catch (Exception ex)
         {
             var crashFile = System.IO.Path.Combine(System.AppContext.BaseDirectory, "crash.log");
             System.IO.File.AppendAllText(crashFile, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
+            System.IO.File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
             throw;
         }
     }

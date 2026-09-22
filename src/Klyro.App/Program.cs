@@ -10,10 +10,20 @@ namespace Klyro_App;
 public static class Program
 {
     public const string WindowTitle = "Klyro Secure Assessment Browser";
-    private static Mutex? _singleInstanceMutex;
+    private const string MutexName = @"Local\Klyro_Secure_Assessment_Browser_SingleInstance";
+    private const string ActivateEventName = @"Local\Klyro_Secure_Assessment_Browser_ActivateEvent";
 
-    [DllImport("user32.dll", EntryPoint = "FindWindow", CharSet = CharSet.Auto)]
-    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+    private static Mutex? _singleInstanceMutex;
+    private static EventWaitHandle? _activationEvent;
+    private static volatile bool _isExiting;
+
+    // WER: Disable Windows Error Reporting crash dialogs to prevent 0xc000027b terminations
+    [DllImport("kernel32.dll")]
+    private static extern uint SetErrorMode(uint uMode);
+
+    private const uint SEM_FAILCRITICALERRORS = 0x0001;
+    private const uint SEM_NOGPFAULTERRORBOX = 0x0002;
+    private const uint SEM_NOOPENFILEERRORBOX = 0x8000;
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -23,103 +33,200 @@ public static class Program
 
     private const int SW_RESTORE = 9;
 
+    public static void RestoreAndActivateWindow(IntPtr hWnd)
+    {
+        if (hWnd != IntPtr.Zero)
+        {
+            try
+            {
+                ShowWindow(hWnd, SW_RESTORE);
+                SetForegroundWindow(hWnd);
+            }
+            catch { }
+        }
+    }
+
+    private static void Log(string message)
+    {
+        try
+        {
+            var logPath = Path.Combine(AppContext.BaseDirectory, "boot.log");
+            File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] {message}\n");
+        }
+        catch { }
+    }
+
     [System.STAThread]
     public static void Main(string[] args)
     {
-        string logPath = Path.Combine(AppContext.BaseDirectory, "boot.log");
+        // Suppress WER crash dialogs and native GPF error boxes at the OS level
+        SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+
+        Log($"Main entered. PID: {Environment.ProcessId}. Args: {string.Join(" ", args)}");
+
         try
         {
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
             {
-                try { File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [AppDomain Unhandled] {e.ExceptionObject}\n"); } catch { }
+                Log($"[AppDomain Unhandled] {e.ExceptionObject}");
             };
             AppDomain.CurrentDomain.ProcessExit += (s, e) =>
             {
-                try { File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [ProcessExit] StackTrace:\n{Environment.StackTrace}\n"); } catch { }
+                _isExiting = true;
+                Log($"[ProcessExit] PID: {Environment.ProcessId}");
+            };
+            AppDomain.CurrentDomain.FirstChanceException += (s, e) =>
+            {
+                // Log critical first-chance exceptions that could cause WinUI stowed exception crashes.
+                // Filter to reduce noise — only log exceptions from WinUI / XAML / COM internals.
+                var ex = e.Exception;
+                if (ex is System.Runtime.InteropServices.COMException ||
+                    ex is InvalidOperationException ||
+                    ex is AccessViolationException ||
+                    ex is NullReferenceException)
+                {
+                    Log($"[FirstChance] {ex.GetType().Name}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+                }
             };
             System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, e) =>
             {
-                try { File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [UnobservedTaskException] {e.Exception}\n"); } catch { }
+                Log($"[UnobservedTaskException] {e.Exception}");
+                e.SetObserved();
             };
 
-            // 1. Single-Instance Check & Zombie Process Cleanup
-            const string mutexName = "Global\\Klyro_Secure_Assessment_Browser_SingleInstance";
+            // 1. Single-Instance Check via Mutex & EventWaitHandle
             bool isNewInstance = false;
             try
             {
-                _singleInstanceMutex = new Mutex(true, mutexName, out isNewInstance);
+                _singleInstanceMutex = new Mutex(true, MutexName, out isNewInstance);
             }
             catch (AbandonedMutexException)
             {
+                Log("Acquired abandoned single-instance mutex. Proceeding as primary instance.");
                 isNewInstance = true;
             }
-            catch
+            catch (Exception exMutex)
             {
+                Log($"Mutex check encountered exception: {exMutex.Message}. Proceeding as new instance.");
                 isNewInstance = true;
             }
 
             if (!isNewInstance)
             {
-                // Check if an existing visible window exists
-                IntPtr existingHwnd = FindWindow(null, WindowTitle);
-                if (existingHwnd != IntPtr.Zero)
+                var current = Process.GetCurrentProcess();
+                var others = Process.GetProcessesByName(current.ProcessName)
+                    .Where(p => p.Id != current.Id)
+                    .ToList();
+
+                if (others.Count > 0)
                 {
-                    ShowWindow(existingHwnd, SW_RESTORE);
-                    SetForegroundWindow(existingHwnd);
+                    Log($"Secondary instance detected running primary process (PID {others[0].Id}). Signaling activation event...");
+                    try
+                    {
+                        if (EventWaitHandle.TryOpenExisting(ActivateEventName, out var existingEvent))
+                        {
+                            existingEvent.Set();
+                            existingEvent.Dispose();
+                            Log("Primary instance signaled to activate window. Exiting secondary instance cleanly.");
+                        }
+                        else
+                        {
+                            Log("Could not open activation event. Exiting secondary instance.");
+                        }
+                    }
+                    catch (Exception exSignal)
+                    {
+                        Log($"Activation signaling failed: {exSignal.Message}. Exiting secondary instance.");
+                    }
+
                     return;
                 }
-
-                // If no visible window exists, terminate orphaned background zombie processes
-                try
+                else
                 {
-                    var current = Process.GetCurrentProcess();
-                    var zombies = Process.GetProcessesByName(current.ProcessName)
-                        .Where(p => p.Id != current.Id)
-                        .ToList();
+                    Log("Mutex was held but no other active process was found. Continuing as primary instance.");
+                }
+            }
 
-                    foreach (var z in zombies)
+            // 2. Initialize Activation Listener Event
+            try
+            {
+                _activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
+                var listener = new Thread(() =>
+                {
+                    while (!_isExiting)
                     {
                         try
                         {
-                            z.Kill(entireProcessTree: true);
-                            z.WaitForExit(1000);
+                            if (_activationEvent.WaitOne(1000))
+                            {
+                                if (_isExiting) break;
+                                Log("Activation signal received from secondary instance. Bringing window to front.");
+                                App.BringToFront();
+                            }
                         }
                         catch { }
                     }
-                }
-                catch { }
+                })
+                {
+                    IsBackground = true,
+                    Name = "Klyro_SingleInstance_Listener"
+                };
+                listener.Start();
+            }
+            catch (Exception exEvent)
+            {
+                Log($"Failed to register activation event listener: {exEvent.Message}");
             }
 
-            File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] 1. Main entered. Args: {string.Join(" ", args)}\n");
-            
+            // Production heartbeat: logs every 60s for health monitoring and crash post-mortem
+            var heartbeat = new Thread(() =>
+            {
+                int tick = 0;
+                while (!_isExiting)
+                {
+                    try { Thread.Sleep(60_000); } catch { break; }
+                    tick++;
+                    var mem = GC.GetTotalMemory(false) / (1024 * 1024);
+                    Log($"[Heartbeat] #{tick} PID:{Environment.ProcessId} ManagedMB:{mem} Threads:{Process.GetCurrentProcess().Threads.Count}");
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "Klyro_Heartbeat"
+            };
+            heartbeat.Start();
+
+            Log("Initializing WinRT ComWrappers...");
             WinRT.ComWrappersSupport.InitializeComWrappers();
-            File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] 2. ComWrappers initialized.\n");
+            Log("ComWrappers initialized successfully.");
 
             Microsoft.UI.Xaml.Application.Start((p) =>
             {
                 try
                 {
-                    File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] 3. Inside Application.Start\n");
+                    Log("Inside Application.Start: setting synchronization context...");
                     var context = new Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
                     System.Threading.SynchronizationContext.SetSynchronizationContext(context);
                     new App();
-                    File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] 4. App instantiated successfully.\n");
+                    Log("App instantiated successfully.");
                 }
                 catch (Exception exStart)
                 {
-                    File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [Application.Start callback Exception] {exStart}\n");
+                    Log($"[Application.Start callback Exception] {exStart}");
                 }
             });
 
-            File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] 5. Application.Start returned normally.\n");
+            Log("Application.Start returned normally.");
         }
         catch (Exception ex)
         {
-            File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [Fatal Main Exception] {ex}\n");
+            Log($"[Fatal Main Exception] {ex}");
         }
         finally
         {
-            _singleInstanceMutex?.Dispose();
+            _isExiting = true;
+            try { _activationEvent?.Dispose(); } catch { }
+            try { _singleInstanceMutex?.Dispose(); } catch { }
         }
     }
 }

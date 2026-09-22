@@ -7,6 +7,7 @@
     xmlns:local="using:Klyro_App"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Loaded="Page_Loaded"
+    RequestedTheme="Light"
     mc:Ignorable="d">
 
     <Grid Background="#F8FAFC">
@@ -125,11 +126,16 @@
                 </Button>
 
                 <!-- Exit Assessment Button (Requires Invigilator PIN) -->
-                <Button x:Name="ExitExamButton" Click="ExitExamButton_Click" Background="#FEF2F2" BorderBrush="#FECACA" Foreground="#DC2626" FontSize="12" FontWeight="Bold" Padding="12,6" CornerRadius="6" VerticalAlignment="Center">
+                <Button x:Name="ExitExamButton" Click="ExitExamButton_Click" Background="#FEF2F2" BorderBrush="#FECACA" Foreground="#DC2626" FontSize="12" FontWeight="Bold" Padding="12,6" CornerRadius="6" VerticalAlignment="Center" ToolTipService.ToolTip="Exit Examination (Requires PIN)">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE7E8;" FontSize="12" Foreground="#DC2626" VerticalAlignment="Center" />
                         <TextBlock Text="Exit Exam" Foreground="#DC2626" VerticalAlignment="Center" />
                     </StackPanel>
+                </Button>
+
+                <!-- Quick Close Button in Header -->
+                <Button x:Name="HeaderCloseButton" Click="ExitExamButton_Click" ToolTipService.ToolTip="Close Examination (Requires PIN)" Width="34" Height="34" Padding="0" Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1" CornerRadius="6" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="#DC2626" />
                 </Button>
             </StackPanel>
 
@@ -339,22 +345,114 @@
             </Grid>
 
             <!-- Invigilator Exit PIN Dialog Modal Overlay -->
-            <Grid x:Name="PinModalOverlay" Background="#990F172A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="50">
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Width="440" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Grid x:Name="PinModalOverlay" Background="#990F172A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="50" Tapped="PinModalOverlay_Tapped" KeyDown="PinModalOverlay_KeyDown">
+                <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="12" Width="460" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
                     <StackPanel Spacing="16">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="INVIGILATOR AUTHORIZATION" FontSize="17" FontWeight="Bold" Foreground="#0F172A" />
-                            <TextBlock Text="Enter the 6-digit invigilator PIN to close or exit the examination browser." FontSize="13" Foreground="#64748B" TextWrapping="Wrap" />
+                        <!-- Header with Close Arrow and Title -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Close / Back Arrow Button -->
+                            <Button x:Name="PinCloseArrowButton"
+                                    Grid.Column="0"
+                                    Click="CancelPin_Click"
+                                    ToolTipService.ToolTip="Close PIN dialog and return to exam"
+                                    Width="36" Height="36"
+                                    Padding="0"
+                                    CornerRadius="8"
+                                    Background="#F1F5F9"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE72B;" FontSize="14" Foreground="#1E293B" />
+                            </Button>
+
+                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="INVIGILATOR AUTHORIZATION" FontSize="16" FontWeight="Bold" Foreground="#0F172A" />
+                                <TextBlock Text="Enter invigilator PIN to close or exit the exam." FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <!-- Close 'X' Button -->
+                            <Button x:Name="PinCloseXButton"
+                                    Grid.Column="2"
+                                    Click="CancelPin_Click"
+                                    ToolTipService.ToolTip="Close"
+                                    Width="36" Height="36"
+                                    Padding="0"
+                                    CornerRadius="8"
+                                    Background="#F1F5F9"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="#475569" />
+                            </Button>
+                        </Grid>
+
+                        <Border Height="1" Background="#F1F5F9" Margin="-4,0" />
+
+                        <!-- PIN Input Field -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Invigilator PIN:" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" />
+                            <PasswordBox x:Name="ExitPinPasswordBox"
+                                         PlaceholderText="Enter PIN (123456)"
+                                         MaxLength="12"
+                                         FontSize="16"
+                                         Height="42"
+                                         Background="#F8FAFC"
+                                         Foreground="#0F172A"
+                                         BorderBrush="#94A3B8"
+                                         BorderThickness="1"
+                                         CornerRadius="6"
+                                         Padding="12,8"
+                                         HorizontalAlignment="Stretch"
+                                         KeyDown="ExitPinPasswordBox_KeyDown" />
+                            <TextBlock Text="Default invigilator PIN: 123456" FontSize="11" Foreground="#64748B" Margin="2,0,0,0" />
                         </StackPanel>
 
-                        <PasswordBox x:Name="ExitPinPasswordBox" PlaceholderText="Enter 6-digit PIN" MaxLength="10" FontSize="16" KeyDown="ExitPinPasswordBox_KeyDown" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
-
+                        <!-- Error Message -->
                         <TextBlock x:Name="PinErrorMessage" Text="Invalid Invigilator PIN. Examination remains locked." Foreground="#DC2626" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" />
 
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,12,0,0">
-                            <Button Content="Cancel" Click="CancelPin_Click" />
-                            <Button Content="Authorize &amp; Exit" Click="AuthorizePin_Click" Style="{StaticResource AccentButtonStyle}" Background="#DC2626" BorderBrush="#DC2626" />
-                        </StackPanel>
+                        <!-- Action Buttons -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="CancelPinButton"
+                                    Grid.Column="1"
+                                    Content="Cancel &amp; Return"
+                                    Click="CancelPin_Click"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="#334155"
+                                    Background="#F1F5F9"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="16,8"
+                                    Margin="0,0,10,0" />
+
+                            <Button x:Name="AuthorizePinButton"
+                                    Grid.Column="2"
+                                    Click="AuthorizePin_Click"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Background="#DC2626"
+                                    BorderBrush="#DC2626"
+                                    CornerRadius="6"
+                                    Padding="18,8">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE7E8;" FontSize="12" Foreground="#FFFFFF" />
+                                    <TextBlock Text="Authorize &amp; Exit" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </Grid>
