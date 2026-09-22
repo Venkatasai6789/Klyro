@@ -24,10 +24,12 @@ public static class Program
             switch (command)
             {
                 case "diagnostics":
+                case "diagnose":
                 case "--diag":
                     return await RunDiagnosticsAsync();
 
                 case "validate-config":
+                case "validate":
                     string configPath = args.Length > 1 ? args[1] : "config/default.json";
                     return ValidateConfig(configPath);
 

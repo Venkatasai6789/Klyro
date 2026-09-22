@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SiPolicy xmlns="urn:schemas-microsoft-com:sipolicy" PolicyType="Base Policy">
+  <VersionEx>10.0.0.1</VersionEx>
+  <PolicyTypeID>{A571B3E0-9852-4F1E-8B77-9E4582E51D34}</PolicyTypeID>
+  <PlatformID>{2E07F7E4-194C-4D20-B7C9-6F44A6599A33}</PlatformID>
+  <Rules>
+    <Rule>
+      <Option>Enabled:UMCI</Option>
+    </Rule>
+    <Rule>
+      <Option>Enabled:Inherit Default Policy</Option>
+    </Rule>
+    <Rule>
+      <Option>Required:WHQL</Option>
+    </Rule>
+    <Rule>
+      <Option>Enabled:Update Policy No Reboot</Option>
+    </Rule>
+    <Rule>
+      <Option>Disabled:Flight Signing</Option>
+    </Rule>
+  </Rules>
+  <!-- Signing Scenarios -->
+  <SigningScenarios>
+    <SigningScenario Value="12" ID="ID_SIGNING_SCENARIO_USER" FriendlyName="User Mode Code Integrity (UMCI)">
+      <ProductSigners>
+        <!-- Allow Microsoft Windows OS Binaries -->
+        <AllowedSigners>
+          <AllowedSigner SignerId="ID_SIGNER_MICROSOFT_OS" />
+          <AllowedSigner SignerId="ID_SIGNER_WEBVIEW2_RUNTIME" />
+          <AllowedSigner SignerId="ID_SIGNER_UNIVERSITY_ROOT_CA" />
+        </AllowedSigners>
+        <!-- Deny unauthorized third-party browsers and terminals -->
+        <DeniedSigners>
+          <DeniedSigner SignerId="ID_DENY_GOOGLE_CHROME" />
+          <DeniedSigner SignerId="ID_DENY_MOZILLA_FIREFOX" />
+        </DeniedSigners>
+      </ProductSigners>
+    </SigningScenario>
+  </SigningScenarios>
+  <Signers>
+    <Signer ID="ID_SIGNER_MICROSOFT_OS" Name="Microsoft Windows Production PCA">
+      <CertRoot Type="TBS" Value="F6522E9DE019DEFE631608682F8F185A48F9A5D6F9DCD6EC89A920786521A1A5" />
+    </Signer>
+    <Signer ID="ID_SIGNER_WEBVIEW2_RUNTIME" Name="Microsoft Corporation Edge WebView2">
+      <CertRoot Type="TBS" Value="4B3BE0B99BE2A961E89552E58CBEB0BC218F1286C3238BA9E6B202F6F79590B6" />
+    </Signer>
+    <Signer ID="ID_SIGNER_UNIVERSITY_ROOT_CA" Name="University Examination Authority Code Signing">
+      <CertRoot Type="TBS" Value="0000000000000000000000000000000000000000000000000000000000000000" />
+    </Signer>
+    <Signer ID="ID_DENY_GOOGLE_CHROME" Name="Google LLC">
+      <CertRoot Type="TBS" Value="1111111111111111111111111111111111111111111111111111111111111111" />
+    </Signer>
+    <Signer ID="ID_DENY_MOZILLA_FIREFOX" Name="Mozilla Corporation">
+      <CertRoot Type="TBS" Value="2222222222222222222222222222222222222222222222222222222222222222" />
+    </Signer>
+  </Signers>
+</SiPolicy>

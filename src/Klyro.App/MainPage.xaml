@@ -6,13 +6,125 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:Klyro_App"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Loaded="Page_Loaded"
     mc:Ignorable="d">
 
-    <!--
-        This is the main content area of your application.
-        Add your UI elements here — for example, controls, layouts, and data-bound views.
-        Use 'dotnet new winui-page' to create additional pages and navigate to them via
-        the Frame in MainWindow (RootFrame).
-    -->
-    <Grid />
+    <Grid Background="#F8FAFC">
+        <Grid.RowDefinitions>
+            <!-- Minimal institutional header bar (48px) -->
+            <RowDefinition Height="48" />
+            <!-- Assessment / Content area -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Institutional Header (No address bar, no tabs, no browser chrome) -->
+        <Grid Grid.Row="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Brand Identity -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock Text="KLYRO" FontWeight="Bold" FontSize="16" Foreground="#2563EB" VerticalAlignment="Center" />
+                <TextBlock Text="|" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                <TextBlock Text="Secure Assessment Browser" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Native Exam Timer -->
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Time Remaining:" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
+                <TextBlock x:Name="TimerTextBlock" Text="02:00:00" FontFamily="Consolas" FontWeight="SemiBold" FontSize="15" Foreground="#0F172A" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Network Status Indicator -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8" Margin="0,0,16,0">
+                <Ellipse x:Name="NetworkStatusDot" Width="10" Height="10" Fill="#16A34A" VerticalAlignment="Center" />
+                <TextBlock x:Name="NetworkStatusTextBlock" Text="Connected" FontSize="13" FontWeight="Medium" Foreground="#0F172A" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Dev-mode Simulator Toggle (Hidden in production) -->
+            <Button x:Name="SimulatorToggleButton" Grid.Column="3" Content="Simulator" FontSize="11" Click="SimulatorToggle_Click" Visibility="Collapsed" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Primary Assessment View Area -->
+        <Grid Grid.Row="1">
+            <!-- CodeChef Primary WebView2 -->
+            <WebView2 x:Name="ExamWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+
+            <!-- Non-intrusive notification banner (for submission retry or CodeChef outage) -->
+            <InfoBar x:Name="NoticeBar" Severity="Warning" IsOpen="False" IsClosable="True" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,16,0,0" Canvas.ZIndex="10" />
+
+            <!-- Pre-flight Environmental Verification Screen -->
+            <Grid x:Name="PreflightOverlay" Background="#F8FAFC" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="20">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16" Width="440">
+                    <TextBlock Text="Preparing Your Assessment Environment" FontSize="20" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Center" />
+                    <TextBlock Text="Please wait while Klyro verifies device and network security policies." FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" />
+
+                    <ProgressBar x:Name="PreflightProgressBar" IsIndeterminate="True" Margin="0,8" />
+
+                    <StackPanel x:Name="PreflightCheckList" Spacing="8" Margin="0,8">
+                        <TextBlock x:Name="PfCheckSystem" Text="○ System security and operating system policy" FontSize="13" Foreground="#64748B" />
+                        <TextBlock x:Name="PfCheckConfig" Text="○ Examination configuration integrity" FontSize="13" Foreground="#64748B" />
+                        <TextBlock x:Name="PfCheckNetwork" Text="○ Network adapter and campus gateway reachability" FontSize="13" Foreground="#64748B" />
+                        <TextBlock x:Name="PfCheckAssessment" Text="○ Assessment platform connectivity" FontSize="13" Foreground="#64748B" />
+                    </StackPanel>
+
+                    <Button x:Name="PreflightRetryButton" Content="Retry Pre-flight Checks" Click="PreflightRetry_Click" HorizontalAlignment="Center" Visibility="Collapsed" />
+                    <TextBlock x:Name="PreflightErrorMessage" Foreground="#DC2626" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" Visibility="Collapsed" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Captive Portal Recovery Modal Overlay -->
+            <Grid x:Name="RecoveryModalOverlay" Background="#800F172A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="30">
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Width="680" Height="560" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Modal Header -->
+                        <StackPanel Grid.Row="0" Spacing="4">
+                            <TextBlock Text="UNIVERSITY NETWORK LOGIN REQUIRED" FontSize="16" FontWeight="Bold" Foreground="#0F172A" />
+                            <TextBlock Text="Your campus Wi-Fi session has expired. Authenticate below to restore connectivity." FontSize="13" Foreground="#64748B" />
+                        </StackPanel>
+
+                        <!-- Status Message / Verification spinner -->
+                        <StackPanel x:Name="RecoveryStatusPanel" Grid.Row="1" Margin="0,12" Spacing="6" Visibility="Collapsed">
+                            <ProgressBar x:Name="RecoveryProgressBar" IsIndeterminate="True" />
+                            <TextBlock x:Name="RecoveryStatusText" Text="Authenticating... verifying Internet connection" FontSize="12" Foreground="#2563EB" HorizontalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- Isolated Captive Portal WebView2 Control -->
+                        <Border Grid.Row="2" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Margin="0,8">
+                            <WebView2 x:Name="RecoveryWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                        </Border>
+
+                        <!-- Modal Footer Notice -->
+                        <Grid Grid.Row="3" Margin="0,8,0,0">
+                            <TextBlock Text="Your active CodeChef assessment is safely paused and will resume automatically." FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                            <Button x:Name="RecoveryRetryButton" Content="Check Connection Again" Click="RecoveryRetry_Click" HorizontalAlignment="Right" Visibility="Collapsed" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Developer Network Simulator Drawer (Debug / Dev only) -->
+            <Border x:Name="SimulatorDrawer" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Width="260" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,16,0" Padding="12" Visibility="Collapsed" Canvas.ZIndex="40">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Network Simulator (Dev)" FontWeight="Bold" FontSize="13" Foreground="#0F172A" />
+                    <Button Content="Simulate Normal" Click="SimNormal_Click" HorizontalAlignment="Stretch" />
+                    <Button Content="Simulate Portal Required" Click="SimPortalReq_Click" HorizontalAlignment="Stretch" />
+                    <Button Content="Simulate Degraded" Click="SimDegraded_Click" HorizontalAlignment="Stretch" />
+                    <Button Content="Simulate Offline" Click="SimOffline_Click" HorizontalAlignment="Stretch" />
+                    <Button Content="Simulate CodeChef Outage" Click="SimChefDown_Click" HorizontalAlignment="Stretch" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </Page>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<AssignedAccessConfiguration 
+    xmlns="http://schemas.microsoft.com/AssignedAccess/2017/config"
+    xmlns:v2="http://schemas.microsoft.com/AssignedAccess/201810/config"
+    xmlns:v3="http://schemas.microsoft.com/AssignedAccess/2020/config">
+    <Profiles>
+        <Profile Id="{7E8B15F2-2C9A-4836-817D-3D9012356789}">
+            <AllAppsList>
+                <!-- Allowlist only Klyro Secure Assessment Browser -->
+                <AllowedApps>
+                    <App AppUserModelId="Klyro.App_8wekyb3d8bbwe!App" />
+                    <v2:FilePath>C:\Program Files\Klyro\Klyro.App.exe</v2:FilePath>
+                </AllowedApps>
+            </AllAppsList>
+            <StartLayout>
+                <![CDATA[<LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
+                    <LayoutOptions StartTileGroupCellWidth="6" />
+                    <DefaultLayoutOverride>
+                        <StartLayoutCollection>
+                            <defaultlayout:StartLayout GroupCellWidth="6">
+                                <start:DesktopApplicationTile Size="2x2" Column="0" Row="0" DesktopApplicationLinkPath="%ALLUSERSPROFILE%\Microsoft\Windows\Start Menu\Programs\Klyro.lnk" />
+                            </defaultlayout:StartLayout>
+                        </StartLayoutCollection>
+                    </DefaultLayoutOverride>
+                </LayoutModificationTemplate>]]>
+            </StartLayout>
+            <!-- Lock down Windows taskbar and system notifications -->
+            <Taskbar ShowTaskbar="false" />
+        </Profile>
+    </Profiles>
+    <Configs>
+        <Config>
+            <Account>KLYRO-EXAM</Account>
+            <DefaultProfile Id="{7E8B15F2-2C9A-4836-817D-3D9012356789}" />
+        </Config>
+    </Configs>
+</AssignedAccessConfiguration>
