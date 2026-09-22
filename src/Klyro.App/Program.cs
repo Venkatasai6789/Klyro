@@ -88,16 +88,10 @@ public static class Program
             };
             AppDomain.CurrentDomain.FirstChanceException += (s, e) =>
             {
-                // Log critical first-chance exceptions that could cause WinUI stowed exception crashes.
-                // Filter to reduce noise — only log exceptions from WinUI / XAML / COM internals.
                 var ex = e.Exception;
-                if (ex is System.Runtime.InteropServices.COMException ||
-                    ex is InvalidOperationException ||
-                    ex is AccessViolationException ||
-                    ex is NullReferenceException)
-                {
-                    Log($"[FirstChance] {ex.GetType().Name}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
-                }
+                // Exclude benign task cancellations
+                if (ex is OperationCanceledException) return;
+                Log($"[FirstChance] {ex.GetType().FullName}: {ex.Message} \nSource: {ex.Source}\nStackTrace: {ex.StackTrace}");
             };
             System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, e) =>
             {
@@ -159,19 +153,38 @@ public static class Program
                         return;
                     }
 
-                    // If primary process exists but did not acknowledge (e.g. headless background zombie with no window),
-                    // terminate the zombie process and take over as the fresh primary instance!
-                    Log($"Primary process PID {others[0].Id} did not acknowledge activation (headless/zombie process). Terminating zombie...");
-                    foreach (var other in others)
+                    // If primary process exists but did not acknowledge, check its uptime.
+                    // If it is freshly starting up (< 20 seconds old), DO NOT kill it — let it finish starting!
+                    bool isZombie = false;
+                    try
                     {
-                        try
-                        {
-                            other.Kill(entireProcessTree: true);
-                            other.WaitForExit(1000);
-                        }
-                        catch { }
+                        var uptime = DateTime.Now - others[0].StartTime;
+                        isZombie = uptime.TotalSeconds > 20;
                     }
-                    Log("Zombie process terminated. Proceeding as fresh primary instance.");
+                    catch
+                    {
+                        isZombie = false;
+                    }
+
+                    if (isZombie)
+                    {
+                        Log($"Primary process PID {others[0].Id} did not acknowledge activation and is older than 20s (headless/zombie process). Terminating zombie...");
+                        foreach (var other in others)
+                        {
+                            try
+                            {
+                                other.Kill(entireProcessTree: true);
+                                other.WaitForExit(1000);
+                            }
+                            catch { }
+                        }
+                        Log("Zombie process terminated. Proceeding as fresh primary instance.");
+                    }
+                    else
+                    {
+                        Log($"Primary process PID {others[0].Id} is actively initializing. Exiting secondary instance cleanly.");
+                        return;
+                    }
                 }
                 else
                 {

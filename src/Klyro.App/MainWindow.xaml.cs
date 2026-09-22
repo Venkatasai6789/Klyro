@@ -1,20 +1,34 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Windows.Graphics;
+using Klyro.Core.Persistence;
 
 namespace Klyro_App;
 
 /// <summary>
-/// The application window hosting Klyro in locked full-screen presentation mode.
+/// The application window hosting Klyro in locked full-screen or startup presentation mode.
 /// </summary>
 public sealed partial class MainWindow : Window
 {
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern bool SetWindowText(IntPtr hWnd, string lpString);
 
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    private const int SW_MINIMIZE = 6;
+
+    public static MainWindow? CurrentInstance { get; private set; }
+
+    private readonly OnboardingStateStore _onboardingStore = new();
+    private bool _isFirstRun;
+    private bool _isFullScreenConfigured;
+
     public MainWindow()
     {
+        CurrentInstance = this;
         InitializeComponent();
         Title = Program.WindowTitle;
 
@@ -38,18 +52,32 @@ public sealed partial class MainWindow : Window
         }
         catch { }
 
-        // Enforce true full-screen mode upon window activation to cover entire display and hide taskbar
+        // Check if this is the first-run onboarding experience (supports --first-run and --onboarding CLI flags)
+        bool forceFirstRun = Environment.GetCommandLineArgs().Any(a => 
+            a.Equals("--first-run", StringComparison.OrdinalIgnoreCase) || 
+            a.Equals("--onboarding", StringComparison.OrdinalIgnoreCase));
+        _isFirstRun = forceFirstRun || !_onboardingStore.IsFirstRunCompleted();
+
+        // Enforce mode upon window activation
         Activated += MainWindow_Activated;
 
-        // Intercept closing attempts to require Invigilator PIN authorization
+        // Intercept closing attempts to require Invigilator PIN authorization during active exams
         AppWindow.Closing += AppWindow_Closing;
         AppWindow.Destroying += (s, e) => App.ExitCompletely();
         Closed += (s, e) => App.ExitCompletely();
 
-        // Navigate the root frame to the main page on startup.
+        // Navigate appropriately based on first-run status
         try
         {
-            RootFrame.Navigate(typeof(MainPage));
+            if (_isFirstRun)
+            {
+                ConfigureStartupWindowLayout();
+                RootFrame.Navigate(typeof(LaunchPage));
+            }
+            else
+            {
+                RootFrame.Navigate(typeof(MainPage));
+            }
         }
         catch (Exception ex)
         {
@@ -58,33 +86,127 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private bool _isFullScreenConfigured;
+    private void ConfigureStartupWindowLayout()
+    {
+        string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
+        try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow] ConfigureStartupWindowLayout starting...\n"); } catch { }
+
+        try
+        {
+            if (AppWindow.Presenter is OverlappedPresenter op)
+            {
+                op.IsResizable = true;
+                op.IsMinimizable = true;
+                op.IsMaximizable = true;
+                op.SetBorderAndTitleBar(true, false); // Border enabled, system titlebar disabled for custom controls
+                try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow] OverlappedPresenter configured.\n"); } catch { }
+            }
+
+            // Size window to 1536 x 1024 or optimal display proportion
+            var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
+            if (displayArea != null)
+            {
+                int targetWidth = Math.Min(1536, (int)(displayArea.WorkArea.Width * 0.95));
+                int targetHeight = Math.Min(1024, (int)(displayArea.WorkArea.Height * 0.95));
+
+                int posX = Math.Max(0, (displayArea.WorkArea.Width - targetWidth) / 2);
+                int posY = Math.Max(0, (displayArea.WorkArea.Height - targetHeight) / 2);
+
+                AppWindow.Resize(new SizeInt32(targetWidth, targetHeight));
+                AppWindow.Move(new PointInt32(posX, posY));
+                try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow] Window resized to {targetWidth}x{targetHeight} at ({posX},{posY}).\n"); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow ConfigureStartupWindowLayout Exception] {ex}\n"); } catch { }
+        }
+    }
+
+    public void MinimizeWindow()
+    {
+        try
+        {
+            if (AppWindow.Presenter is OverlappedPresenter op)
+            {
+                op.Minimize();
+            }
+            else
+            {
+                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                ShowWindow(hWnd, SW_MINIMIZE);
+            }
+        }
+        catch { }
+    }
+
+    public bool ToggleMaximizeRestoreWindow()
+    {
+        try
+        {
+            if (AppWindow.Presenter is OverlappedPresenter op)
+            {
+                if (op.State == OverlappedPresenterState.Maximized)
+                {
+                    op.Restore();
+                    return false;
+                }
+                else
+                {
+                    op.Maximize();
+                    return true;
+                }
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public void NavigateToAssessmentView()
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+        {
+            try
+            {
+                RootFrame.Navigate(typeof(MainPage));
+                _isFullScreenConfigured = false;
+                ConfigureFullScreenExamMode();
+            }
+            catch (Exception ex)
+            {
+                string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
+                try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [NavigateToAssessmentView Exception] {ex}\n"); } catch { }
+            }
+        });
+    }
+
+    private void ConfigureFullScreenExamMode()
+    {
+        try
+        {
+            AppWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
+        }
+        catch
+        {
+            try
+            {
+                var presenter = OverlappedPresenter.CreateForToolWindow();
+                presenter.Maximize();
+                AppWindow.SetPresenter(presenter);
+            }
+            catch { }
+        }
+    }
 
     private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
-        if (!_isFullScreenConfigured && args.WindowActivationState != WindowActivationState.Deactivated)
+        if (!_isFirstRun && !_isFullScreenConfigured && args.WindowActivationState != WindowActivationState.Deactivated)
         {
             _isFullScreenConfigured = true;
 
-            // Defer full-screen to the next dispatcher tick to avoid WinUI render pipeline crash
-            // on Chrome Remote Desktop / RDP virtual displays
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
-                try
-                {
-                    AppWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
-                }
-                catch
-                {
-                    // Fallback: maximize with hidden title bar if FullScreen presenter fails
-                    try
-                    {
-                        var presenter = Microsoft.UI.Windowing.OverlappedPresenter.CreateForToolWindow();
-                        presenter.Maximize();
-                        AppWindow.SetPresenter(presenter);
-                    }
-                    catch { }
-                }
+                ConfigureFullScreenExamMode();
             });
         }
     }
@@ -105,7 +227,8 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            args.Cancel = true;
+            // On startup/onboarding screens, clean exit is permitted without PIN lock
+            App.ExitCompletely();
             return;
         }
 
