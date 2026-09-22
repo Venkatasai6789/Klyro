@@ -9,7 +9,11 @@ namespace Klyro_App;
 
 public static class Program
 {
+    public const string WindowTitle = "Klyro Secure Assessment Browser";
     private static Mutex? _singleInstanceMutex;
+
+    [DllImport("user32.dll", EntryPoint = "FindWindow", CharSet = CharSet.Auto)]
+    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
 
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -38,26 +42,52 @@ public static class Program
                 try { File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [UnobservedTaskException] {e.Exception}\n"); } catch { }
             };
 
-            // Enforce single instance to prevent WebView2 profile folder contention
+            // 1. Single-Instance Check & Zombie Process Cleanup
             const string mutexName = "Global\\Klyro_Secure_Assessment_Browser_SingleInstance";
-            _singleInstanceMutex = new Mutex(true, mutexName, out bool isNewInstance);
+            bool isNewInstance = false;
+            try
+            {
+                _singleInstanceMutex = new Mutex(true, mutexName, out isNewInstance);
+            }
+            catch (AbandonedMutexException)
+            {
+                isNewInstance = true;
+            }
+            catch
+            {
+                isNewInstance = true;
+            }
+
             if (!isNewInstance)
             {
+                // Check if an existing visible window exists
+                IntPtr existingHwnd = FindWindow(null, WindowTitle);
+                if (existingHwnd != IntPtr.Zero)
+                {
+                    ShowWindow(existingHwnd, SW_RESTORE);
+                    SetForegroundWindow(existingHwnd);
+                    return;
+                }
+
+                // If no visible window exists, terminate orphaned background zombie processes
                 try
                 {
                     var current = Process.GetCurrentProcess();
-                    var existing = Process.GetProcessesByName(current.ProcessName)
-                        .FirstOrDefault(p => p.Id != current.Id);
+                    var zombies = Process.GetProcessesByName(current.ProcessName)
+                        .Where(p => p.Id != current.Id)
+                        .ToList();
 
-                    if (existing != null && existing.MainWindowHandle != IntPtr.Zero)
+                    foreach (var z in zombies)
                     {
-                        ShowWindow(existing.MainWindowHandle, SW_RESTORE);
-                        SetForegroundWindow(existing.MainWindowHandle);
+                        try
+                        {
+                            z.Kill(entireProcessTree: true);
+                            z.WaitForExit(1000);
+                        }
+                        catch { }
                     }
                 }
                 catch { }
-
-                return;
             }
 
             File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] 1. Main entered. Args: {string.Join(" ", args)}\n");

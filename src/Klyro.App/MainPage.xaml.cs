@@ -1131,7 +1131,11 @@ public sealed partial class MainPage : Page
             IsAuthorizedToExit = true;
             _auditLogger?.Log(EventType.EXAM_COMPLETED, "EXIT", "Invigilator PIN verified. Shell exiting.");
             _keyboardHook?.UninstallHook();
+            _networkMonitor?.Stop();
+            _networkMonitor?.Dispose();
+            _auditLogger?.Dispose();
             Application.Current.Exit();
+            Environment.Exit(0);
         }
         else
         {
