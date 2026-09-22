@@ -69,10 +69,14 @@
   </PropertyGroup>
 
   <!-- Publish Properties -->
-  <PropertyGroup>
-    <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
-    <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
-    <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
-    <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
-  </PropertyGroup>
+  <!-- Ensure resources.pri and compiled XBF files are copied to publish folder -->
+  <Target Name="CopyPriAndXbfToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pri" DestinationFiles="$(PublishDir)resources.pri" Condition="Exists('$(TargetDir)$(TargetName).pri')" />
+    <ItemGroup>
+      <PublishXbfFiles Include="$(TargetDir)*.xbf" />
+      <PublishPriFiles Include="$(TargetDir)*.pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishXbfFiles)" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="@(PublishPriFiles)" DestinationFolder="$(PublishDir)" />
+  </Target>
 </Project>
