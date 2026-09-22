@@ -1,4 +1,4 @@
-﻿using Windows.ApplicationModel;
+using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
@@ -30,6 +30,16 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+
+        UnhandledException += (sender, e) =>
+        {
+            try
+            {
+                var crashFile = System.IO.Path.Combine(System.AppContext.BaseDirectory, "crash.log");
+                System.IO.File.AppendAllText(crashFile, $"[{DateTime.UtcNow:O}] [UnhandledException] {e.Message}\n{e.Exception}\n");
+            }
+            catch { }
+        };
     }
 
     /// <summary>
@@ -38,7 +48,16 @@ public partial class App : Application
     /// <param name="args">Details about the launch request and process.</param>
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
-        _window.Activate();
+        try
+        {
+            _window = new MainWindow();
+            _window.Activate();
+        }
+        catch (Exception ex)
+        {
+            var crashFile = System.IO.Path.Combine(System.AppContext.BaseDirectory, "crash.log");
+            System.IO.File.AppendAllText(crashFile, $"[{DateTime.UtcNow:O}] [OnLaunched Exception] {ex}\n");
+            throw;
+        }
     }
 }

@@ -12,6 +12,7 @@ using Klyro.Core.Health;
 using Klyro.Core.Logging;
 using Klyro.Core.Network;
 using Klyro.Core.Persistence;
+using Klyro.Core.Recovery;
 using Klyro.Core.Security;
 
 namespace Klyro_App;
@@ -152,7 +153,7 @@ public sealed partial class MainPage : Page
         if (_isExamWebViewInitialized) return;
 
         var profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", "Exam");
-        var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(userDataFolder: profileDir);
+        var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
 
         await ExamWebView.EnsureCoreWebView2Async(environment);
 
@@ -295,7 +296,7 @@ public sealed partial class MainPage : Page
         if (!_isRecoveryWebViewInitialized)
         {
             var recoveryProfileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", "Recovery");
-            var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(userDataFolder: recoveryProfileDir);
+            var environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, recoveryProfileDir, null);
 
             await RecoveryWebView.EnsureCoreWebView2Async(environment);
 
