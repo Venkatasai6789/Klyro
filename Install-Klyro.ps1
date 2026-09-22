@@ -85,7 +85,7 @@ $startShortcut.Save()
 
 # 5. Launch Application
 Write-Host "[5/5] Launching Klyro..." -ForegroundColor Yellow
-Start-Process -FilePath $exePath -WorkingDirectory $installDir
+Start-Process "explorer.exe" -ArgumentList "`"$exePath`""
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
