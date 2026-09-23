@@ -95,7 +95,8 @@ public sealed partial class LaunchPage : Page
 
                 await Task.Delay(400);
 
-                await CompleteGoogleAuthenticationAsync("Google User", "Default Browser (Auto-detected)");
+                var detectedUser = BrowserProfileDetector.DetectLatestGoogleAccount();
+                await CompleteGoogleAuthenticationAsync(detectedUser, "Default Browser (Auto-detected)");
             });
         }
     }
@@ -123,9 +124,10 @@ public sealed partial class LaunchPage : Page
                 AccountConnectedStateGrid.Visibility = Visibility.Visible;
                 AccountConnectedStateGrid.Opacity = 1.0;
 
-                string testName = "P. Venkata Sai";
-                string testEmail = "p.venkatsai333@gmail.com";
-                string? testPhoto = null;
+                var detectedAcc = BrowserProfileDetector.DetectLatestGoogleAccount();
+                string testName = detectedAcc?.DisplayName ?? string.Empty;
+                string testEmail = detectedAcc?.Email ?? string.Empty;
+                string? testPhoto = detectedAcc?.PhotoUrl;
                 string? screenshotScreen4Path = null;
                 string? screenshotScreen4FallbackPath = null;
 
@@ -982,7 +984,7 @@ public sealed partial class LaunchPage : Page
 
             if (isSuccessUrl && hasAuthCookies)
             {
-                await CompleteGoogleAuthenticationAsync("Google User", "In-App WebView");
+                await CompleteGoogleAuthenticationAsync((AuthenticatedUser?)null, "In-App WebView");
             }
         }
         catch (Exception ex)
@@ -991,17 +993,31 @@ public sealed partial class LaunchPage : Page
         }
     }
 
-    private async Task CompleteGoogleAuthenticationAsync(string userName, string source)
+    private Task CompleteGoogleAuthenticationAsync(string? fallbackEmail, string source)
+    {
+        var initialUser = !string.IsNullOrWhiteSpace(fallbackEmail) && fallbackEmail.Contains('@')
+            ? new AuthenticatedUser
+            {
+                Email = fallbackEmail.Trim(),
+                DisplayName = BrowserProfileDetector.FormatCleanDisplayName(null, fallbackEmail.Trim()),
+                AuthenticatedAt = DateTime.UtcNow
+            }
+            : null;
+
+        return CompleteGoogleAuthenticationAsync(initialUser, source);
+    }
+
+    private async Task CompleteGoogleAuthenticationAsync(AuthenticatedUser? initialUser, string source)
     {
         if (_isAuthCompleted && !_isAccountSwitching) return;
         _isAuthCompleted = true;
         _isBrowserAuthInProgress = false;
-        PageLog($"Google authentication successfully completed and verified via {source} ({userName})!");
 
-        // Extract authentic profile details
-        var user = await ExtractGoogleUserProfileAsync(userName);
+        // Dynamically extract authentic profile details without hardcoded fallbacks
+        var user = await ExtractGoogleUserProfileAsync(initialUser);
         _currentUser = user;
         _isAccountSwitching = false;
+        PageLog($"Google authentication successfully completed and verified via {source} for {user.Email} ({user.DisplayName})!");
 
         // Hide overlays and waiting cards
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
@@ -1026,17 +1042,18 @@ public sealed partial class LaunchPage : Page
         await TransitionToAccountConnectedAsync(user);
     }
 
-    private async Task<AuthenticatedUser> ExtractGoogleUserProfileAsync(string fallbackEmail)
+    private async Task<AuthenticatedUser> ExtractGoogleUserProfileAsync(AuthenticatedUser? initialUser)
     {
         var user = new AuthenticatedUser
         {
-            Email = fallbackEmail,
-            DisplayName = !string.IsNullOrWhiteSpace(fallbackEmail) && fallbackEmail.Contains('@')
-                ? FormatNameFromEmail(fallbackEmail)
-                : "Google User"
+            Email = initialUser?.Email ?? string.Empty,
+            DisplayName = initialUser?.DisplayName ?? string.Empty,
+            PhotoUrl = initialUser?.PhotoUrl,
+            Id = initialUser?.Id ?? string.Empty
         };
 
-        if (GoogleAuthWebView.CoreWebView2 != null)
+        // 1. If email is not yet present and in-app WebView2 has navigated, attempt DOM extraction
+        if ((string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@')) && GoogleAuthWebView.CoreWebView2 != null)
         {
             try
             {
@@ -1095,59 +1112,51 @@ public sealed partial class LaunchPage : Page
                     using var doc = System.Text.Json.JsonDocument.Parse(unescaped);
                     var root = doc.RootElement;
                     if (root.TryGetProperty("email", out var eElem) && !string.IsNullOrWhiteSpace(eElem.GetString()))
-                        user.Email = eElem.GetString()!;
+                        user.Email = eElem.GetString()!.Trim();
                     if (root.TryGetProperty("name", out var nElem) && !string.IsNullOrWhiteSpace(nElem.GetString()))
-                        user.DisplayName = nElem.GetString()!;
+                        user.DisplayName = nElem.GetString()!.Trim();
                     if (root.TryGetProperty("photo", out var pElem) && !string.IsNullOrWhiteSpace(pElem.GetString()))
-                        user.PhotoUrl = pElem.GetString();
+                        user.PhotoUrl = pElem.GetString()!.Trim();
                 }
             }
             catch (Exception ex)
             {
-                PageLog($"ExtractGoogleUserProfileAsync error: {ex.Message}");
+                PageLog($"ExtractGoogleUserProfileAsync WebView2 error: {ex.Message}");
             }
         }
 
-        // If DisplayName is empty or just "Google User", format from email
-        if ((string.IsNullOrWhiteSpace(user.DisplayName) || user.DisplayName == "Google User") && !string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@'))
+        // 2. If email is still missing or not verified, query BrowserProfileDetector (inspects the most recently active desktop browser profile)
+        if (string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@'))
         {
-            user.DisplayName = FormatNameFromEmail(user.Email);
+            var detectedFromBrowser = BrowserProfileDetector.DetectLatestGoogleAccount();
+            if (detectedFromBrowser != null && !string.IsNullOrWhiteSpace(detectedFromBrowser.Email))
+            {
+                user.Email = detectedFromBrowser.Email;
+                if (string.IsNullOrWhiteSpace(user.DisplayName)) user.DisplayName = detectedFromBrowser.DisplayName;
+                if (string.IsNullOrWhiteSpace(user.PhotoUrl)) user.PhotoUrl = detectedFromBrowser.PhotoUrl;
+                if (string.IsNullOrWhiteSpace(user.Id)) user.Id = detectedFromBrowser.Id;
+                PageLog($"Extracted authentic Google account from browser profile: {user.Email} ({user.DisplayName})");
+            }
         }
+
+        // 3. Format clean title-cased display name if name is empty or lowercase
+        user.DisplayName = BrowserProfileDetector.FormatCleanDisplayName(user.DisplayName, user.Email);
 
         return user;
     }
 
     private static string FormatNameFromEmail(string email)
     {
-        try
-        {
-            var userPart = email.Split('@')[0];
-            var clean = System.Text.RegularExpressions.Regex.Replace(userPart, @"[\._\-0-9]+", " ").Trim();
-            if (string.IsNullOrWhiteSpace(clean))
-            {
-                return "Google User";
-            }
-            var words = clean.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            for (int i = 0; i < words.Length; i++)
-            {
-                if (words[i].Length > 0)
-                {
-                    words[i] = char.ToUpperInvariant(words[i][0]) + words[i][1..].ToLowerInvariant();
-                }
-            }
-            return string.Join(" ", words);
-        }
-        catch
-        {
-            return "Google User";
-        }
+        return BrowserProfileDetector.FormatCleanDisplayName(null, email);
     }
 
     private void SetConnectedUser(AuthenticatedUser user)
     {
         _currentUser = user;
-        ConnectedUserName.Text = !string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName : "Google User";
-        ConnectedUserEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : "user@gmail.com";
+        ConnectedUserName.Text = !string.IsNullOrWhiteSpace(user.DisplayName)
+            ? user.DisplayName
+            : (!string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@') ? BrowserProfileDetector.FormatCleanDisplayName(null, user.Email) : "Candidate");
+        ConnectedUserEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : string.Empty;
         ConnectedUserInitials.Text = user.GetInitials();
 
         if (!string.IsNullOrWhiteSpace(user.PhotoUrl) && Uri.TryCreate(user.PhotoUrl, UriKind.Absolute, out var photoUri))
@@ -1325,18 +1334,19 @@ public sealed partial class LaunchPage : Page
         }
     }
 
-    private void BrowserAuthService_AuthCompleted(object? sender, string userEmail)
+    private void BrowserAuthService_AuthCompleted(object? sender, AuthenticatedUser user)
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
-            await CompleteGoogleAuthenticationAsync(userEmail, "Default Browser (Callback)");
+            await CompleteGoogleAuthenticationAsync(user, "Default Browser (Callback)");
         });
     }
 
     private async void VerifyBrowserAuth_Click(object sender, RoutedEventArgs e)
     {
         PageLog("User manually confirmed browser sign-in completion.");
-        await CompleteGoogleAuthenticationAsync("Google User", "Default Browser (Manual)");
+        var detectedUser = BrowserProfileDetector.DetectLatestGoogleAccount();
+        await CompleteGoogleAuthenticationAsync(detectedUser, "Default Browser (Manual)");
     }
 
     private void CancelBrowserAuth_Click(object sender, RoutedEventArgs e)

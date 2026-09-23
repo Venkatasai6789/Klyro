@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Klyro.Core.Authentication;
+
 namespace Klyro_App;
 
 /// <summary>
@@ -20,7 +22,7 @@ public sealed class SystemBrowserAuthService : IDisposable
     private CancellationTokenSource? _cts;
     private bool _isDisposed;
 
-    public event EventHandler<string>? AuthCompleted;
+    public event EventHandler<AuthenticatedUser>? AuthCompleted;
 
     /// <summary>
     /// Launches the default system browser and listens on a local loopback port for completion.
@@ -96,9 +98,35 @@ public sealed class SystemBrowserAuthService : IDisposable
             var request = context.Request;
             var response = context.Response;
 
-            string emailParam = request.QueryString["email"] ?? "Google User";
+            string? emailParam = request.QueryString["email"];
+            string? nameParam = request.QueryString["name"];
+            string? photoParam = request.QueryString["photo"];
 
-            string html = """
+            AuthenticatedUser? user = null;
+            if (!string.IsNullOrWhiteSpace(emailParam) && emailParam.Contains('@'))
+            {
+                user = new AuthenticatedUser
+                {
+                    Email = emailParam.Trim(),
+                    DisplayName = BrowserProfileDetector.FormatCleanDisplayName(nameParam, emailParam),
+                    PhotoUrl = photoParam,
+                    AuthenticatedAt = DateTime.UtcNow
+                };
+            }
+            else
+            {
+                // Dynamically detect authentic account from the most recently active desktop browser profile
+                user = BrowserProfileDetector.DetectLatestGoogleAccount();
+            }
+
+            string displayEmail = user?.Email ?? "";
+            string displayName = user?.DisplayName ?? "";
+
+            string accountInfoHtml = !string.IsNullOrWhiteSpace(displayEmail)
+                ? $"<p style=\"margin-bottom: 8px; color: #E2E8F0; font-weight: 600;\">{System.Net.WebUtility.HtmlEncode(displayName)}</p><p style=\"margin-top: 0; color: #38BDF8; font-size: 13px;\">{System.Net.WebUtility.HtmlEncode(displayEmail)}</p>"
+                : string.Empty;
+
+            string html = $$"""
                 <!DOCTYPE html>
                 <html lang="en">
                 <head>
@@ -157,6 +185,7 @@ public sealed class SystemBrowserAuthService : IDisposable
                     <div class="card">
                         <div class="badge">✓</div>
                         <h2>Authentication Successful</h2>
+                        {{accountInfoHtml}}
                         <p>Your Google account has been verified for this examination. Klyro has detected your login and will resume automatically.</p>
                         <a href="#" onclick="window.close(); return false;" class="btn">Return to Klyro</a>
                         <div class="footer">Klyro Secure Assessment Browser</div>
@@ -177,7 +206,14 @@ public sealed class SystemBrowserAuthService : IDisposable
 
             try { App.BringToFront(); } catch { }
 
-            AuthCompleted?.Invoke(this, emailParam);
+            var resolvedUser = user ?? new AuthenticatedUser
+            {
+                Email = displayEmail,
+                DisplayName = displayName,
+                AuthenticatedAt = DateTime.UtcNow
+            };
+
+            AuthCompleted?.Invoke(this, resolvedUser);
         }
         catch { }
     }
