@@ -52,10 +52,15 @@ public sealed partial class MainWindow : Window
         }
         catch { }
 
-        // Check if this is the first-run onboarding experience (supports --first-run and --onboarding CLI flags)
+        // Check if this is the first-run onboarding experience (supports --first-run, --onboarding, --screen1, --screen2, --welcome, --screen3 CLI flags)
         bool forceFirstRun = Environment.GetCommandLineArgs().Any(a => 
             a.Equals("--first-run", StringComparison.OrdinalIgnoreCase) || 
-            a.Equals("--onboarding", StringComparison.OrdinalIgnoreCase));
+            a.Equals("--onboarding", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--screen1", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--screen2", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--welcome", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--screen3", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--account-setup", StringComparison.OrdinalIgnoreCase));
         _isFirstRun = forceFirstRun || !_onboardingStore.IsFirstRunCompleted();
 
         // Enforce mode upon window activation

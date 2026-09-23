@@ -36,6 +36,31 @@
             </Setter>
         </Style>
 
+        <Style x:Key="GoogleSignInButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <LinearGradientBrush x:Key="KlyroTextGradientBrush" StartPoint="0,0" EndPoint="1,0">
             <GradientStop Color="#5DCBFA" Offset="0.0" />
             <GradientStop Color="#40A8FD" Offset="0.45" />
@@ -53,13 +78,25 @@
             <ColumnDefinition Width="1*" />
         </Grid.ColumnDefinitions>
 
-        <!-- Background Artwork (Full Window 1.5 aspect ratio, preserving circular spiral geometry) -->
-        <Image Source="ms-appx:///Assets/StartUp_Screen_Bg.png"
+        <!-- Background Artwork Screen 1 & 2 (Full Window 1.5 aspect ratio, preserving circular spiral geometry) -->
+        <Image x:Name="StartupScreenBg"
+               Source="ms-appx:///Assets/StartUp_Screen_Bg.png"
                Grid.Column="0"
                Grid.ColumnSpan="2"
                Stretch="Fill"
                HorizontalAlignment="Stretch"
                VerticalAlignment="Stretch"
+               Opacity="1"
+               IsHitTestVisible="False" />
+
+        <!-- Background Artwork Screen 3: Google Sign-in illustration (exact 50% left panel) -->
+        <Image x:Name="GoogleSigninBg"
+               Source="ms-appx:///Assets/Google_Signin_Screen.png"
+               Grid.Column="0"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch"
+               VerticalAlignment="Stretch"
+               Opacity="0"
                IsHitTestVisible="False" />
 
         <!-- ============================================================ -->
@@ -70,13 +107,15 @@
               PointerPressed="TitleBar_PointerPressed">
 
             <!-- Official Klyro Logo (295 x 295 DIPs = 442 physical px, shifted upward into the visual eye of the spiral) -->
-            <Image Source="ms-appx:///Assets/Klyro_Logo.png"
+            <Image x:Name="KlyroBrandLogo"
+                   Source="ms-appx:///Assets/Klyro_Logo.png"
                    Width="295"
                    Height="295"
                    Stretch="Uniform"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"
                    Margin="8,-53,0,0"
+                   Opacity="1"
                    IsHitTestVisible="False" />
         </Grid>
 
@@ -529,6 +568,227 @@
                                    HorizontalAlignment="Left"
                                    Margin="0,12,0,0" />
                     </StackPanel>
+                </Grid>
+
+                <!-- ============================================================ -->
+                <!-- STATE 3: GOOGLE ACCOUNT SETUP (Screen 03)                    -->
+                <!-- ============================================================ -->
+                <Grid x:Name="AccountSetupStateGrid" Visibility="Collapsed" Opacity="0">
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Margin="48,-78,0,0"
+                                MaxWidth="380">
+
+                        <!-- 1. Header Sub-badge: Horizontal Blue Accent Bar + ACCOUNT SETUP -->
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Spacing="10"
+                                    Margin="0,0,0,24">
+                            <Border Width="36"
+                                    Height="3"
+                                    CornerRadius="1.5"
+                                    Background="#0066FF"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="ACCOUNT SETUP"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       CharacterSpacing="200"
+                                       Foreground="#94A3B8"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- 2. Main Heading: "Connect \n your account" -->
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="Connect"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFFFF"
+                                       LineHeight="46" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="your"
+                                           FontSize="44"
+                                           FontWeight="Bold"
+                                           Foreground="#FFFFFF"
+                                           LineHeight="46"
+                                           Margin="0,0,12,0" />
+                                <TextBlock Text="account"
+                                           FontSize="44"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource KlyroTextGradientBrush}"
+                                           LineHeight="46" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 3. Subtitle / Description -->
+                        <TextBlock FontSize="15"
+                                   LineHeight="24"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="380"
+                                   Margin="0,0,0,32">
+                            <Run Text="Sign in with your university" /><LineBreak />
+                            <Run Text="Google account." />
+                        </TextBlock>
+
+                        <!-- 4. Google Primary Action Button -->
+                        <Button x:Name="GoogleSignInButton"
+                                Style="{StaticResource GoogleSignInButtonStyle}"
+                                Click="GoogleSignIn_Click"
+                                PointerEntered="GoogleSignIn_PointerEntered"
+                                PointerExited="GoogleSignIn_PointerExited"
+                                PointerPressed="GoogleSignIn_PointerPressed"
+                                PointerReleased="GoogleSignIn_PointerReleased"
+                                Width="380"
+                                Height="48"
+                                Padding="16,0"
+                                Background="#FFFFFF"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                HorizontalAlignment="Left"
+                                HorizontalContentAlignment="Stretch"
+                                AutomationProperties.Name="Continue with Google"
+                                ToolTipService.ToolTip="Sign in with your Google account"
+                                TabIndex="0">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Official Google 'G' Vector Icon (20x20) -->
+                                <Viewbox Grid.Column="0" Width="20" Height="20" VerticalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Fill="#4285F4" Data="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.5 3.7l3.7 2.9c2.2-2 3.5-5 3.5-8.9z" />
+                                        <Path Fill="#34A853" Data="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z" />
+                                        <Path Fill="#FBBC05" Data="M5.6 13.1c-.2-.7-.3-1.4-.3-2.1s.1-1.4.3-2.1L1.9 6C1.3 7.4 1 8.9 1 10.5s.3 3.1.9 4.5l3.7-2.9z" />
+                                        <Path Fill="#EA4335" Data="M12 4.8c1.7 0 3.1.6 4.3 1.7l3.2-3.2C17.5 1.5 14.9.8 12 .8 7.5.8 3.7 3.5 1.9 7.2l3.7 2.9c.9-2.8 3.4-4.8 6.4-4.8z" />
+                                    </Canvas>
+                                </Viewbox>
+
+                                <!-- Button Label -->
+                                <TextBlock x:Name="GoogleButtonText"
+                                           Grid.Column="1"
+                                           Text="Continue with Google"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="#0F172A"
+                                           VerticalAlignment="Center"
+                                           Margin="14,0,0,0" />
+
+                                <!-- Right Arrow Glyph (Blue) with smooth glide on hover -->
+                                <FontIcon x:Name="GoogleArrowIcon"
+                                          Grid.Column="2"
+                                          Glyph="&#xE72A;"
+                                          FontSize="14"
+                                          Foreground="#0066FF"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Right" />
+
+                                <!-- Loading Progress Ring -->
+                                <ProgressRing x:Name="GoogleAuthProgressRing"
+                                              Grid.Column="2"
+                                              Width="18"
+                                              Height="18"
+                                              Foreground="#0066FF"
+                                              IsActive="False"
+                                              Visibility="Collapsed"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Right" />
+                            </Grid>
+                        </Button>
+
+                        <!-- Error Card (if network drops or Google fails) -->
+                        <Border x:Name="GoogleAuthErrorCard"
+                                Background="#1C1418"
+                                BorderBrush="#7F1D1D"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16,12"
+                                Margin="0,18,0,0"
+                                MaxWidth="380"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xEB55;" FontSize="16" Foreground="#EF4444" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="GoogleAuthErrorMessage"
+                                               Text="Unable to connect to Google. Check your connection and try again."
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FCA5A5"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Content="Try Again"
+                                        Click="RetryGoogleAuth_Click"
+                                        Background="#2563EB"
+                                        Foreground="#FFFFFF"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Padding="14,6"
+                                        CornerRadius="6" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ============================================================ -->
+                <!-- GOOGLE AUTHENTICATION OVERLAY VIEW                           -->
+                <!-- ============================================================ -->
+                <Grid x:Name="GoogleAuthOverlay"
+                      Background="#0F1219"
+                      Visibility="Collapsed"
+                      Opacity="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="48" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Overlay Header: Security padlock + Google Sign-In + Close Button -->
+                    <Grid Grid.Row="0"
+                          Background="#131B2E"
+                          BorderBrush="#1E293B"
+                          BorderThickness="0,0,0,1"
+                          Padding="16,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                            <FontIcon Glyph="&#xE72E;" FontSize="13" Foreground="#22C55E" VerticalAlignment="Center" />
+                            <TextBlock Text="Sign in with Google" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                            <TextBlock Text="• accounts.google.com" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <Button Click="CloseGoogleAuth_Click"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Width="32" Height="32"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="4"
+                                ToolTipService.ToolTip="Cancel Google Sign-in">
+                            <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#94A3B8" />
+                        </Button>
+                    </Grid>
+
+                    <!-- Real WebView2 hosting Google Authentication in persistent Exam profile -->
+                    <Grid Grid.Row="1">
+                        <WebView2 x:Name="GoogleAuthWebView"
+                                  HorizontalAlignment="Stretch"
+                                  VerticalAlignment="Stretch" />
+
+                        <!-- Loading Indicator while web content initializes -->
+                        <StackPanel x:Name="GoogleWebViewLoading"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="12"
+                                    Visibility="Visible">
+                            <ProgressRing IsActive="True" Width="32" Height="32" Foreground="#0066FF" />
+                            <TextBlock Text="Opening secure Google sign-in..."
+                                       FontSize="13"
+                                       Foreground="#94A3B8"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </Grid>
         </Grid>
