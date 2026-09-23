@@ -64,7 +64,11 @@ public sealed partial class MainWindow : Window
             a.Equals("--screen3", StringComparison.OrdinalIgnoreCase) ||
             a.Equals("--account-setup", StringComparison.OrdinalIgnoreCase) ||
             a.Equals("--screen4", StringComparison.OrdinalIgnoreCase) ||
-            a.Equals("--account-connected", StringComparison.OrdinalIgnoreCase));
+            a.Equals("--account-connected", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--screen5", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--preflight-prepare", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--screen6", StringComparison.OrdinalIgnoreCase) ||
+            a.Equals("--preflight-checking", StringComparison.OrdinalIgnoreCase));
         _isFirstRun = forceFirstRun || !_onboardingStore.IsFirstRunCompleted();
 
         // Enforce mode upon window activation

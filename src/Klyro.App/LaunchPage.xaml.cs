@@ -14,6 +14,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using Klyro.Core.Authentication;
 using Klyro.Core.Configuration;
 using Klyro.Core.Persistence;
+using Klyro.Core.Preflight;
 using Klyro.Core.Startup;
 
 namespace Klyro_App;
@@ -25,7 +26,9 @@ public sealed partial class LaunchPage : Page
     private readonly OnboardingStateStore _onboardingStore = new();
     private readonly KlyroConfiguration _config = LoadConfiguration();
     private readonly SystemBrowserAuthService _browserAuthService = new();
+    private readonly IEnvironmentPreflightService _preflightService;
     private CancellationTokenSource? _startupCts;
+    private CancellationTokenSource? _preflightCts;
     private double _currentProgressWidth;
     private bool _isGoogleAuthInitialized = false;
     private bool _isAuthCompleted = false;
@@ -49,6 +52,7 @@ public sealed partial class LaunchPage : Page
         PageLog("Constructor entered.");
         try
         {
+            _preflightService = new EnvironmentPreflightService(_config);
             InitializeComponent();
             Unloaded += LaunchPage_Unloaded;
             _browserAuthService.AuthCompleted += BrowserAuthService_AuthCompleted;
@@ -107,6 +111,87 @@ public sealed partial class LaunchPage : Page
         try
         {
             var cmdArgs = Environment.GetCommandLineArgs();
+
+            bool directScreen5 = cmdArgs.Any(a =>
+                a.Equals("--screen5", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("--preflight-prepare", StringComparison.OrdinalIgnoreCase));
+
+            if (directScreen5)
+            {
+                PageLog("Direct Screen 5 (Prepare Environment) requested via CLI arguments.");
+                StartupStateGrid.Visibility = Visibility.Collapsed;
+                WelcomeStateGrid.Visibility = Visibility.Collapsed;
+                AccountSetupStateGrid.Visibility = Visibility.Collapsed;
+                AccountConnectedStateGrid.Visibility = Visibility.Collapsed;
+                PreflightCheckingStateGrid.Visibility = Visibility.Collapsed;
+                StartupScreenBg.Opacity = 0.0;
+                GoogleSigninBg.Opacity = 0.0;
+                KlyroBrandLogo.Opacity = 0.0;
+                PreflightScreenBg.Opacity = 1.0;
+                PreflightPrepareStateGrid.Visibility = Visibility.Visible;
+                PreflightPrepareStateGrid.Opacity = 1.0;
+
+                string? screenshotScreen5Path = null;
+                for (int i = 0; i < cmdArgs.Length; i++)
+                {
+                    if (cmdArgs[i].Equals("--screenshot-screen5", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        screenshotScreen5Path = cmdArgs[i + 1];
+                }
+
+                if (!string.IsNullOrEmpty(screenshotScreen5Path))
+                {
+                    await Task.Delay(400);
+                    await CaptureScreenshotAsync(screenshotScreen5Path);
+                }
+                return;
+            }
+
+            bool directScreen6 = cmdArgs.Any(a =>
+                a.Equals("--screen6", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("--preflight-checking", StringComparison.OrdinalIgnoreCase));
+
+            if (directScreen6)
+            {
+                PageLog("Direct Screen 6 (Checking Environment) requested via CLI arguments.");
+                StartupStateGrid.Visibility = Visibility.Collapsed;
+                WelcomeStateGrid.Visibility = Visibility.Collapsed;
+                AccountSetupStateGrid.Visibility = Visibility.Collapsed;
+                AccountConnectedStateGrid.Visibility = Visibility.Collapsed;
+                PreflightPrepareStateGrid.Visibility = Visibility.Collapsed;
+                StartupScreenBg.Opacity = 0.0;
+                GoogleSigninBg.Opacity = 0.0;
+                KlyroBrandLogo.Opacity = 0.0;
+                PreflightScreenBg.Opacity = 1.0;
+                PreflightCheckingStateGrid.Visibility = Visibility.Visible;
+                PreflightCheckingStateGrid.Opacity = 1.0;
+
+                string? screenshotScreen6Path = null;
+                string? testEmail = null;
+                string? testName = null;
+                for (int i = 0; i < cmdArgs.Length; i++)
+                {
+                    if (cmdArgs[i].Equals("--screenshot-screen6", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        screenshotScreen6Path = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--test-user-email", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        testEmail = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--test-user-name", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        testName = cmdArgs[i + 1];
+                }
+
+                if (_currentUser == null)
+                {
+                    var detected = BrowserProfileDetector.DetectLatestGoogleAccount();
+                    _currentUser = new AuthenticatedUser
+                    {
+                        DisplayName = testName ?? detected?.DisplayName ?? "P. Venkata Sai",
+                        Email = testEmail ?? detected?.Email ?? "p.venkatsai333@gmail.com",
+                        PhotoUrl = detected?.PhotoUrl
+                    };
+                }
+
+                _ = RunPreflightChecksAsync(screenshotScreen6Path);
+                return;
+            }
 
             bool directScreen4 = cmdArgs.Any(a =>
                 a.Equals("--screen4", StringComparison.OrdinalIgnoreCase) ||
@@ -1222,17 +1307,339 @@ public sealed partial class LaunchPage : Page
 
     private void ContinueButton_Click(object sender, RoutedEventArgs e)
     {
-        PageLog("Continue clicked on Screen 4. Completing onboarding and transitioning to assessment view.");
-        _onboardingStore.MarkCompleted(_currentUser?.Email, _currentUser?.DisplayName, _currentUser?.PhotoUrl);
+        PageLog("Continue clicked on Screen 4. Transitioning to Screen 5: Prepare your environment.");
+        _ = TransitionToPreflightPrepareAsync();
+    }
 
-        if (MainWindow.CurrentInstance != null)
+    private async Task TransitionToPreflightPrepareAsync()
+    {
+        PageLog("Starting transition from Screen 4 to Screen 5 (Prepare Environment)...");
+
+        // Prepare Screen 5 elements
+        PreflightPrepareStateGrid.Visibility = Visibility.Visible;
+        PreflightPrepareStateGrid.Opacity = 0.0;
+        PreflightPrepareStateGrid.Translation = new System.Numerics.Vector3(0, 12, 0);
+
+        // Cross-fade left backgrounds: GoogleSigninBg -> PreflightScreenBg
+        // Cross-fade right states: AccountConnectedStateGrid -> PreflightPrepareStateGrid
+        const int steps = 12;
+        for (int i = 1; i <= steps; i++)
         {
-            MainWindow.CurrentInstance.NavigateToAssessmentView();
+            double progress = i / (double)steps;
+            AccountConnectedStateGrid.Opacity = 1.0 - progress;
+            GoogleSigninBg.Opacity = 1.0 - progress;
+
+            PreflightScreenBg.Opacity = progress;
+            PreflightPrepareStateGrid.Opacity = progress;
+            PreflightPrepareStateGrid.Translation = new System.Numerics.Vector3(0, (float)(12 * (1.0 - progress)), 0);
+
+            await Task.Delay(25);
         }
-        else
+
+        AccountConnectedStateGrid.Visibility = Visibility.Collapsed;
+        AccountConnectedStateGrid.Opacity = 0.0;
+        GoogleSigninBg.Opacity = 0.0;
+
+        PreflightScreenBg.Opacity = 1.0;
+        PreflightPrepareStateGrid.Opacity = 1.0;
+        PreflightPrepareStateGrid.Translation = new System.Numerics.Vector3(0, 0, 0);
+
+        PageLog("Screen 5 (Prepare Environment) transition complete.");
+    }
+
+    private void StartCheckButton_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Start Check clicked on Screen 5. Transitioning to Screen 6: Checking your environment.");
+        _ = TransitionToPreflightCheckingAsync();
+    }
+
+    private void StartCheckButton_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        StartCheckArrowIcon.Margin = new Thickness(4, 0, 0, 0);
+    }
+
+    private void StartCheckButton_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
+        StartCheckArrowIcon.Margin = new Thickness(0, 0, 0, 0);
+    }
+
+    private void StartCheckButton_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 82, 204));
+    }
+
+    private void StartCheckButton_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+    }
+
+    private async Task TransitionToPreflightCheckingAsync()
+    {
+        PageLog("Starting transition from Screen 5 to Screen 6 (Checking Environment)...");
+
+        PreflightCheckingStateGrid.Visibility = Visibility.Visible;
+        PreflightCheckingStateGrid.Opacity = 0.0;
+        PreflightCheckingStateGrid.Translation = new System.Numerics.Vector3(0, 12, 0);
+
+        // Reset check cards to initial waiting state
+        ResetPreflightCheckingUi();
+
+        const int steps = 10;
+        for (int i = 1; i <= steps; i++)
         {
-            Frame.Navigate(typeof(MainPage));
+            double progress = i / (double)steps;
+            PreflightPrepareStateGrid.Opacity = 1.0 - progress;
+
+            PreflightCheckingStateGrid.Opacity = progress;
+            PreflightCheckingStateGrid.Translation = new System.Numerics.Vector3(0, (float)(12 * (1.0 - progress)), 0);
+
+            await Task.Delay(25);
         }
+
+        PreflightPrepareStateGrid.Visibility = Visibility.Collapsed;
+        PreflightPrepareStateGrid.Opacity = 0.0;
+
+        PreflightCheckingStateGrid.Opacity = 1.0;
+        PreflightCheckingStateGrid.Translation = new System.Numerics.Vector3(0, 0, 0);
+
+        PageLog("Screen 6 transition complete. Running real preflight diagnostics...");
+        _ = RunPreflightChecksAsync();
+    }
+
+    private void ResetPreflightCheckingUi()
+    {
+        PreflightRetryContainer.Visibility = Visibility.Collapsed;
+        PreflightProgressBar.Value = 0;
+        PreflightProgressCounter.Text = "0 / 5";
+
+        ResetCardUi(AccountCardBorder, AccountPassedIcon, AccountProgressRing, AccountWaitingIcon, AccountFailedIcon, AccountSubtitleText, AccountStatusText, "Waiting for verification...");
+        ResetCardUi(NetworkCardBorder, NetworkPassedIcon, NetworkProgressRing, NetworkWaitingIcon, NetworkFailedIcon, NetworkSubtitleText, NetworkStatusText, "Waiting for network check...");
+        ResetCardUi(InternetCardBorder, InternetPassedIcon, InternetProgressRing, InternetWaitingIcon, InternetFailedIcon, InternetSubtitleText, InternetStatusText, "Waiting for connection...");
+        ResetCardUi(AssessmentCardBorder, AssessmentPassedIcon, AssessmentProgressRing, AssessmentWaitingIcon, AssessmentFailedIcon, AssessmentSubtitleText, AssessmentStatusText, "Waiting for response...");
+        ResetCardUi(SecurityCardBorder, SecurityPassedIcon, SecurityProgressRing, SecurityWaitingIcon, SecurityFailedIcon, SecuritySubtitleText, SecurityStatusText, "Waiting for checks to complete...");
+    }
+
+    private static void ResetCardUi(
+        Border cardBorder,
+        Border passedIcon,
+        ProgressRing progressRing,
+        Border waitingIcon,
+        Border failedIcon,
+        TextBlock subtitleText,
+        TextBlock statusText,
+        string defaultSubtitle)
+    {
+        cardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59)); // #1E293B
+        passedIcon.Visibility = Visibility.Collapsed;
+        progressRing.IsActive = false;
+        progressRing.Visibility = Visibility.Collapsed;
+        waitingIcon.Visibility = Visibility.Visible;
+        failedIcon.Visibility = Visibility.Collapsed;
+
+        subtitleText.Text = defaultSubtitle;
+        statusText.Text = "Waiting";
+        statusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139)); // #64748B
+    }
+
+    private void UpdateCardProgressUi(PreflightItemProgress item)
+    {
+        Border cardBorder;
+        Border passedIcon;
+        ProgressRing progressRing;
+        Border waitingIcon;
+        Border failedIcon;
+        TextBlock subtitleText;
+        TextBlock statusText;
+
+        switch (item.Id)
+        {
+            case PreflightCheckId.Account:
+                cardBorder = AccountCardBorder;
+                passedIcon = AccountPassedIcon;
+                progressRing = AccountProgressRing;
+                waitingIcon = AccountWaitingIcon;
+                failedIcon = AccountFailedIcon;
+                subtitleText = AccountSubtitleText;
+                statusText = AccountStatusText;
+                break;
+            case PreflightCheckId.Network:
+                cardBorder = NetworkCardBorder;
+                passedIcon = NetworkPassedIcon;
+                progressRing = NetworkProgressRing;
+                waitingIcon = NetworkWaitingIcon;
+                failedIcon = NetworkFailedIcon;
+                subtitleText = NetworkSubtitleText;
+                statusText = NetworkStatusText;
+                break;
+            case PreflightCheckId.Internet:
+                cardBorder = InternetCardBorder;
+                passedIcon = InternetPassedIcon;
+                progressRing = InternetProgressRing;
+                waitingIcon = InternetWaitingIcon;
+                failedIcon = InternetFailedIcon;
+                subtitleText = InternetSubtitleText;
+                statusText = InternetStatusText;
+                break;
+            case PreflightCheckId.AssessmentService:
+                cardBorder = AssessmentCardBorder;
+                passedIcon = AssessmentPassedIcon;
+                progressRing = AssessmentProgressRing;
+                waitingIcon = AssessmentWaitingIcon;
+                failedIcon = AssessmentFailedIcon;
+                subtitleText = AssessmentSubtitleText;
+                statusText = AssessmentStatusText;
+                break;
+            case PreflightCheckId.SecureEnvironment:
+                cardBorder = SecurityCardBorder;
+                passedIcon = SecurityPassedIcon;
+                progressRing = SecurityProgressRing;
+                waitingIcon = SecurityWaitingIcon;
+                failedIcon = SecurityFailedIcon;
+                subtitleText = SecuritySubtitleText;
+                statusText = SecurityStatusText;
+                break;
+            default:
+                return;
+        }
+
+        subtitleText.Text = item.Subtitle;
+
+        switch (item.State)
+        {
+            case PreflightCheckState.Checking:
+                cardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235)); // #2563EB active
+                passedIcon.Visibility = Visibility.Collapsed;
+                waitingIcon.Visibility = Visibility.Collapsed;
+                failedIcon.Visibility = Visibility.Collapsed;
+                progressRing.Visibility = Visibility.Visible;
+                progressRing.IsActive = true;
+                statusText.Text = "Checking...";
+                statusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248)); // #38BDF8
+                break;
+
+            case PreflightCheckState.Passed:
+                cardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+                progressRing.IsActive = false;
+                progressRing.Visibility = Visibility.Collapsed;
+                waitingIcon.Visibility = Visibility.Collapsed;
+                failedIcon.Visibility = Visibility.Collapsed;
+                passedIcon.Visibility = Visibility.Visible;
+                statusText.Text = "Ready";
+                statusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)); // #10B981
+                break;
+
+            case PreflightCheckState.Failed:
+                cardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68)); // #EF4444 failed
+                progressRing.IsActive = false;
+                progressRing.Visibility = Visibility.Collapsed;
+                waitingIcon.Visibility = Visibility.Collapsed;
+                passedIcon.Visibility = Visibility.Collapsed;
+                failedIcon.Visibility = Visibility.Visible;
+                statusText.Text = "Failed";
+                statusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68)); // #EF4444
+                break;
+
+            case PreflightCheckState.Waiting:
+            default:
+                cardBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+                progressRing.IsActive = false;
+                progressRing.Visibility = Visibility.Collapsed;
+                passedIcon.Visibility = Visibility.Collapsed;
+                failedIcon.Visibility = Visibility.Collapsed;
+                waitingIcon.Visibility = Visibility.Visible;
+                statusText.Text = "Waiting";
+                statusText.Foreground = new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
+                break;
+        }
+    }
+
+    private async Task RunPreflightChecksAsync(string? screenshotPath = null)
+    {
+        _preflightCts?.Cancel();
+        _preflightCts = new CancellationTokenSource();
+        var token = _preflightCts.Token;
+
+        PageLog("Running preflight checks engine...");
+        _preflightService.Reset();
+        ResetPreflightCheckingUi();
+
+        // Subscribe to item progress events
+        EventHandler<PreflightItemProgress> onProgress = (s, item) =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                UpdateCardProgressUi(item);
+            });
+        };
+
+        var progressReporter = new Progress<PreflightProgressReport>(report =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                PreflightProgressBar.Value = report.CompletedCount;
+                PreflightProgressCounter.Text = $"{report.CompletedCount} / {report.TotalCount}";
+            });
+        });
+
+        _preflightService.ItemProgressChanged += onProgress;
+
+        try
+        {
+            bool allPassed = await _preflightService.RunAllChecksAsync(_currentUser, progressReporter, token);
+
+            if (!string.IsNullOrEmpty(screenshotPath))
+            {
+                await Task.Delay(400);
+                await CaptureScreenshotAsync(screenshotPath);
+            }
+
+            if (allPassed)
+            {
+                PageLog("All preflight checks passed successfully. Navigating to assessment view.");
+                // Mark onboarding completed in state store
+                _onboardingStore.MarkCompleted(_currentUser?.Email, _currentUser?.DisplayName, _currentUser?.PhotoUrl);
+
+                // Natural brief pause (600ms) for user affirmation
+                await Task.Delay(600);
+
+                if (MainWindow.CurrentInstance != null)
+                {
+                    MainWindow.CurrentInstance.NavigateToAssessmentView();
+                }
+                else
+                {
+                    Frame.Navigate(typeof(MainPage));
+                }
+            }
+            else
+            {
+                var failedItem = _preflightService.CurrentItems.FirstOrDefault(i => i.State == PreflightCheckState.Failed);
+                PreflightErrorDetails.Text = failedItem?.DiagnosticDetails ?? "One or more required environment checks failed.";
+                PreflightRetryContainer.Visibility = Visibility.Visible;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            PageLog("Preflight checks cancelled.");
+        }
+        catch (Exception ex)
+        {
+            PageLog($"Preflight checks exception: {ex}");
+            PreflightErrorDetails.Text = $"Diagnostic execution error: {ex.Message}";
+            PreflightRetryContainer.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _preflightService.ItemProgressChanged -= onProgress;
+        }
+    }
+
+    private void PreflightRetryButton_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Preflight retry clicked.");
+        _ = RunPreflightChecksAsync();
     }
 
     private void ContinueButton_PointerEntered(object sender, PointerRoutedEventArgs e)
