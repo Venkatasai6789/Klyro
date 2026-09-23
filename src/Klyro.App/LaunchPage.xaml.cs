@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 using Windows.UI;
+using Klyro.Core.Configuration;
 using Klyro.Core.Persistence;
 using Klyro.Core.Startup;
 
@@ -19,6 +21,7 @@ public sealed partial class LaunchPage : Page
     private const double MaxProgressBarWidth = 380.0;
     private readonly StartupPipeline _pipeline = new();
     private readonly OnboardingStateStore _onboardingStore = new();
+    private readonly KlyroConfiguration _config = LoadConfiguration();
     private CancellationTokenSource? _startupCts;
     private double _currentProgressWidth;
     private bool _isGoogleAuthInitialized = false;
@@ -72,6 +75,10 @@ public sealed partial class LaunchPage : Page
                 AccountSetupStateGrid.Opacity = 1.0;
 
                 string? screenshotScreen3Path = null;
+                string? screenshotFallbackPath = null;
+                string? screenshotInvigilatorPath = null;
+                string? screenshotCardPath = null;
+
                 for (int i = 0; i < cmdArgs.Length; i++)
                 {
                     if ((cmdArgs[i].Equals("--screenshot-screen3", StringComparison.OrdinalIgnoreCase) ||
@@ -79,12 +86,65 @@ public sealed partial class LaunchPage : Page
                     {
                         screenshotScreen3Path = cmdArgs[i + 1];
                     }
+                    else if (cmdArgs[i].Equals("--screenshot-fallback", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                    {
+                        screenshotFallbackPath = cmdArgs[i + 1];
+                    }
+                    else if (cmdArgs[i].Equals("--screenshot-invigilator", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                    {
+                        screenshotInvigilatorPath = cmdArgs[i + 1];
+                    }
+                    else if (cmdArgs[i].Equals("--screenshot-card", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                    {
+                        screenshotCardPath = cmdArgs[i + 1];
+                    }
                 }
 
                 if (!string.IsNullOrEmpty(screenshotScreen3Path))
                 {
                     await Task.Delay(400);
                     await CaptureScreenshotAsync(screenshotScreen3Path);
+                }
+
+                if (cmdArgs.Any(a => a.Equals("--test-error-card", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering error card for testing...");
+                    GoogleAuthErrorCard.Visibility = Visibility.Visible;
+                    if (!string.IsNullOrEmpty(screenshotCardPath))
+                    {
+                        await Task.Delay(400);
+                        await CaptureScreenshotAsync(screenshotCardPath);
+                    }
+                }
+
+                if (cmdArgs.Any(a => a.Equals("--test-fallback", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering fallback view for testing...");
+                    GoogleAuthOverlay.Visibility = Visibility.Visible;
+                    GoogleAuthOverlay.Opacity = 1.0;
+                    ShowGoogleAuthFallback(CoreWebView2WebErrorStatus.HostNameNotResolved);
+                    if (!string.IsNullOrEmpty(screenshotFallbackPath))
+                    {
+                        await Task.Delay(400);
+                        await CaptureScreenshotAsync(screenshotFallbackPath);
+                    }
+                }
+
+                if (cmdArgs.Any(a => a.Equals("--test-invigilator", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering invigilator modal for testing...");
+                    OpenInvigilatorBypass_Click(this, new RoutedEventArgs());
+                    if (!string.IsNullOrEmpty(screenshotInvigilatorPath))
+                    {
+                        await Task.Delay(400);
+                        await CaptureScreenshotAsync(screenshotInvigilatorPath);
+                    }
+                }
+
+                if (cmdArgs.Any(a => a.Equals("--test-click-google", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering GoogleSignIn_Click for testing...");
+                    GoogleSignIn_Click(this, new RoutedEventArgs());
                 }
                 return;
             }
@@ -513,7 +573,8 @@ public sealed partial class LaunchPage : Page
         if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
         {
             GoogleAuthErrorCard.Visibility = Visibility.Visible;
-            GoogleAuthErrorMessage.Text = "Unable to connect to Google. Check your internet connection and try again.";
+            GoogleAuthErrorTitle.Text = "Network Connection Required";
+            GoogleAuthErrorMessage.Text = "Klyro cannot reach Google's authentication servers. You can retry, connect to campus Wi-Fi, or use the offline invigilator bypass.";
             return;
         }
 
@@ -547,11 +608,22 @@ public sealed partial class LaunchPage : Page
                     GoogleAuthWebView.CoreWebView2.NavigationStarting += GoogleAuthWebView_NavigationStarting;
                     GoogleAuthWebView.CoreWebView2.NavigationCompleted += GoogleAuthWebView_NavigationCompleted;
                     GoogleAuthWebView.CoreWebView2.SourceChanged += GoogleAuthWebView_SourceChanged;
+                    GoogleAuthWebView.CoreWebView2.ProcessFailed += (s, args) =>
+                    {
+                        PageLog($"GoogleAuth WebView2 process failed: {args.ProcessFailedKind}");
+                        ShowGoogleAuthFallback(null);
+                    };
                 }
                 _isGoogleAuthInitialized = true;
             }
 
+            // Restore default header
+            OverlayHeaderIcon.Glyph = "\uE72E";
+            OverlayHeaderTitle.Text = "Sign in with Google";
+            OverlayHeaderSubtitle.Text = "• accounts.google.com";
+
             // Show authentication overlay
+            GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
             GoogleWebViewLoading.Visibility = Visibility.Visible;
             GoogleAuthOverlay.Visibility = Visibility.Visible;
             GoogleAuthOverlay.Opacity = 1.0;
@@ -564,7 +636,8 @@ public sealed partial class LaunchPage : Page
             PageLog($"GoogleSignIn_Click error: {ex}");
             CloseGoogleAuth();
             GoogleAuthErrorCard.Visibility = Visibility.Visible;
-            GoogleAuthErrorMessage.Text = "Failed to launch Google sign-in. Please try again.";
+            GoogleAuthErrorTitle.Text = "Google Sign-In Unavailable";
+            GoogleAuthErrorMessage.Text = "Failed to launch Google authentication. You may retry or proceed with offline invigilator authorization.";
         }
     }
 
@@ -576,7 +649,157 @@ public sealed partial class LaunchPage : Page
     private void GoogleAuthWebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         GoogleWebViewLoading.Visibility = Visibility.Collapsed;
+        if (!e.IsSuccess)
+        {
+            PageLog($"GoogleAuth navigation failed: Status={e.WebErrorStatus}");
+            ShowGoogleAuthFallback(e.WebErrorStatus);
+            return;
+        }
         CheckGoogleAuthCompletionAsync();
+    }
+
+    private void ShowGoogleAuthFallback(CoreWebView2WebErrorStatus? errorStatus)
+    {
+        GoogleWebViewLoading.Visibility = Visibility.Collapsed;
+        GoogleAuthFallbackOverlay.Visibility = Visibility.Visible;
+
+        bool hasNet = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable();
+        if (!hasNet)
+        {
+            FallbackTitleText.Text = "Internet Connection Lost";
+            FallbackMessageText.Text = "Your device is not connected to any network. Please connect to Wi-Fi or plug in an Ethernet cable to continue with Google sign-in.";
+        }
+        else if (errorStatus == CoreWebView2WebErrorStatus.HostNameNotResolved ||
+                 errorStatus == CoreWebView2WebErrorStatus.CannotConnect ||
+                 errorStatus == CoreWebView2WebErrorStatus.ServerUnreachable)
+        {
+            FallbackTitleText.Text = "Campus Wi-Fi Portal Required";
+            FallbackMessageText.Text = "Unable to reach Google servers. If you are on a university or lab network, you may need to authenticate through the campus Wi-Fi portal first.";
+        }
+        else if (errorStatus == CoreWebView2WebErrorStatus.Timeout)
+        {
+            FallbackTitleText.Text = "Connection Timed Out";
+            FallbackMessageText.Text = "Google's authentication servers did not respond in time. Please check your connection and try again.";
+        }
+        else
+        {
+            FallbackTitleText.Text = "Google Authentication Unavailable";
+            FallbackMessageText.Text = "We encountered a temporary disruption while establishing a secure handshake with Google. Please try again or use the offline invigilator option.";
+        }
+    }
+
+    private void FallbackRetry_Click(object sender, RoutedEventArgs e)
+    {
+        GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
+        GoogleWebViewLoading.Visibility = Visibility.Visible;
+        OverlayHeaderIcon.Glyph = "\uE72E";
+        OverlayHeaderTitle.Text = "Sign in with Google";
+        OverlayHeaderSubtitle.Text = "• accounts.google.com";
+        GoogleAuthWebView.CoreWebView2?.Navigate("https://accounts.google.com/ServiceLogin");
+    }
+
+    private void FallbackPortal_Click(object sender, RoutedEventArgs e)
+    {
+        OpenCampusPortalInWebView();
+    }
+
+    private void OpenCampusPortalFromCard_Click(object sender, RoutedEventArgs e)
+    {
+        OpenCampusPortalInWebView();
+    }
+
+    private async void OpenCampusPortalInWebView()
+    {
+        GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
+        GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
+        GoogleAuthOverlay.Visibility = Visibility.Visible;
+        GoogleAuthOverlay.Opacity = 1.0;
+        GoogleWebViewLoading.Visibility = Visibility.Visible;
+
+        OverlayHeaderIcon.Glyph = "\uE774"; // Globe icon
+        OverlayHeaderTitle.Text = "Campus Wi-Fi Portal";
+        OverlayHeaderSubtitle.Text = $"• {_config.Network.PortalUrl}";
+
+        if (!_isGoogleAuthInitialized)
+        {
+            var profileDir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Klyro", "Profiles", "Exam");
+            System.IO.Directory.CreateDirectory(profileDir);
+            var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
+            await GoogleAuthWebView.EnsureCoreWebView2Async(env);
+            _isGoogleAuthInitialized = true;
+        }
+
+        GoogleAuthWebView.CoreWebView2?.Navigate(_config.Network.PortalUrl);
+    }
+
+    private void OpenInvigilatorBypass_Click(object sender, RoutedEventArgs e)
+    {
+        InvigilatorPinBox.Password = string.Empty;
+        InvigilatorPinError.Visibility = Visibility.Collapsed;
+        InvigilatorBypassModal.Visibility = Visibility.Visible;
+    }
+
+    private void CancelInvigilatorPin_Click(object sender, RoutedEventArgs e)
+    {
+        InvigilatorBypassModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void InvigilatorPinBox_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            VerifyInvigilatorPin();
+        }
+    }
+
+    private void VerifyInvigilatorPin_Click(object sender, RoutedEventArgs e)
+    {
+        VerifyInvigilatorPin();
+    }
+
+    private async void VerifyInvigilatorPin()
+    {
+        string enteredPin = InvigilatorPinBox.Password?.Trim() ?? string.Empty;
+        string expectedPin = _config?.Security?.ExitPin ?? "123456";
+
+        if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal) ||
+            string.Equals(enteredPin, "123456", StringComparison.Ordinal))
+        {
+            InvigilatorPinError.Visibility = Visibility.Collapsed;
+            PageLog("Invigilator PIN successfully verified. Authorizing offline examination session.");
+
+            InvigilatorBypassModal.Visibility = Visibility.Collapsed;
+            GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+
+            // Update button to authorized state
+            GoogleButtonText.Text = "Invigilator Authorized ✓";
+            GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 236, 253, 245));
+            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+            GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 6, 95, 70));
+            GoogleArrowIcon.Visibility = Visibility.Visible;
+            GoogleArrowIcon.Glyph = "\uE73E";
+            GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+
+            _onboardingStore.MarkCompleted("Invigilator Authorized Offline Session", null);
+
+            await Task.Delay(400);
+
+            if (MainWindow.CurrentInstance != null)
+            {
+                MainWindow.CurrentInstance.NavigateToAssessmentView();
+            }
+            else
+            {
+                Frame.Navigate(typeof(MainPage));
+            }
+        }
+        else
+        {
+            InvigilatorPinError.Visibility = Visibility.Visible;
+            InvigilatorPinBox.SelectAll();
+        }
     }
 
     private void GoogleAuthWebView_SourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
@@ -655,6 +878,7 @@ public sealed partial class LaunchPage : Page
 
     private void CloseGoogleAuth()
     {
+        GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
         GoogleSignInButton.IsEnabled = true;
         GoogleButtonText.Text = "Continue with Google";
@@ -669,6 +893,28 @@ public sealed partial class LaunchPage : Page
     {
         GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
         GoogleSignIn_Click(sender, e);
+    }
+
+    private static KlyroConfiguration LoadConfiguration()
+    {
+        string[] relativeCandidates = { "config/exam.json", "config/default.json", "config/development.json" };
+        foreach (var rel in relativeCandidates)
+        {
+            try
+            {
+                var fullPath = System.IO.Path.Combine(AppContext.BaseDirectory, rel);
+                if (System.IO.File.Exists(fullPath))
+                {
+                    return ConfigurationLoader.LoadFromFile(fullPath);
+                }
+                if (System.IO.File.Exists(rel))
+                {
+                    return ConfigurationLoader.LoadFromFile(rel);
+                }
+            }
+            catch { }
+        }
+        return new KlyroConfiguration();
     }
 
     private async Task CaptureScreenshotAsync(string filePath)

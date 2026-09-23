@@ -699,35 +699,58 @@
                             </Grid>
                         </Button>
 
-                        <!-- Error Card (if network drops or Google fails) -->
+                        <!-- Connection Assistance / Fallback Card (User-friendly diagnosis without error codes) -->
                         <Border x:Name="GoogleAuthErrorCard"
-                                Background="#1C1418"
-                                BorderBrush="#7F1D1D"
+                                Background="#141B2D"
+                                BorderBrush="#253554"
                                 BorderThickness="1"
                                 CornerRadius="8"
-                                Padding="16,12"
+                                Padding="16"
                                 Margin="0,18,0,0"
                                 MaxWidth="380"
                                 HorizontalAlignment="Left"
                                 Visibility="Collapsed">
-                            <StackPanel Spacing="8">
+                            <StackPanel Spacing="10">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xEB55;" FontSize="16" Foreground="#EF4444" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="GoogleAuthErrorMessage"
-                                               Text="Unable to connect to Google. Check your connection and try again."
+                                    <FontIcon Glyph="&#xE701;" FontSize="15" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="GoogleAuthErrorTitle"
+                                               Text="Connection Assistance"
                                                FontSize="13"
                                                FontWeight="SemiBold"
-                                               Foreground="#FCA5A5"
-                                               TextWrapping="Wrap" />
+                                               Foreground="#FFFFFF" />
                                 </StackPanel>
-                                <Button Content="Try Again"
-                                        Click="RetryGoogleAuth_Click"
-                                        Background="#2563EB"
-                                        Foreground="#FFFFFF"
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        Padding="14,6"
-                                        CornerRadius="6" />
+                                <TextBlock x:Name="GoogleAuthErrorMessage"
+                                           Text="Unable to reach Google's authentication servers. You can retry, access the campus Wi-Fi portal, or use offline invigilator authorization."
+                                           FontSize="12"
+                                           Foreground="#94A3B8"
+                                           TextWrapping="Wrap"
+                                           LineHeight="18" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="Try Again"
+                                            Click="RetryGoogleAuth_Click"
+                                            Background="#0066FF"
+                                            Foreground="#FFFFFF"
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Padding="14,6"
+                                            CornerRadius="6" />
+                                    <Button Content="Campus Portal"
+                                            Click="OpenCampusPortalFromCard_Click"
+                                            Background="#1E293B"
+                                            Foreground="#CBD5E1"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Padding="12,6"
+                                            CornerRadius="6" />
+                                    <Button Content="Offline Bypass"
+                                            Click="OpenInvigilatorBypass_Click"
+                                            Background="Transparent"
+                                            Foreground="#60A5FA"
+                                            FontSize="12"
+                                            FontWeight="Medium"
+                                            Padding="8,6"
+                                            CornerRadius="6" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -745,16 +768,16 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- Overlay Header: Security padlock + Google Sign-In + Close Button -->
+                    <!-- Overlay Header: Security padlock + Dynamic Title + Close Button -->
                     <Grid Grid.Row="0"
                           Background="#131B2E"
                           BorderBrush="#1E293B"
                           BorderThickness="0,0,0,1"
                           Padding="16,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                            <FontIcon Glyph="&#xE72E;" FontSize="13" Foreground="#22C55E" VerticalAlignment="Center" />
-                            <TextBlock Text="Sign in with Google" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
-                            <TextBlock Text="• accounts.google.com" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+                            <FontIcon x:Name="OverlayHeaderIcon" Glyph="&#xE72E;" FontSize="13" Foreground="#22C55E" VerticalAlignment="Center" />
+                            <TextBlock x:Name="OverlayHeaderTitle" Text="Sign in with Google" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                            <TextBlock x:Name="OverlayHeaderSubtitle" Text="• accounts.google.com" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
                         </StackPanel>
 
                         <Button Click="CloseGoogleAuth_Click"
@@ -788,9 +811,199 @@
                                        Foreground="#94A3B8"
                                        HorizontalAlignment="Center" />
                         </StackPanel>
+
+                        <!-- Dedicated In-App Fallback View (Shown instead of raw browser error codes) -->
+                        <Grid x:Name="GoogleAuthFallbackOverlay"
+                              Background="#0F1219"
+                              Visibility="Collapsed"
+                              Padding="32">
+                            <StackPanel VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        MaxWidth="380"
+                                        Spacing="16">
+
+                                <!-- Alert / Network Icon -->
+                                <Border Width="56"
+                                        Height="56"
+                                        CornerRadius="14"
+                                        Background="#162035"
+                                        BorderBrush="#1E2F4D"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE701;" FontSize="24" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+
+                                <!-- Title & Diagnostic Message (Plain English, No Raw Codes) -->
+                                <StackPanel Spacing="6" HorizontalAlignment="Center">
+                                    <TextBlock x:Name="FallbackTitleText"
+                                               Text="Unable to Reach Google Sign-In"
+                                               FontSize="17"
+                                               FontWeight="Bold"
+                                               Foreground="#FFFFFF"
+                                               TextAlignment="Center"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="FallbackMessageText"
+                                               Text="Your connection to Google's authentication service could not be established. You can retry, authenticate through the campus portal, or request an invigilator bypass."
+                                               FontSize="13"
+                                               Foreground="#94A3B8"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               LineHeight="20"
+                                               HorizontalAlignment="Center" />
+                                </StackPanel>
+
+                                <!-- Primary Action: Try Again -->
+                                <Button Click="FallbackRetry_Click"
+                                        Width="380"
+                                        Height="44"
+                                        Background="#0066FF"
+                                        Foreground="#FFFFFF"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        CornerRadius="8"
+                                        BorderThickness="0"
+                                        Margin="0,8,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE72C;" FontSize="13" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                        <TextBlock Text="Try Again" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Secondary Action: Open Campus Wi-Fi Portal -->
+                                <Button Click="FallbackPortal_Click"
+                                        Width="380"
+                                        Height="40"
+                                        Background="#1E293B"
+                                        Foreground="#CBD5E1"
+                                        FontSize="13"
+                                        FontWeight="Medium"
+                                        CornerRadius="8"
+                                        BorderBrush="#334155"
+                                        BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE774;" FontSize="13" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                        <TextBlock Text="Open Campus Wi-Fi Portal" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Tertiary Action: Invigilator Offline Bypass -->
+                                <Button Click="OpenInvigilatorBypass_Click"
+                                        Width="380"
+                                        Height="36"
+                                        Background="Transparent"
+                                        Foreground="#60A5FA"
+                                        FontSize="13"
+                                        FontWeight="Medium"
+                                        CornerRadius="6"
+                                        BorderThickness="0">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="#60A5FA" VerticalAlignment="Center" />
+                                        <TextBlock Text="Invigilator Offline Bypass" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Back / Cancel Button -->
+                                <Button Click="CloseGoogleAuth_Click"
+                                        HorizontalAlignment="Center"
+                                        Background="Transparent"
+                                        Foreground="#64748B"
+                                        FontSize="12"
+                                        BorderThickness="0"
+                                        Content="Return to Setup" />
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Grid>
             </Grid>
+        </Grid>
+
+        <!-- ============================================================ -->
+        <!-- INVIGILATOR OFFLINE AUTHORIZATION MODAL                      -->
+        <!-- ============================================================ -->
+        <Grid x:Name="InvigilatorBypassModal"
+              Grid.Column="0"
+              Grid.ColumnSpan="2"
+              Background="#D9000000"
+              Visibility="Collapsed">
+            <Border Width="400"
+                    Background="#131B2E"
+                    BorderBrush="#253554"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="28"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="16">
+                    <!-- Icon + Title -->
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Border Width="40" Height="40" CornerRadius="10" Background="#1E2A47" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE72E;" FontSize="18" Foreground="#60A5FA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Invigilator Authorization" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                            <TextBlock Text="Offline Exam Hall Bypass" FontSize="12" Foreground="#64748B" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Text="If external Google services or the campus WAN is temporarily unavailable, the examination invigilator may authorize this workstation using the proctor PIN."
+                               FontSize="13"
+                               Foreground="#94A3B8"
+                               TextWrapping="Wrap"
+                               LineHeight="18" />
+
+                    <!-- PIN Input -->
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Invigilator PIN" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                        <PasswordBox x:Name="InvigilatorPinBox"
+                                     PlaceholderText="Enter 6-digit invigilator PIN"
+                                     MaxLength="12"
+                                     Height="42"
+                                     CornerRadius="8"
+                                     Background="#0F1422"
+                                     BorderBrush="#1E293B"
+                                     Foreground="#FFFFFF"
+                                     KeyDown="InvigilatorPinBox_KeyDown" />
+                        <TextBlock x:Name="InvigilatorPinError"
+                                   Text="Incorrect PIN. Please re-enter or contact chief superintendent."
+                                   FontSize="12"
+                                   Foreground="#EF4444"
+                                   Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <!-- Buttons -->
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0"
+                                Content="Cancel"
+                                Click="CancelInvigilatorPin_Click"
+                                Height="42"
+                                HorizontalAlignment="Stretch"
+                                Background="#1E293B"
+                                Foreground="#94A3B8"
+                                CornerRadius="8"
+                                BorderThickness="0"
+                                FontSize="13" />
+
+                        <Button Grid.Column="2"
+                                x:Name="AuthorizePinButton"
+                                Content="Authorize &amp; Continue"
+                                Click="VerifyInvigilatorPin_Click"
+                                Height="42"
+                                HorizontalAlignment="Stretch"
+                                Background="#0066FF"
+                                Foreground="#FFFFFF"
+                                FontWeight="SemiBold"
+                                CornerRadius="8"
+                                BorderThickness="0"
+                                FontSize="13" />
+                    </Grid>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Page>
