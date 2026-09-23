@@ -180,12 +180,16 @@ public sealed partial class LaunchPage : Page
 
                 if (_currentUser == null)
                 {
+                    var saved = _onboardingStore.GetAuthenticatedUser();
                     var detected = BrowserProfileDetector.DetectLatestGoogleAccount();
                     _currentUser = new AuthenticatedUser
                     {
-                        DisplayName = testName ?? detected?.DisplayName ?? "P. Venkata Sai",
-                        Email = testEmail ?? detected?.Email ?? "p.venkatsai333@gmail.com",
-                        PhotoUrl = detected?.PhotoUrl
+                        DisplayName = testName ?? saved?.DisplayName ?? detected?.DisplayName ?? string.Empty,
+                        Email = testEmail ?? saved?.Email ?? detected?.Email ?? string.Empty,
+                        PhotoUrl = saved?.PhotoUrl ?? detected?.PhotoUrl,
+                        GoogleSub = saved?.GoogleSub ?? detected?.GoogleSub ?? string.Empty,
+                        GivenName = saved?.GivenName ?? detected?.GivenName,
+                        FamilyName = saved?.FamilyName ?? detected?.FamilyName
                     };
                 }
 
@@ -209,10 +213,11 @@ public sealed partial class LaunchPage : Page
                 AccountConnectedStateGrid.Visibility = Visibility.Visible;
                 AccountConnectedStateGrid.Opacity = 1.0;
 
+                var savedAcc = _onboardingStore.GetAuthenticatedUser();
                 var detectedAcc = BrowserProfileDetector.DetectLatestGoogleAccount();
-                string testName = detectedAcc?.DisplayName ?? string.Empty;
-                string testEmail = detectedAcc?.Email ?? string.Empty;
-                string? testPhoto = detectedAcc?.PhotoUrl;
+                string testName = savedAcc?.DisplayName ?? detectedAcc?.DisplayName ?? string.Empty;
+                string testEmail = savedAcc?.Email ?? detectedAcc?.Email ?? string.Empty;
+                string? testPhoto = savedAcc?.PhotoUrl ?? detectedAcc?.PhotoUrl;
                 string? screenshotScreen4Path = null;
                 string? screenshotScreen4FallbackPath = null;
 
@@ -683,8 +688,55 @@ public sealed partial class LaunchPage : Page
 
     private async void GetStarted_Click(object sender, RoutedEventArgs e)
     {
-        PageLog("Get Started clicked. Transitioning to Screen 3 (Account Setup)...");
+        PageLog("Get Started clicked. Checking if user is already authenticated...");
+        var existingUser = _onboardingStore.GetAuthenticatedUser();
+        if (existingUser != null && !string.IsNullOrWhiteSpace(existingUser.Email))
+        {
+            PageLog($"Found existing authenticated user {existingUser.Email} ({existingUser.DisplayName}). Transitioning directly to Screen 4 (Account Connected)...");
+            await TransitionWelcomeToAccountConnectedAsync(existingUser);
+            return;
+        }
+
+        PageLog("No existing authenticated user found. Transitioning to Screen 3 (Account Setup)...");
         await TransitionToAccountSetupAsync(null);
+    }
+
+    private async Task TransitionWelcomeToAccountConnectedAsync(AuthenticatedUser user)
+    {
+        PageLog($"TransitionWelcomeToAccountConnectedAsync for {user.Email}...");
+        SetConnectedUser(user);
+
+        const int steps = 10;
+        for (int i = 1; i <= steps; i++)
+        {
+            double progress = i / (double)steps;
+
+            if (i <= 5)
+            {
+                WelcomeStateGrid.Opacity = 1.0 - (progress * 2.0);
+            }
+
+            StartupScreenBg.Opacity = 1.0 - progress;
+            KlyroBrandLogo.Opacity = 1.0 - progress;
+            GoogleSigninBg.Opacity = progress;
+
+            await Task.Delay(30);
+        }
+
+        WelcomeStateGrid.Visibility = Visibility.Collapsed;
+        AccountConnectedStateGrid.Visibility = Visibility.Visible;
+        AccountConnectedStateGrid.Opacity = 0.0;
+        AccountConnectedStateGrid.Translation = new System.Numerics.Vector3(0, 12, 0);
+
+        for (int i = 1; i <= steps; i++)
+        {
+            double progress = i / (double)steps;
+            AccountConnectedStateGrid.Opacity = progress;
+            AccountConnectedStateGrid.Translation = new System.Numerics.Vector3(0, (float)(12 * (1.0 - progress)), 0);
+            await Task.Delay(25);
+        }
+        AccountConnectedStateGrid.Opacity = 1.0;
+        AccountConnectedStateGrid.Translation = new System.Numerics.Vector3(0, 0, 0);
     }
 
     private async Task TransitionToAccountSetupAsync(string? screenshotScreen3Path)
@@ -1130,16 +1182,17 @@ public sealed partial class LaunchPage : Page
 
     private async Task<AuthenticatedUser> ExtractGoogleUserProfileAsync(AuthenticatedUser? initialUser)
     {
+        var saved = _onboardingStore.GetAuthenticatedUser();
         var user = new AuthenticatedUser
         {
-            Email = initialUser?.Email ?? string.Empty,
-            DisplayName = initialUser?.DisplayName ?? string.Empty,
-            PhotoUrl = initialUser?.PhotoUrl,
-            Id = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (initialUser?.Id ?? string.Empty),
-            GoogleSub = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (initialUser?.Id ?? string.Empty),
-            GivenName = initialUser?.GivenName,
-            FamilyName = initialUser?.FamilyName,
-            HostedDomain = initialUser?.HostedDomain
+            Email = initialUser?.Email ?? saved?.Email ?? string.Empty,
+            DisplayName = initialUser?.DisplayName ?? saved?.DisplayName ?? string.Empty,
+            PhotoUrl = initialUser?.PhotoUrl ?? saved?.PhotoUrl,
+            Id = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (!string.IsNullOrWhiteSpace(saved?.GoogleSub) ? saved.GoogleSub : (initialUser?.Id ?? string.Empty)),
+            GoogleSub = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (!string.IsNullOrWhiteSpace(saved?.GoogleSub) ? saved.GoogleSub : (initialUser?.Id ?? string.Empty)),
+            GivenName = initialUser?.GivenName ?? saved?.GivenName,
+            FamilyName = initialUser?.FamilyName ?? saved?.FamilyName,
+            HostedDomain = initialUser?.HostedDomain ?? saved?.HostedDomain
         };
 
         // 1. If email is not yet present and in-app WebView2 has navigated, attempt DOM extraction
@@ -1681,23 +1734,28 @@ public sealed partial class LaunchPage : Page
 
     private void UseDifferentAccount_Click(object sender, RoutedEventArgs e)
     {
-        PageLog("Use a different account clicked on Screen 4.");
+        PageLog("Use a different account clicked on Screen 4. Transitioning back to Screen 3 (Account Setup)...");
         _isAccountSwitching = true;
         _previousUser = _currentUser;
         _isAuthCompleted = false;
 
-        // Show overlay with Google account selection
-        GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
-        GoogleWebViewLoading.Visibility = Visibility.Visible;
-        GoogleAuthOverlay.Visibility = Visibility.Visible;
-        GoogleAuthOverlay.Opacity = 1.0;
+        // Transition back to Screen 3 (Account Setup)
+        AccountConnectedStateGrid.Visibility = Visibility.Collapsed;
+        AccountConnectedStateGrid.Opacity = 0.0;
+        AccountSetupStateGrid.Visibility = Visibility.Visible;
+        AccountSetupStateGrid.Opacity = 1.0;
 
-        OverlayHeaderIcon.Glyph = "\uE72E";
-        OverlayHeaderTitle.Text = "Switch Google Account";
-        OverlayHeaderSubtitle.Text = "• accounts.google.com";
-
-        // Prompt Google's account selection
-        GoogleAuthWebView.CoreWebView2?.Navigate("https://accounts.google.com/AccountChooser?prompt=select_account&continue=https%3A%2F%2Fmyaccount.google.com%2F");
+        // Reset button state
+        GoogleSignInButton.IsEnabled = true;
+        GoogleButtonText.Text = "Continue with Google";
+        GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
+        GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 59, 130, 246));
+        GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+        GoogleArrowIcon.Visibility = Visibility.Visible;
+        GoogleArrowIcon.Glyph = "\uE76C";
+        GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+        GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
+        GoogleAuthProgressRing.IsActive = false;
     }
 
     private void UseDifferentAccount_PointerEntered(object sender, PointerRoutedEventArgs e)
