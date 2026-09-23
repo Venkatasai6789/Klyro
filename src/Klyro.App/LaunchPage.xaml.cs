@@ -10,6 +10,8 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 using Windows.UI;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Klyro.Core.Authentication;
 using Klyro.Core.Configuration;
 using Klyro.Core.Persistence;
 using Klyro.Core.Startup;
@@ -28,6 +30,9 @@ public sealed partial class LaunchPage : Page
     private bool _isGoogleAuthInitialized = false;
     private bool _isAuthCompleted = false;
     private bool _isBrowserAuthInProgress = false;
+    private AuthenticatedUser? _currentUser;
+    private AuthenticatedUser? _previousUser;
+    private bool _isAccountSwitching = false;
 
     private static void PageLog(string msg)
     {
@@ -101,6 +106,77 @@ public sealed partial class LaunchPage : Page
         try
         {
             var cmdArgs = Environment.GetCommandLineArgs();
+
+            bool directScreen4 = cmdArgs.Any(a =>
+                a.Equals("--screen4", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("--account-connected", StringComparison.OrdinalIgnoreCase));
+
+            if (directScreen4)
+            {
+                PageLog("Direct Screen 4 (Account Connected) requested via CLI arguments.");
+                StartupStateGrid.Visibility = Visibility.Collapsed;
+                WelcomeStateGrid.Visibility = Visibility.Collapsed;
+                AccountSetupStateGrid.Visibility = Visibility.Collapsed;
+                StartupScreenBg.Opacity = 0.0;
+                KlyroBrandLogo.Opacity = 0.0;
+                GoogleSigninBg.Opacity = 1.0;
+                AccountConnectedStateGrid.Visibility = Visibility.Visible;
+                AccountConnectedStateGrid.Opacity = 1.0;
+
+                string testName = "P. Venkata Sai";
+                string testEmail = "p.venkatsai333@gmail.com";
+                string? testPhoto = null;
+                string? screenshotScreen4Path = null;
+                string? screenshotScreen4FallbackPath = null;
+
+                for (int i = 0; i < cmdArgs.Length; i++)
+                {
+                    if (cmdArgs[i].Equals("--test-user-name", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                    {
+                        var parts = new List<string>();
+                        for (int j = i + 1; j < cmdArgs.Length && !cmdArgs[j].StartsWith("--"); j++)
+                        {
+                            parts.Add(cmdArgs[j]);
+                        }
+                        if (parts.Count > 0)
+                        {
+                            testName = string.Join(" ", parts);
+                        }
+                    }
+                    else if (cmdArgs[i].Equals("--test-user-email", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        testEmail = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--test-user-photo", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        testPhoto = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--screenshot-screen4", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        screenshotScreen4Path = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--screenshot-screen4-fallback", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        screenshotScreen4FallbackPath = cmdArgs[i + 1];
+                }
+
+                var user = new AuthenticatedUser
+                {
+                    DisplayName = testName,
+                    Email = testEmail,
+                    PhotoUrl = testPhoto
+                };
+                SetConnectedUser(user);
+
+                if (!string.IsNullOrEmpty(screenshotScreen4Path))
+                {
+                    await Task.Delay(400);
+                    await CaptureScreenshotAsync(screenshotScreen4Path);
+                }
+
+                if (!string.IsNullOrEmpty(screenshotScreen4FallbackPath))
+                {
+                    ConnectedUserPhotoBrush.ImageSource = null;
+                    ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
+                    ConnectedUserInitials.Visibility = Visibility.Visible;
+                    await Task.Delay(400);
+                    await CaptureScreenshotAsync(screenshotScreen4FallbackPath);
+                }
+                return;
+            }
 
             bool directScreen3 = cmdArgs.Any(a =>
                 a.Equals("--screen3", StringComparison.OrdinalIgnoreCase) ||
@@ -917,17 +993,23 @@ public sealed partial class LaunchPage : Page
 
     private async Task CompleteGoogleAuthenticationAsync(string userName, string source)
     {
-        if (_isAuthCompleted) return;
+        if (_isAuthCompleted && !_isAccountSwitching) return;
         _isAuthCompleted = true;
         _isBrowserAuthInProgress = false;
         PageLog($"Google authentication successfully completed and verified via {source} ({userName})!");
+
+        // Extract authentic profile details
+        var user = await ExtractGoogleUserProfileAsync(userName);
+        _currentUser = user;
+        _isAccountSwitching = false;
 
         // Hide overlays and waiting cards
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
         BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
         GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
+        GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
 
-        // Update button to success state
+        // Update button to success state briefly
         GoogleButtonText.Text = "Google Account Connected ✓";
         GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 236, 253, 245)); // Emerald-50
         GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)); // Emerald-500
@@ -938,12 +1020,202 @@ public sealed partial class LaunchPage : Page
         GoogleArrowIcon.Glyph = "\uE73E"; // Checkmark icon
         GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
 
-        _onboardingStore.MarkCompleted(userName, null);
+        await Task.Delay(250);
 
-        await Task.Delay(400);
+        // Transition to Screen 4 (Google Account Connected)
+        await TransitionToAccountConnectedAsync(user);
+    }
 
-        // Transition to assessment view in full-screen mode
-        PageLog("Transitioning to assessment view...");
+    private async Task<AuthenticatedUser> ExtractGoogleUserProfileAsync(string fallbackEmail)
+    {
+        var user = new AuthenticatedUser
+        {
+            Email = fallbackEmail,
+            DisplayName = !string.IsNullOrWhiteSpace(fallbackEmail) && fallbackEmail.Contains('@')
+                ? FormatNameFromEmail(fallbackEmail)
+                : "Google User"
+        };
+
+        if (GoogleAuthWebView.CoreWebView2 != null)
+        {
+            try
+            {
+                string script = @"
+                    (() => {
+                        let email = '';
+                        let name = '';
+                        let photo = '';
+
+                        try {
+                            const accountLinks = Array.from(document.querySelectorAll('a[aria-label*=""@""], button[aria-label*=""@""], div[aria-label*=""@""]'));
+                            for (const el of accountLinks) {
+                                const label = el.getAttribute('aria-label') || '';
+                                const match = label.match(/^(?:Google Account:\s*)?(.*?)(?:\s*\((.*?@.*?)\)|\n\((.*?@.*?)\))/i);
+                                if (match) {
+                                    name = (match[1] || '').trim();
+                                    email = (match[2] || match[3] || '').trim();
+                                    break;
+                                }
+                            }
+
+                            if (!email) {
+                                const el = document.querySelector('[data-email]');
+                                if (el) email = el.getAttribute('data-email') || '';
+                            }
+
+                            if (!email) {
+                                const m = document.body.innerHTML.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+                                if (m) email = m[0];
+                            }
+
+                            if (!name && email) {
+                                const nameEl = document.querySelector('div[aria-label*=""Google Account""] div') ||
+                                               document.querySelector('header h1, header h2');
+                                if (nameEl) name = nameEl.textContent.trim();
+                            }
+
+                            const imgEls = Array.from(document.querySelectorAll('img[src*=""googleusercontent.com""], img[src*=""profile""], img[alt*=""profile"" i]'));
+                            for (const img of imgEls) {
+                                const src = img.src;
+                                if (src && (src.includes('googleusercontent.com') || src.includes('avatar') || src.includes('photos'))) {
+                                    photo = src;
+                                    break;
+                                }
+                            }
+                        } catch(e) {}
+
+                        return JSON.stringify({ email: email || '', name: name || '', photo: photo || '' });
+                    })()
+                ";
+
+                string jsonResult = await GoogleAuthWebView.CoreWebView2.ExecuteScriptAsync(script);
+                if (!string.IsNullOrWhiteSpace(jsonResult) && jsonResult != "null")
+                {
+                    string unescaped = System.Text.Json.JsonSerializer.Deserialize<string>(jsonResult) ?? jsonResult;
+                    using var doc = System.Text.Json.JsonDocument.Parse(unescaped);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("email", out var eElem) && !string.IsNullOrWhiteSpace(eElem.GetString()))
+                        user.Email = eElem.GetString()!;
+                    if (root.TryGetProperty("name", out var nElem) && !string.IsNullOrWhiteSpace(nElem.GetString()))
+                        user.DisplayName = nElem.GetString()!;
+                    if (root.TryGetProperty("photo", out var pElem) && !string.IsNullOrWhiteSpace(pElem.GetString()))
+                        user.PhotoUrl = pElem.GetString();
+                }
+            }
+            catch (Exception ex)
+            {
+                PageLog($"ExtractGoogleUserProfileAsync error: {ex.Message}");
+            }
+        }
+
+        // If DisplayName is empty or just "Google User", format from email
+        if ((string.IsNullOrWhiteSpace(user.DisplayName) || user.DisplayName == "Google User") && !string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@'))
+        {
+            user.DisplayName = FormatNameFromEmail(user.Email);
+        }
+
+        return user;
+    }
+
+    private static string FormatNameFromEmail(string email)
+    {
+        try
+        {
+            var userPart = email.Split('@')[0];
+            var clean = System.Text.RegularExpressions.Regex.Replace(userPart, @"[\._\-0-9]+", " ").Trim();
+            if (string.IsNullOrWhiteSpace(clean))
+            {
+                return "Google User";
+            }
+            var words = clean.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < words.Length; i++)
+            {
+                if (words[i].Length > 0)
+                {
+                    words[i] = char.ToUpperInvariant(words[i][0]) + words[i][1..].ToLowerInvariant();
+                }
+            }
+            return string.Join(" ", words);
+        }
+        catch
+        {
+            return "Google User";
+        }
+    }
+
+    private void SetConnectedUser(AuthenticatedUser user)
+    {
+        _currentUser = user;
+        ConnectedUserName.Text = !string.IsNullOrWhiteSpace(user.DisplayName) ? user.DisplayName : "Google User";
+        ConnectedUserEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : "user@gmail.com";
+        ConnectedUserInitials.Text = user.GetInitials();
+
+        if (!string.IsNullOrWhiteSpace(user.PhotoUrl) && Uri.TryCreate(user.PhotoUrl, UriKind.Absolute, out var photoUri))
+        {
+            try
+            {
+                ConnectedUserPhotoBrush.ImageSource = new BitmapImage(photoUri);
+                ConnectedUserPhotoBorder.Visibility = Visibility.Visible;
+                ConnectedUserInitials.Visibility = Visibility.Collapsed;
+            }
+            catch
+            {
+                ConnectedUserPhotoBrush.ImageSource = null;
+                ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
+                ConnectedUserInitials.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            ConnectedUserPhotoBrush.ImageSource = null;
+            ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
+            ConnectedUserInitials.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async Task TransitionToAccountConnectedAsync(AuthenticatedUser user)
+    {
+        PageLog($"TransitionToAccountConnectedAsync entered for {user.Email} ({user.DisplayName}).");
+        SetConnectedUser(user);
+
+        // Hide overlay if open
+        GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+        BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
+
+        // Smooth cross-fade from Screen 3 to Screen 4
+        int steps = 10;
+        if (AccountSetupStateGrid.Visibility == Visibility.Visible && AccountSetupStateGrid.Opacity > 0.0)
+        {
+            for (int i = steps - 1; i >= 0; i--)
+            {
+                AccountSetupStateGrid.Opacity = i / (double)steps;
+                await Task.Delay(20);
+            }
+            AccountSetupStateGrid.Visibility = Visibility.Collapsed;
+        }
+
+        AccountConnectedStateGrid.Visibility = Visibility.Visible;
+        AccountConnectedStateGrid.Opacity = 0.0;
+        AccountConnectedStateGrid.Translation = new System.Numerics.Vector3(0, 12, 0);
+
+        for (int i = 1; i <= steps; i++)
+        {
+            double progress = i / (double)steps;
+            AccountConnectedStateGrid.Opacity = progress;
+            AccountConnectedStateGrid.Translation = new System.Numerics.Vector3(0, (float)(12 * (1.0 - progress)), 0);
+            await Task.Delay(25);
+        }
+        AccountConnectedStateGrid.Opacity = 1.0;
+        AccountConnectedStateGrid.Translation = new System.Numerics.Vector3(0, 0, 0);
+
+        PageLog("Screen 4 (Account Connected) transition complete.");
+    }
+
+    private void ContinueButton_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Continue clicked on Screen 4. Completing onboarding and transitioning to assessment view.");
+        _onboardingStore.MarkCompleted(_currentUser?.Email, _currentUser?.DisplayName, _currentUser?.PhotoUrl);
+
         if (MainWindow.CurrentInstance != null)
         {
             MainWindow.CurrentInstance.NavigateToAssessmentView();
@@ -952,6 +1224,72 @@ public sealed partial class LaunchPage : Page
         {
             Frame.Navigate(typeof(MainPage));
         }
+    }
+
+    private void ContinueButton_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        ContinueArrowIcon.Margin = new Thickness(4, 0, 0, 0);
+    }
+
+    private void ContinueButton_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
+        ContinueArrowIcon.Margin = new Thickness(0, 0, 0, 0);
+    }
+
+    private void ContinueButton_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 82, 204));
+    }
+
+    private void ContinueButton_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+    }
+
+    private void UseDifferentAccount_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Use a different account clicked on Screen 4.");
+        _isAccountSwitching = true;
+        _previousUser = _currentUser;
+        _isAuthCompleted = false;
+
+        // Show overlay with Google account selection
+        GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
+        GoogleWebViewLoading.Visibility = Visibility.Visible;
+        GoogleAuthOverlay.Visibility = Visibility.Visible;
+        GoogleAuthOverlay.Opacity = 1.0;
+
+        OverlayHeaderIcon.Glyph = "\uE72E";
+        OverlayHeaderTitle.Text = "Switch Google Account";
+        OverlayHeaderSubtitle.Text = "• accounts.google.com";
+
+        // Prompt Google's account selection
+        GoogleAuthWebView.CoreWebView2?.Navigate("https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fmyaccount.google.com%2F");
+    }
+
+    private void UseDifferentAccount_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        UseDifferentAccountButton.Foreground = new SolidColorBrush(Color.FromArgb(255, 96, 165, 250));
+    }
+
+    private void UseDifferentAccount_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        UseDifferentAccountButton.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+    }
+
+    private void ConnectedUserPhoto_ImageOpened(object sender, RoutedEventArgs e)
+    {
+        ConnectedUserPhotoBorder.Visibility = Visibility.Visible;
+        ConnectedUserInitials.Visibility = Visibility.Collapsed;
+    }
+
+    private void ConnectedUserPhoto_ImageFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        PageLog($"ConnectedUserPhoto failed to load: {e.ErrorMessage}");
+        ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
+        ConnectedUserInitials.Visibility = Visibility.Visible;
     }
 
     private async void SystemBrowserSignIn_Click(object sender, RoutedEventArgs e)
@@ -1021,6 +1359,20 @@ public sealed partial class LaunchPage : Page
         GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
         BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
+
+        if (_isAccountSwitching && _previousUser != null)
+        {
+            _isAccountSwitching = false;
+            _isAuthCompleted = true;
+            _currentUser = _previousUser;
+            SetConnectedUser(_previousUser);
+            AccountConnectedStateGrid.Visibility = Visibility.Visible;
+            AccountConnectedStateGrid.Opacity = 1.0;
+            AccountSetupStateGrid.Visibility = Visibility.Collapsed;
+            PageLog($"Cancelled account switching. Restored previous user: {_previousUser.Email}");
+            return;
+        }
+
         GoogleSignInButton.IsEnabled = true;
         SystemBrowserSignInButton.IsEnabled = true;
         GoogleButtonText.Text = "Continue with Google";

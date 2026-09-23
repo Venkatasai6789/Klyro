@@ -15,6 +15,7 @@ public sealed class OnboardingState
     public DateTime? CompletedAt { get; set; }
     public string? GoogleEmail { get; set; }
     public string? GoogleDisplayName { get; set; }
+    public string? GooglePhotoUrl { get; set; }
     public string? AppVersion { get; set; } = "1.0.0";
 }
 
@@ -94,13 +95,14 @@ public sealed class OnboardingStateStore
         }
     }
 
-    public void MarkCompleted(string? googleEmail = null, string? displayName = null)
+    public void MarkCompleted(string? googleEmail = null, string? displayName = null, string? photoUrl = null)
     {
         var state = LoadState();
         state.IsFirstRunCompleted = true;
         state.CompletedAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(googleEmail)) state.GoogleEmail = googleEmail;
         if (!string.IsNullOrWhiteSpace(displayName)) state.GoogleDisplayName = displayName;
+        if (!string.IsNullOrWhiteSpace(photoUrl)) state.GooglePhotoUrl = photoUrl;
         SaveState(state);
     }
 

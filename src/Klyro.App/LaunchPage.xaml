@@ -861,7 +861,189 @@
                 </Grid>
 
                 <!-- ============================================================ -->
-                <!-- GOOGLE AUTHENTICATION OVERLAY VIEW                           -->
+                <!-- STATE 4: GOOGLE ACCOUNT CONNECTED (Screen 04)                -->
+                <!-- ============================================================ -->
+                <Grid x:Name="AccountConnectedStateGrid" Visibility="Collapsed" Opacity="0">
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                MaxWidth="420"
+                                Margin="0,-16,0,0">
+
+                        <!-- 1. Header Sub-badge: Horizontal Blue Accent Bar + ACCOUNT SETUP -->
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="10"
+                                    Margin="0,0,0,24">
+                            <Border Width="36"
+                                    Height="3"
+                                    CornerRadius="1.5"
+                                    Background="#0066FF"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="ACCOUNT SETUP"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       CharacterSpacing="200"
+                                       Foreground="#94A3B8"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <!-- 2. Main Heading: "You’re signed in" -->
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,28">
+                            <TextBlock Text="You’re"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFFFF"
+                                       Margin="0,0,10,0" />
+                            <TextBlock Text="signed in"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource KlyroTextGradientBrush}" />
+                        </StackPanel>
+
+                        <!-- 3. Profile Avatar with Google Badge + Name + Email -->
+                        <StackPanel HorizontalAlignment="Center" Margin="0,0,0,24">
+                            <!-- Circular Avatar Container (96x96 DIPs) -->
+                            <Grid Width="96" Height="96" HorizontalAlignment="Center">
+                                <!-- Circular Border with subtle blue accent -->
+                                <Border Width="96" Height="96"
+                                        CornerRadius="48"
+                                        BorderBrush="#38BDF8"
+                                        BorderThickness="2"
+                                        Background="#162238">
+                                    <Grid>
+                                        <!-- Deterministic Initials Fallback (e.g. PV) -->
+                                        <TextBlock x:Name="ConnectedUserInitials"
+                                                   Text="PV"
+                                                   FontSize="32"
+                                                   FontWeight="Bold"
+                                                   Foreground="#38BDF8"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+
+                                        <!-- Circular Profile Photo -->
+                                        <Border x:Name="ConnectedUserPhotoBorder" Width="92" Height="92" CornerRadius="46">
+                                            <Border.Background>
+                                                <ImageBrush x:Name="ConnectedUserPhotoBrush" Stretch="UniformToFill" ImageOpened="ConnectedUserPhoto_ImageOpened" ImageFailed="ConnectedUserPhoto_ImageFailed" />
+                                            </Border.Background>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Official Google 'G' Vector Badge (28x28 DIPs) overlapping lower-right -->
+                                <Border Width="28" Height="28"
+                                        CornerRadius="14"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom"
+                                        Margin="0,0,-2,-2">
+                                    <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="#4285F4" Data="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.5 3.7l3.7 2.9c2.2-2 3.5-5 3.5-8.9z" />
+                                            <Path Fill="#34A853" Data="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.4-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z" />
+                                            <Path Fill="#FBBC05" Data="M5.6 13.1c-.2-.7-.3-1.4-.3-2.1s.1-1.4.3-2.1L1.9 6C1.3 7.4 1 8.9 1 10.5s.3 3.1.9 4.5l3.7-2.9z" />
+                                            <Path Fill="#EA4335" Data="M12 4.8c1.7 0 3.1.6 4.3 1.7l3.2-3.2C17.5 1.5 14.9.8 12 .8 7.5.8 3.7 3.5 1.9 7.2l3.7 2.9c.9-2.8 3.4-4.8 6.4-4.8z" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </Border>
+                            </Grid>
+
+                            <!-- User Display Name -->
+                            <TextBlock x:Name="ConnectedUserName"
+                                       Text="P. Venkata Sai"
+                                       FontSize="20"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFFFF"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="360"
+                                       Margin="0,14,0,0" />
+
+                            <!-- User Email -->
+                            <TextBlock x:Name="ConnectedUserEmail"
+                                       Text="p.venkatsai333@gmail.com"
+                                       FontSize="14"
+                                       Foreground="#94A3B8"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="360"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <!-- 4. Security Confirmation Message -->
+                        <TextBlock Text="Your university Google account is connected securely."
+                                   FontSize="14"
+                                   Foreground="#94A3B8"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,28" />
+
+                        <!-- 5. Primary Action: Continue Button (Reuses Screen 2 styling) -->
+                        <Button x:Name="ContinueButton"
+                                Style="{StaticResource GetStartedButtonStyle}"
+                                Click="ContinueButton_Click"
+                                PointerEntered="ContinueButton_PointerEntered"
+                                PointerExited="ContinueButton_PointerExited"
+                                PointerPressed="ContinueButton_PointerPressed"
+                                PointerReleased="ContinueButton_PointerReleased"
+                                Width="380"
+                                Height="48"
+                                Padding="20,0"
+                                Background="#0066FF"
+                                BorderThickness="1"
+                                BorderBrush="#2563EB"
+                                CornerRadius="8"
+                                HorizontalAlignment="Center"
+                                HorizontalContentAlignment="Stretch"
+                                AutomationProperties.Name="Continue"
+                                ToolTipService.ToolTip="Continue to examination"
+                                TabIndex="0">
+                            <Grid HorizontalAlignment="Stretch">
+                                <TextBlock Text="Continue"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="#FFFFFF"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Left" />
+
+                                <Border x:Name="ContinueArrowBadge"
+                                        Width="30"
+                                        Height="30"
+                                        CornerRadius="15"
+                                        Background="Transparent"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                    <FontIcon x:Name="ContinueArrowIcon"
+                                              Glyph="&#xE72A;"
+                                              FontSize="15"
+                                              Foreground="#FFFFFF"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </Button>
+
+                        <!-- 6. Secondary Action: Use a different account -->
+                        <Button x:Name="UseDifferentAccountButton"
+                                Click="UseDifferentAccount_Click"
+                                PointerEntered="UseDifferentAccount_PointerEntered"
+                                PointerExited="UseDifferentAccount_PointerExited"
+                                HorizontalAlignment="Center"
+                                Background="Transparent"
+                                Foreground="#38BDF8"
+                                FontSize="13"
+                                FontWeight="Medium"
+                                BorderThickness="0"
+                                Margin="0,16,0,0"
+                                Content="Use a different account" />
+                    </StackPanel>
+                </Grid>
                 <!-- ============================================================ -->
                 <Grid x:Name="GoogleAuthOverlay"
                       Background="#0F1219"
