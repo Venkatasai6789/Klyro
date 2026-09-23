@@ -1102,7 +1102,8 @@ public sealed partial class LaunchPage : Page
         var user = await ExtractGoogleUserProfileAsync(initialUser);
         _currentUser = user;
         _isAccountSwitching = false;
-        PageLog($"Google authentication successfully completed and verified via {source} for {user.Email} ({user.DisplayName})!");
+        _onboardingStore.SaveAuthenticatedUser(user);
+        PageLog($"Google authentication successfully completed, persisted, and verified via {source} for {user.Email} ({user.DisplayName}) [Sub: {user.GoogleSub}]!");
 
         // Hide overlays and waiting cards
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
@@ -1134,7 +1135,11 @@ public sealed partial class LaunchPage : Page
             Email = initialUser?.Email ?? string.Empty,
             DisplayName = initialUser?.DisplayName ?? string.Empty,
             PhotoUrl = initialUser?.PhotoUrl,
-            Id = initialUser?.Id ?? string.Empty
+            Id = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (initialUser?.Id ?? string.Empty),
+            GoogleSub = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (initialUser?.Id ?? string.Empty),
+            GivenName = initialUser?.GivenName,
+            FamilyName = initialUser?.FamilyName,
+            HostedDomain = initialUser?.HostedDomain
         };
 
         // 1. If email is not yet present and in-app WebView2 has navigated, attempt DOM extraction
@@ -1220,7 +1225,10 @@ public sealed partial class LaunchPage : Page
                 if (string.IsNullOrWhiteSpace(user.DisplayName)) user.DisplayName = detectedFromBrowser.DisplayName;
                 if (string.IsNullOrWhiteSpace(user.PhotoUrl)) user.PhotoUrl = detectedFromBrowser.PhotoUrl;
                 if (string.IsNullOrWhiteSpace(user.Id)) user.Id = detectedFromBrowser.Id;
-                PageLog($"Extracted authentic Google account from browser profile: {user.Email} ({user.DisplayName})");
+                if (string.IsNullOrWhiteSpace(user.GoogleSub)) user.GoogleSub = detectedFromBrowser.GoogleSub;
+                if (string.IsNullOrWhiteSpace(user.GivenName)) user.GivenName = detectedFromBrowser.GivenName;
+                if (string.IsNullOrWhiteSpace(user.FamilyName)) user.FamilyName = detectedFromBrowser.FamilyName;
+                PageLog($"Extracted authentic Google account from browser profile: {user.Email} ({user.DisplayName}) [Sub: {user.GoogleSub}]");
             }
         }
 
@@ -1599,7 +1607,14 @@ public sealed partial class LaunchPage : Page
             {
                 PageLog("All preflight checks passed successfully. Navigating to assessment view.");
                 // Mark onboarding completed in state store
-                _onboardingStore.MarkCompleted(_currentUser?.Email, _currentUser?.DisplayName, _currentUser?.PhotoUrl);
+                if (_currentUser != null)
+                {
+                    _onboardingStore.MarkCompleted(_currentUser);
+                }
+                else
+                {
+                    _onboardingStore.MarkCompleted();
+                }
 
                 // Natural brief pause (600ms) for user affirmation
                 await Task.Delay(600);
@@ -1682,7 +1697,7 @@ public sealed partial class LaunchPage : Page
         OverlayHeaderSubtitle.Text = "• accounts.google.com";
 
         // Prompt Google's account selection
-        GoogleAuthWebView.CoreWebView2?.Navigate("https://accounts.google.com/AccountChooser?continue=https%3A%2F%2Fmyaccount.google.com%2F");
+        GoogleAuthWebView.CoreWebView2?.Navigate("https://accounts.google.com/AccountChooser?prompt=select_account&continue=https%3A%2F%2Fmyaccount.google.com%2F");
     }
 
     private void UseDifferentAccount_PointerEntered(object sender, PointerRoutedEventArgs e)

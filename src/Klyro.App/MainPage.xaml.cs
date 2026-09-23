@@ -17,6 +17,7 @@ using Klyro.Core.Logging;
 using Klyro.Core.Network;
 using Klyro.Core.Persistence;
 using Klyro.Core.Recovery;
+using Klyro.Core.Authentication;
 using Klyro.Core.Security;
 using Klyro.Core.Tabs;
 
@@ -25,6 +26,8 @@ namespace Klyro_App;
 public sealed partial class MainPage : Page
 {
     private KlyroConfiguration _config = new();
+    private readonly OnboardingStateStore _onboardingStore = new();
+    private AuthenticatedUser? _authenticatedCandidate;
     private AuditLogger? _auditLogger;
     private AllowlistManager? _allowlistManager;
     private NavigationGuard? _navigationGuard;
@@ -312,6 +315,57 @@ public sealed partial class MainPage : Page
             "document.addEventListener('cut', e => e.preventDefault(), true);" +
             "document.addEventListener('paste', e => e.preventDefault(), true);");
 
+        // Automatically propagate authenticated Google user identity to Google Sign-in on assessment platform
+        _authenticatedCandidate = _onboardingStore.GetAuthenticatedUser();
+        if (_authenticatedCandidate != null && !string.IsNullOrWhiteSpace(_authenticatedCandidate.Email))
+        {
+            var safeCandidateEmail = _authenticatedCandidate.Email.Replace("\"", "\\\"");
+            string googleIdentityScript = $$"""
+                (() => {
+                    const targetEmail = "{{safeCandidateEmail}}";
+                    if (!targetEmail) return;
+
+                    function autofillGoogleIdentity() {
+                        if (!window.location.hostname.includes("google.com")) return;
+
+                        // 1. Google OAuth / Sign-in email input field
+                        const emailInput = document.querySelector('input[type="email"], #identifierId, input[name="identifier"]');
+                        if (emailInput && (!emailInput.value || emailInput.value.trim() === '')) {
+                            emailInput.value = targetEmail;
+                            emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+
+                        // 2. Google multi-account chooser selection
+                        const accountItems = document.querySelectorAll('[data-identifier], [data-email], li[data-profileidentifier]');
+                        for (const item of accountItems) {
+                            const id = (item.getAttribute('data-identifier') || item.getAttribute('data-email') || item.getAttribute('aria-label') || '').toLowerCase();
+                            if (id.includes(targetEmail.toLowerCase())) {
+                                if (typeof item.click === 'function') {
+                                    item.click();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', autofillGoogleIdentity);
+                    } else {
+                        autofillGoogleIdentity();
+                    }
+                    setTimeout(autofillGoogleIdentity, 300);
+                    setTimeout(autofillGoogleIdentity, 800);
+                    setTimeout(autofillGoogleIdentity, 1600);
+                })();
+                """;
+            try
+            {
+                await ExamWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(googleIdentityScript);
+            }
+            catch { }
+        }
+
         // Attach strict security guards
         ExamWebView.CoreWebView2.NavigationStarting += ExamWebView_NavigationStarting;
         ExamWebView.CoreWebView2.NavigationCompleted += ExamWebView_NavigationCompleted;
@@ -348,6 +402,28 @@ public sealed partial class MainPage : Page
             PageLoadingProgressBar.Visibility = Visibility.Collapsed;
             _auditLogger?.Log(EventType.NAVIGATION_BLOCKED, "ACTIVE", decision.Reason, e.Uri);
             ShowNotice($"Navigation blocked: {decision.Reason}", InfoBarSeverity.Error);
+            return;
+        }
+
+        // Propagate authenticated Google user identity to CodeChef's OAuth sign-in flow
+        if (IsGoogleAuthUri(e.Uri))
+        {
+            var authUser = _authenticatedCandidate ?? _onboardingStore.GetAuthenticatedUser();
+            if (authUser != null && !string.IsNullOrWhiteSpace(authUser.Email))
+            {
+                if (!e.Uri.Contains("login_hint=", StringComparison.OrdinalIgnoreCase))
+                {
+                    e.Cancel = true;
+                    string delimiter = e.Uri.Contains('?') ? "&" : "?";
+                    string augmentedUri = $"{e.Uri}{delimiter}login_hint={Uri.EscapeDataString(authUser.Email)}";
+                    _auditLogger?.Log(EventType.PORTAL_AUTH_STARTED, "ACTIVE", $"Injecting authenticated Google login hint for {authUser.Email}", augmentedUri);
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        ExamWebView.CoreWebView2?.Navigate(augmentedUri);
+                    });
+                    return;
+                }
+            }
         }
     }
 
@@ -365,6 +441,28 @@ public sealed partial class MainPage : Page
         else if (e.IsSuccess)
         {
             ExamErrorOverlay.Visibility = Visibility.Collapsed;
+
+            // When navigating to Google Sign-In, ensure the email input is populated with authenticated identity
+            if (IsGoogleAuthUri(ExamWebView.Source?.ToString()))
+            {
+                var authUser = _authenticatedCandidate ?? _onboardingStore.GetAuthenticatedUser();
+                if (authUser != null && !string.IsNullOrWhiteSpace(authUser.Email))
+                {
+                    string safeEmail = authUser.Email.Replace("\"", "\\\"");
+                    string js = $$"""
+                        (() => {
+                            const email = "{{safeEmail}}";
+                            const input = document.querySelector('input[type="email"], #identifierId, input[name="identifier"]');
+                            if (input && (!input.value || input.value.trim() === '')) {
+                                input.value = email;
+                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                                input.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        })();
+                        """;
+                    try { _ = ExamWebView.CoreWebView2?.ExecuteScriptAsync(js); } catch { }
+                }
+            }
         }
     }
 
@@ -391,12 +489,37 @@ public sealed partial class MainPage : Page
         var decision = _allowlistManager?.IsExamNavigationAllowed(e.Uri);
         if (decision is { IsAllowed: true })
         {
-            ExamWebView.CoreWebView2?.Navigate(e.Uri);
+            string targetUri = e.Uri;
+            if (IsGoogleAuthUri(targetUri))
+            {
+                var authUser = _authenticatedCandidate ?? _onboardingStore.GetAuthenticatedUser();
+                if (authUser != null && !string.IsNullOrWhiteSpace(authUser.Email) && !targetUri.Contains("login_hint=", StringComparison.OrdinalIgnoreCase))
+                {
+                    string delimiter = targetUri.Contains('?') ? "&" : "?";
+                    targetUri = $"{targetUri}{delimiter}login_hint={Uri.EscapeDataString(authUser.Email)}";
+                    _auditLogger?.Log(EventType.PORTAL_AUTH_STARTED, "ACTIVE", $"Injecting authenticated Google login hint for popup: {authUser.Email}", targetUri);
+                }
+            }
+            ExamWebView.CoreWebView2?.Navigate(targetUri);
         }
         else
         {
             _auditLogger?.Log(EventType.POPUP_BLOCKED, "ACTIVE", $"Popup or new window request suppressed: {decision?.Reason ?? "Blocked"}", e.Uri);
         }
+    }
+
+    private static bool IsGoogleAuthUri(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri)) return false;
+        if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed)) return false;
+        if (!parsed.Host.EndsWith("google.com", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var path = parsed.AbsolutePath.ToLowerInvariant();
+        return path.StartsWith("/o/oauth2/") ||
+               path.StartsWith("/signin/") ||
+               path.StartsWith("/v3/signin/") ||
+               path.StartsWith("/servicelogin") ||
+               path.StartsWith("/accountchooser");
     }
 
     private void ExamWebView_DownloadStarting(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2DownloadStartingEventArgs e)

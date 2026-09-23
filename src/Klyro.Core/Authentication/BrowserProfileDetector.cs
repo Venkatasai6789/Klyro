@@ -182,8 +182,11 @@ public static class BrowserProfileDetector
                 var user = new AuthenticatedUser
                 {
                     Id = gaia ?? string.Empty,
+                    GoogleSub = gaia ?? string.Empty,
                     Email = email,
                     DisplayName = cleanDisplayName,
+                    GivenName = fullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault(),
+                    FamilyName = fullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).LastOrDefault(),
                     PhotoUrl = photoUrl,
                     AuthenticatedAt = lastModifiedUtc != DateTime.MinValue ? lastModifiedUtc : DateTime.UtcNow
                 };

@@ -86,4 +86,60 @@ public class OnboardingStateStoreTests : IDisposable
 
         Assert.False(_store.IsFirstRunCompleted());
     }
+
+    [Fact]
+    public void SaveAuthenticatedUser_And_GetAuthenticatedUser_PreservesAllFields()
+    {
+        var user = new Klyro.Core.Authentication.AuthenticatedUser
+        {
+            Id = "10987654321",
+            GoogleSub = "10987654321",
+            Email = "venkat@university.edu",
+            DisplayName = "P. Venkata Sai",
+            GivenName = "Venkata",
+            FamilyName = "Sai",
+            PhotoUrl = "https://lh3.googleusercontent.com/a/photo123",
+            HostedDomain = "university.edu",
+            VerifiedEmail = true
+        };
+
+        _store.SaveAuthenticatedUser(user);
+
+        var restored = _store.GetAuthenticatedUser();
+        Assert.NotNull(restored);
+        Assert.Equal("10987654321", restored.GoogleSub);
+        Assert.Equal("venkat@university.edu", restored.Email);
+        Assert.Equal("P. Venkata Sai", restored.DisplayName);
+        Assert.Equal("Venkata", restored.GivenName);
+        Assert.Equal("Sai", restored.FamilyName);
+        Assert.Equal("https://lh3.googleusercontent.com/a/photo123", restored.PhotoUrl);
+        Assert.Equal("university.edu", restored.HostedDomain);
+    }
+
+    [Fact]
+    public void AccountSwitching_OverwritesPreviousUserInStore()
+    {
+        var userA = new Klyro.Core.Authentication.AuthenticatedUser
+        {
+            GoogleSub = "11111",
+            Email = "account.a@gmail.com",
+            DisplayName = "Account A"
+        };
+        _store.SaveAuthenticatedUser(userA);
+        Assert.Equal("account.a@gmail.com", _store.GetAuthenticatedUser()?.Email);
+
+        var userB = new Klyro.Core.Authentication.AuthenticatedUser
+        {
+            GoogleSub = "22222",
+            Email = "account.b@gmail.com",
+            DisplayName = "Account B"
+        };
+        _store.SaveAuthenticatedUser(userB);
+
+        var current = _store.GetAuthenticatedUser();
+        Assert.NotNull(current);
+        Assert.Equal("22222", current.GoogleSub);
+        Assert.Equal("account.b@gmail.com", current.Email);
+        Assert.Equal("Account B", current.DisplayName);
+    }
 }

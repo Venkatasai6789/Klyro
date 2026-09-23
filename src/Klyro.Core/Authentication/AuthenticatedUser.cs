@@ -8,9 +8,14 @@ namespace Klyro.Core.Authentication;
 public sealed class AuthenticatedUser
 {
     public string Id { get; set; } = string.Empty;
+    public string GoogleSub { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string? GivenName { get; set; }
+    public string? FamilyName { get; set; }
     public string? PhotoUrl { get; set; }
+    public bool VerifiedEmail { get; set; } = true;
+    public string? HostedDomain { get; set; }
     public DateTime AuthenticatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
