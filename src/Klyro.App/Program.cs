@@ -75,6 +75,31 @@ public static class Program
 
         Log($"Main entered. PID: {Environment.ProcessId}. Args: {string.Join(" ", args)}");
 
+        if (args.Any(a => a.Equals("--reset", StringComparison.OrdinalIgnoreCase) ||
+                          a.Equals("--reset-browser", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                var klyroDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro");
+                if (Directory.Exists(klyroDir))
+                {
+                    var onboardingFile = Path.Combine(klyroDir, "onboarding_state.json");
+                    if (File.Exists(onboardingFile)) File.Delete(onboardingFile);
+
+                    var sessionFile = Path.Combine(klyroDir, "session_recovery.json");
+                    if (File.Exists(sessionFile)) File.Delete(sessionFile);
+
+                    var profilesDir = Path.Combine(klyroDir, "Profiles");
+                    if (Directory.Exists(profilesDir)) Directory.Delete(profilesDir, recursive: true);
+                }
+                Log("Browser profiles, cookies, and onboarding state successfully reset via --reset switch.");
+            }
+            catch (Exception exReset)
+            {
+                Log($"Reset encountered error: {exReset.Message}");
+            }
+        }
+
         try
         {
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>

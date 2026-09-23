@@ -91,4 +91,58 @@ public class PreflightCheckerTests
         Assert.Contains(report.Results, r => r.CheckName == "Windows Version");
         Assert.Contains(report.Results, r => r.CheckName == "Configuration Integrity");
     }
+
+    private sealed class DelegateCheck : IPreflightCheck
+    {
+        public string Name { get; }
+        public bool IsCritical { get; }
+        private readonly Func<CancellationToken, Task<HealthCheckResult>> _runFunc;
+
+        public DelegateCheck(string name, bool isCritical, Func<CancellationToken, Task<HealthCheckResult>> runFunc)
+        {
+            Name = name;
+            IsCritical = isCritical;
+            _runFunc = runFunc;
+        }
+
+        public Task<HealthCheckResult> RunAsync(CancellationToken cancellationToken = default) => _runFunc(cancellationToken);
+    }
+
+    [Fact]
+    public async Task RunAllChecksAsync_RunsChecksInParallel()
+    {
+        var checker = new PreflightChecker();
+        int startedChecks = 0;
+        var tcs = new TaskCompletionSource<bool>();
+
+        var slowCheck1 = new DelegateCheck("Slow1", true, async ct =>
+        {
+            Interlocked.Increment(ref startedChecks);
+            await tcs.Task;
+            return HealthCheckResult.Pass("Slow1", "OK");
+        });
+
+        var slowCheck2 = new DelegateCheck("Slow2", true, async ct =>
+        {
+            Interlocked.Increment(ref startedChecks);
+            await tcs.Task;
+            return HealthCheckResult.Pass("Slow2", "OK");
+        });
+
+        checker.RegisterCheck(slowCheck1);
+        checker.RegisterCheck(slowCheck2);
+
+        var runTask = checker.RunAllChecksAsync();
+
+        for (int i = 0; i < 50 && Volatile.Read(ref startedChecks) < 2; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(2, Volatile.Read(ref startedChecks));
+
+        tcs.SetResult(true);
+        var report = await runTask;
+        Assert.Equal(2, report.PassedCount);
+    }
 }

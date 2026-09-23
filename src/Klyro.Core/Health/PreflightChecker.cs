@@ -24,8 +24,9 @@ public sealed class PreflightReport
 }
 
 /// <summary>
-/// Pre-flight environmental verification engine.
-/// Runs comprehensive system, network, and security policy checks prior to exam launch.
+/// Parallel pre-flight environmental verification engine.
+/// Runs comprehensive system, network, and security policy checks concurrently across CPU threads
+/// prior to exam launch, slashing preflight latency.
 /// </summary>
 public sealed class PreflightChecker
 {
@@ -63,17 +64,18 @@ public sealed class PreflightChecker
         return checker;
     }
 
+    /// <summary>
+    /// Executes all registered preflight diagnostics concurrently in parallel tasks across threads.
+    /// </summary>
     public async Task<PreflightReport> RunAllChecksAsync(CancellationToken cancellationToken = default)
     {
         var report = new PreflightReport();
 
-        foreach (var check in _checks)
+        var tasks = _checks.Select(async check =>
         {
             try
             {
                 var result = await check.RunAsync(cancellationToken);
-                report.Results.Add(result);
-
                 if (result.Status == HealthStatus.Fail && result.IsCritical)
                 {
                     _auditLogger?.Log(
@@ -81,13 +83,16 @@ public sealed class PreflightChecker
                         "PreflightFailed",
                         $"Critical check '{check.Name}' failed: {result.Message}");
                 }
+                return result;
             }
             catch (Exception ex)
             {
-                var failResult = HealthCheckResult.Fail(check.Name, $"Check threw exception: {ex.Message}", check.IsCritical);
-                report.Results.Add(failResult);
+                return HealthCheckResult.Fail(check.Name, $"Check threw exception: {ex.Message}", check.IsCritical);
             }
-        }
+        });
+
+        var results = await Task.WhenAll(tasks);
+        report.Results.AddRange(results);
 
         return report;
     }

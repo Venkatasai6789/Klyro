@@ -119,6 +119,9 @@ public sealed class SecurityOptions
 
     [JsonPropertyName("clipboardPolicy")]
     public string ClipboardPolicy { get; set; } = "Restricted";
+
+    [JsonPropertyName("blockedProcesses")]
+    public List<string> BlockedProcesses { get; set; } = new();
 }
 
 public sealed class BrowserOptions

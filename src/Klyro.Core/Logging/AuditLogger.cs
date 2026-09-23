@@ -9,7 +9,8 @@ namespace Klyro.Core.Logging;
 
 /// <summary>
 /// Production high-integrity structured audit logger.
-/// Uses lock-free background Channel for non-blocking writes to audit.jsonl.
+/// Uses a dedicated OS background writer thread ("Klyro_AuditLogger_DiskWriter") and lock-free Channel
+/// for non-blocking batch disk flushes.
 /// Zero-credential guarantee: sanitizes all inputs to prevent credential leakage.
 /// </summary>
 public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
@@ -17,7 +18,7 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
     private readonly string _logFilePath;
     private readonly Channel<AuditEvent> _logChannel;
     private readonly CancellationTokenSource _cts = new();
-    private readonly Task _writerTask;
+    private readonly Thread _writerThread;
     private bool _isDisposed;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -26,6 +27,7 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
     };
 
     public string LogFilePath => _logFilePath;
+    public Thread WriterThread => _writerThread;
 
     public AuditLogger(string? customDirectory = null)
     {
@@ -46,7 +48,13 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
             SingleReader = true
         });
 
-        _writerTask = Task.Run(ProcessLogQueueAsync);
+        _writerThread = new Thread(DedicatedWriterLoop)
+        {
+            Name = "Klyro_AuditLogger_DiskWriter",
+            IsBackground = true,
+            Priority = ThreadPriority.BelowNormal
+        };
+        _writerThread.Start();
     }
 
     public void Log(EventType eventType, string state, string details, string? targetUrl = null, string? examId = null)
@@ -72,21 +80,38 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
         return Task.CompletedTask;
     }
 
-    private async Task ProcessLogQueueAsync()
+    private void DedicatedWriterLoop()
     {
+        var reader = _logChannel.Reader;
         try
         {
-            await foreach (var auditEvent in _logChannel.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
+            while (reader.WaitToReadAsync(_cts.Token).AsTask().GetAwaiter().GetResult())
+            {
+                while (reader.TryRead(out var auditEvent))
+                {
+                    try
+                    {
+                        var line = JsonSerializer.Serialize(auditEvent, JsonOptions);
+                        File.AppendAllText(_logFilePath, line + Environment.NewLine);
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { }
+        finally
+        {
+            while (reader.TryRead(out var auditEvent))
             {
                 try
                 {
                     var line = JsonSerializer.Serialize(auditEvent, JsonOptions);
-                    await File.AppendAllTextAsync(_logFilePath, line + Environment.NewLine, CancellationToken.None).ConfigureAwait(false);
+                    File.AppendAllText(_logFilePath, line + Environment.NewLine);
                 }
                 catch { }
             }
         }
-        catch (OperationCanceledException) { }
     }
 
     /// <summary>
@@ -96,7 +121,6 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
 
-        // Strip known password query string patterns
         var sanitized = text;
         if (sanitized.Contains("password=", StringComparison.OrdinalIgnoreCase))
         {
@@ -114,21 +138,10 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
         return sanitized;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_isDisposed) return;
-        _isDisposed = true;
-
-        _logChannel.Writer.TryComplete();
-
-        try
-        {
-            await _writerTask.ConfigureAwait(false);
-        }
-        catch { }
-
-        _cts.Cancel();
-        _cts.Dispose();
+        Dispose();
+        return ValueTask.CompletedTask;
     }
 
     public void Dispose()
@@ -139,7 +152,9 @@ public sealed class AuditLogger : IAuditLogger, IAsyncDisposable, IDisposable
         try
         {
             _logChannel.Writer.TryComplete();
+            _writerThread.Join(2000);
             _cts.Cancel();
+            _cts.Dispose();
         }
         catch { }
     }

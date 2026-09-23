@@ -78,4 +78,17 @@ public class ExamTimerTests
         timer.OnNetworkRecoveryStateChanged(isRecovering: true);
         Assert.False(timer.IsPaused); // Timer keeps running
     }
+
+    [Fact]
+    public void Start_CreatesDedicatedAboveNormalOSThread()
+    {
+        using var timer = new ExamTimer(TimeSpan.FromMinutes(10));
+        timer.Start();
+
+        var thread = timer.WorkerThread;
+        Assert.NotNull(thread);
+        Assert.Equal("Klyro_ExamTimer_Engine", thread.Name);
+        Assert.True(thread.IsBackground);
+        Assert.Equal(System.Threading.ThreadPriority.AboveNormal, thread.Priority);
+    }
 }

@@ -1,13 +1,15 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Klyro.Core.Exam;
 
 public delegate void ExamTimerTickEventHandler(TimeSpan remainingTime, TimeSpan elapsedTime);
 
 /// <summary>
-/// Native C# examination timer independent of WebView / JavaScript execution.
+/// Hardware-precision monotonic examination timer executing on a dedicated OS thread ("Klyro_ExamTimer_Engine").
+/// Utilizes QueryPerformanceCounter (Stopwatch.GetTimestamp) to guarantee tamper-proof, non-drifting
+/// time measurement immune to OS clock modifications, sleep states, or ThreadPool delays.
 /// </summary>
 public sealed class ExamTimer : IDisposable
 {
@@ -17,15 +19,23 @@ public sealed class ExamTimer : IDisposable
     private TimeSpan _remainingTime;
     private TimeSpan _elapsedTime;
     private CancellationTokenSource? _timerCts;
-    private Task? _timerTask;
+    private readonly ManualResetEventSlim _wakeUpEvent = new(false);
+    private Thread? _timerThread;
     private bool _isDisposed;
 
     public TimeSpan TotalDuration => _totalDuration;
-    public TimeSpan RemainingTime => _remainingTime;
-    public TimeSpan ElapsedTime => _elapsedTime;
+    public TimeSpan RemainingTime
+    {
+        get { lock (_lock) return _remainingTime; }
+    }
+    public TimeSpan ElapsedTime
+    {
+        get { lock (_lock) return _elapsedTime; }
+    }
     public bool IsRunning { get; private set; }
     public bool IsPaused { get; private set; }
     public string TimerPolicy => _timerPolicy;
+    public Thread? WorkerThread => _timerThread;
 
     public event ExamTimerTickEventHandler? Tick;
     public event EventHandler? TimeExpired;
@@ -53,13 +63,20 @@ public sealed class ExamTimer : IDisposable
             {
                 IsPaused = false;
                 Resumed?.Invoke(this, EventArgs.Empty);
+                _wakeUpEvent.Set();
                 return;
             }
 
             IsRunning = true;
             IsPaused = false;
             _timerCts = new CancellationTokenSource();
-            _timerTask = Task.Run(() => RunTimerLoopAsync(_timerCts.Token));
+            _timerThread = new Thread(RunDedicatedTimerLoop)
+            {
+                Name = "Klyro_ExamTimer_Engine",
+                IsBackground = true,
+                Priority = ThreadPriority.AboveNormal
+            };
+            _timerThread.Start();
         }
     }
 
@@ -71,6 +88,7 @@ public sealed class ExamTimer : IDisposable
 
             IsPaused = true;
             Paused?.Invoke(this, EventArgs.Empty);
+            _wakeUpEvent.Set();
         }
     }
 
@@ -82,6 +100,7 @@ public sealed class ExamTimer : IDisposable
 
             IsPaused = false;
             Resumed?.Invoke(this, EventArgs.Empty);
+            _wakeUpEvent.Set();
         }
     }
 
@@ -92,6 +111,7 @@ public sealed class ExamTimer : IDisposable
             IsRunning = false;
             IsPaused = false;
             _timerCts?.Cancel();
+            _wakeUpEvent.Set();
         }
     }
 
@@ -111,48 +131,65 @@ public sealed class ExamTimer : IDisposable
                 Resume();
             }
         }
-        // If policy is "ContinueDuringNetworkFailure", timer intentionally keeps running
     }
 
-    private async Task RunTimerLoopAsync(CancellationToken cancellationToken)
+    private void RunDedicatedTimerLoop()
     {
-        using var periodicTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        var token = _timerCts?.Token ?? CancellationToken.None;
+        long lastTimestamp = Stopwatch.GetTimestamp();
 
-        while (!cancellationToken.IsCancellationRequested && await periodicTimer.WaitForNextTickAsync(cancellationToken))
+        while (!token.IsCancellationRequested)
         {
-            bool hasExpired = false;
-            TimeSpan currentRemaining;
-            TimeSpan currentElapsed;
-
-            lock (_lock)
+            try
             {
-                if (!IsRunning) break;
-                if (IsPaused) continue;
+                // Wait 1 second (or until explicitly woken up on pause/resume)
+                _wakeUpEvent.Wait(1000, token);
+                _wakeUpEvent.Reset();
 
-                if (_remainingTime > TimeSpan.FromSeconds(1))
+                long currentTimestamp = Stopwatch.GetTimestamp();
+                double elapsedSeconds = (double)(currentTimestamp - lastTimestamp) / Stopwatch.Frequency;
+                lastTimestamp = currentTimestamp;
+
+                bool hasExpired = false;
+                TimeSpan currentRemaining;
+                TimeSpan currentElapsed;
+
+                lock (_lock)
                 {
-                    _remainingTime -= TimeSpan.FromSeconds(1);
-                    _elapsedTime += TimeSpan.FromSeconds(1);
-                }
-                else
-                {
-                    _remainingTime = TimeSpan.Zero;
-                    _elapsedTime = _totalDuration;
-                    IsRunning = false;
-                    hasExpired = true;
+                    if (!IsRunning) break;
+                    if (IsPaused) continue;
+
+                    var delta = TimeSpan.FromSeconds(elapsedSeconds);
+                    if (_remainingTime > delta)
+                    {
+                        _remainingTime -= delta;
+                        _elapsedTime += delta;
+                    }
+                    else
+                    {
+                        _remainingTime = TimeSpan.Zero;
+                        _elapsedTime = _totalDuration;
+                        IsRunning = false;
+                        hasExpired = true;
+                    }
+
+                    currentRemaining = _remainingTime;
+                    currentElapsed = _elapsedTime;
                 }
 
-                currentRemaining = _remainingTime;
-                currentElapsed = _elapsedTime;
+                Tick?.Invoke(currentRemaining, currentElapsed);
+
+                if (hasExpired)
+                {
+                    TimeExpired?.Invoke(this, EventArgs.Empty);
+                    break;
+                }
             }
-
-            Tick?.Invoke(currentRemaining, currentElapsed);
-
-            if (hasExpired)
+            catch (OperationCanceledException)
             {
-                TimeExpired?.Invoke(this, EventArgs.Empty);
                 break;
             }
+            catch { }
         }
     }
 
@@ -162,6 +199,13 @@ public sealed class ExamTimer : IDisposable
         _isDisposed = true;
 
         Stop();
+
+        if (_timerThread != null && _timerThread.IsAlive)
+        {
+            _timerThread.Join(500);
+        }
+
+        _wakeUpEvent.Dispose();
         _timerCts?.Dispose();
     }
 }

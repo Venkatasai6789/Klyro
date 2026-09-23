@@ -22,6 +22,7 @@ public sealed partial class LaunchPage : Page
     private readonly StartupPipeline _pipeline = new();
     private readonly OnboardingStateStore _onboardingStore = new();
     private readonly KlyroConfiguration _config = LoadConfiguration();
+    private readonly SystemBrowserAuthService _browserAuthService = new();
     private CancellationTokenSource? _startupCts;
     private double _currentProgressWidth;
     private bool _isGoogleAuthInitialized = false;
@@ -43,6 +44,8 @@ public sealed partial class LaunchPage : Page
         try
         {
             InitializeComponent();
+            Unloaded += (s, e) => _browserAuthService.Dispose();
+            _browserAuthService.AuthCompleted += BrowserAuthService_AuthCompleted;
             PageLog("InitializeComponent succeeded.");
         }
         catch (Exception ex)
@@ -138,6 +141,17 @@ public sealed partial class LaunchPage : Page
                     {
                         await Task.Delay(400);
                         await CaptureScreenshotAsync(screenshotInvigilatorPath);
+                    }
+                }
+
+                if (cmdArgs.Any(a => a.Equals("--test-browser-waiting", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering browser waiting card for testing...");
+                    BrowserAuthWaitingCard.Visibility = Visibility.Visible;
+                    if (!string.IsNullOrEmpty(screenshotCardPath))
+                    {
+                        await Task.Delay(400);
+                        await CaptureScreenshotAsync(screenshotCardPath);
                     }
                 }
 
@@ -587,27 +601,20 @@ public sealed partial class LaunchPage : Page
 
         try
         {
-            // Initialize WebView2 with persistent Exam profile
+            // Initialize WebView2 with persistent Exam profile using shared environment
             if (!_isGoogleAuthInitialized)
             {
-                var profileDir = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Klyro", "Profiles", "Exam");
-                System.IO.Directory.CreateDirectory(profileDir);
-
-                var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
+                var env = await WebViewEnvironmentHelper.GetOrCreateSharedEnvironmentAsync();
                 await GoogleAuthWebView.EnsureCoreWebView2Async(env);
 
                 if (GoogleAuthWebView.CoreWebView2 != null)
                 {
-                    var settings = GoogleAuthWebView.CoreWebView2.Settings;
-                    settings.AreDevToolsEnabled = false;
-                    settings.AreDefaultContextMenusEnabled = false;
-                    settings.AreBrowserAcceleratorKeysEnabled = false;
+                    WebViewEnvironmentHelper.ConfigureStandardSettings(GoogleAuthWebView.CoreWebView2.Settings, false);
 
                     GoogleAuthWebView.CoreWebView2.NavigationStarting += GoogleAuthWebView_NavigationStarting;
                     GoogleAuthWebView.CoreWebView2.NavigationCompleted += GoogleAuthWebView_NavigationCompleted;
                     GoogleAuthWebView.CoreWebView2.SourceChanged += GoogleAuthWebView_SourceChanged;
+                    GoogleAuthWebView.CoreWebView2.NewWindowRequested += GoogleAuthWebView_NewWindowRequested;
                     GoogleAuthWebView.CoreWebView2.ProcessFailed += (s, args) =>
                     {
                         PageLog($"GoogleAuth WebView2 process failed: {args.ProcessFailedKind}");
@@ -656,6 +663,13 @@ public sealed partial class LaunchPage : Page
             return;
         }
         CheckGoogleAuthCompletionAsync();
+    }
+
+    private void GoogleAuthWebView_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
+    {
+        e.Handled = true;
+        PageLog($"GoogleAuth requested new window for {e.Uri} - redirecting in-place.");
+        GoogleAuthWebView.CoreWebView2?.Navigate(e.Uri);
     }
 
     private void ShowGoogleAuthFallback(CoreWebView2WebErrorStatus? errorStatus)
@@ -722,12 +736,12 @@ public sealed partial class LaunchPage : Page
 
         if (!_isGoogleAuthInitialized)
         {
-            var profileDir = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Klyro", "Profiles", "Exam");
-            System.IO.Directory.CreateDirectory(profileDir);
-            var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
+            var env = await WebViewEnvironmentHelper.GetOrCreateSharedEnvironmentAsync();
             await GoogleAuthWebView.EnsureCoreWebView2Async(env);
+            if (GoogleAuthWebView.CoreWebView2 != null)
+            {
+                WebViewEnvironmentHelper.ConfigureStandardSettings(GoogleAuthWebView.CoreWebView2.Settings, false);
+            }
             _isGoogleAuthInitialized = true;
         }
 
@@ -832,43 +846,98 @@ public sealed partial class LaunchPage : Page
 
             if (isSuccessUrl && hasAuthCookies)
             {
-                _isAuthCompleted = true;
-                PageLog("Google authentication successfully completed and verified!");
-
-                // Hide overlay
-                GoogleAuthOverlay.Visibility = Visibility.Collapsed;
-
-                // Update button to success state
-                GoogleButtonText.Text = "Google Account Connected ✓";
-                GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 236, 253, 245)); // Emerald-50
-                GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)); // Emerald-500
-                GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 6, 95, 70)); // Emerald-800
-                GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
-                GoogleAuthProgressRing.IsActive = false;
-                GoogleArrowIcon.Visibility = Visibility.Visible;
-                GoogleArrowIcon.Glyph = "\uE73E"; // Checkmark icon
-                GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
-
-                _onboardingStore.MarkCompleted("Google User", null);
-
-                await Task.Delay(400);
-
-                // Transition to assessment view in full-screen mode
-                PageLog("Transitioning to assessment view...");
-                if (MainWindow.CurrentInstance != null)
-                {
-                    MainWindow.CurrentInstance.NavigateToAssessmentView();
-                }
-                else
-                {
-                    Frame.Navigate(typeof(MainPage));
-                }
+                await CompleteGoogleAuthenticationAsync("Google User", "In-App WebView");
             }
         }
         catch (Exception ex)
         {
             PageLog($"CheckGoogleAuthCompletionAsync error: {ex}");
         }
+    }
+
+    private async Task CompleteGoogleAuthenticationAsync(string userName, string source)
+    {
+        if (_isAuthCompleted) return;
+        _isAuthCompleted = true;
+        PageLog($"Google authentication successfully completed and verified via {source} ({userName})!");
+
+        // Hide overlays and waiting cards
+        GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+        BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
+        GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
+
+        // Update button to success state
+        GoogleButtonText.Text = "Google Account Connected ✓";
+        GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 236, 253, 245)); // Emerald-50
+        GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)); // Emerald-500
+        GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 6, 95, 70)); // Emerald-800
+        GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
+        GoogleAuthProgressRing.IsActive = false;
+        GoogleArrowIcon.Visibility = Visibility.Visible;
+        GoogleArrowIcon.Glyph = "\uE73E"; // Checkmark icon
+        GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+
+        _onboardingStore.MarkCompleted(userName, null);
+
+        await Task.Delay(400);
+
+        // Transition to assessment view in full-screen mode
+        PageLog("Transitioning to assessment view...");
+        if (MainWindow.CurrentInstance != null)
+        {
+            MainWindow.CurrentInstance.NavigateToAssessmentView();
+        }
+        else
+        {
+            Frame.Navigate(typeof(MainPage));
+        }
+    }
+
+    private async void SystemBrowserSignIn_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("System browser sign-in initiated.");
+        GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
+        GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+        BrowserAuthWaitingCard.Visibility = Visibility.Visible;
+
+        SystemBrowserSignInButton.IsEnabled = false;
+
+        try
+        {
+            string authUrl = "https://accounts.google.com/ServiceLogin";
+            PageLog($"Launching system browser for Google sign-in at {authUrl}");
+            await _browserAuthService.StartSystemBrowserAuthAsync(authUrl, TimeSpan.FromMinutes(5));
+        }
+        catch (Exception ex)
+        {
+            PageLog($"SystemBrowserSignIn_Click error: {ex}");
+        }
+        finally
+        {
+            SystemBrowserSignInButton.IsEnabled = true;
+        }
+    }
+
+    private void BrowserAuthService_AuthCompleted(object? sender, string userEmail)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await CompleteGoogleAuthenticationAsync(userEmail, "Default Browser");
+        });
+    }
+
+    private async void VerifyBrowserAuth_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("User manually confirmed browser sign-in completion.");
+        await CompleteGoogleAuthenticationAsync("Google User", "Default Browser");
+    }
+
+    private void CancelBrowserAuth_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("User cancelled browser sign-in waiting.");
+        _browserAuthService.Cancel();
+        BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
+        SystemBrowserSignInButton.IsEnabled = true;
     }
 
     private void CloseGoogleAuth_Click(object sender, RoutedEventArgs e)
@@ -880,7 +949,9 @@ public sealed partial class LaunchPage : Page
     {
         GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+        BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
         GoogleSignInButton.IsEnabled = true;
+        SystemBrowserSignInButton.IsEnabled = true;
         GoogleButtonText.Text = "Continue with Google";
         GoogleArrowIcon.Visibility = Visibility.Visible;
         GoogleArrowIcon.Glyph = "\uE72A"; // Arrow

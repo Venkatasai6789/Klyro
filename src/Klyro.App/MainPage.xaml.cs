@@ -18,6 +18,7 @@ using Klyro.Core.Network;
 using Klyro.Core.Persistence;
 using Klyro.Core.Recovery;
 using Klyro.Core.Security;
+using Klyro.Core.Tabs;
 
 namespace Klyro_App;
 
@@ -37,6 +38,8 @@ public sealed partial class MainPage : Page
     private NetworkMonitor? _networkMonitor;
     private RecoveryController? _recoveryController;
     private ExamStateMachine? _examStateMachine;
+    private TabWorkerManager? _tabWorkerManager;
+    private SecurityWatchdog? _securityWatchdog;
 
     private bool _isExamWebViewInitialized;
     private bool _isRecoveryWebViewInitialized;
@@ -132,6 +135,46 @@ public sealed partial class MainPage : Page
                 catch { }
             });
 
+            // 5.6 Initialize Multi-Threaded Tab Background Workers
+            _tabWorkerManager = new TabWorkerManager(_config, _sessionStore, _auditLogger);
+            _tabWorkerManager.WifiPortalWorker.WifiSignalUpdated += (s, info) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (WifiSignalTextBlock != null && info.signalPercentage > 0)
+                    {
+                        WifiSignalTextBlock.Text = $"{info.signalPercentage}%";
+                    }
+                });
+            };
+            _tabWorkerManager.WifiPortalWorker.InternetRestored += (s, ev) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    KeepRecoveryActiveInBackground();
+                    WifiPortalButton.Visibility = Visibility.Collapsed;
+                    ExamErrorOverlay.Visibility = Visibility.Collapsed;
+                    if (_isExamWebViewInitialized)
+                    {
+                        ExamWebView.Reload();
+                    }
+                });
+            };
+            _tabWorkerManager.StartAll();
+            BootLog("Multi-threaded tab workers started on dedicated threads.");
+
+            // 5.7 Initialize Multi-Threaded Security Watchdog
+            _securityWatchdog = new SecurityWatchdog(_config.Security, _auditLogger);
+            _securityWatchdog.ViolationDetected += (s, violation) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    ShowNotice($"Security warning: {violation.Details}", InfoBarSeverity.Warning);
+                });
+            };
+            _securityWatchdog.Start();
+            BootLog("Multi-threaded security watchdog started on dedicated thread.");
+
             // 6. Initialize Exam State Machine
             _examStateMachine = new ExamStateMachine(_config, _sessionStore, _auditLogger, existingSession);
 
@@ -216,13 +259,10 @@ public sealed partial class MainPage : Page
     {
         if (_isExamWebViewInitialized) return;
 
-        var profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", "Exam");
-        Directory.CreateDirectory(profileDir);
-
         Microsoft.Web.WebView2.Core.CoreWebView2Environment? environment = null;
         try
         {
-            environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, profileDir, null);
+            environment = await WebViewEnvironmentHelper.GetOrCreateSharedEnvironmentAsync();
             await ExamWebView.EnsureCoreWebView2Async(environment);
         }
         catch (Exception exInit)
@@ -230,7 +270,8 @@ public sealed partial class MainPage : Page
             _auditLogger?.Log(EventType.WEBVIEW_CRASH, "WEBVIEW_FALLBACK", $"Primary profile init failed: {exInit.Message}. Using isolated session directory.");
             var fallbackDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro", "Profiles", $"Exam_{Environment.ProcessId}");
             Directory.CreateDirectory(fallbackDir);
-            environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, fallbackDir, null);
+            var envOptions = WebViewEnvironmentHelper.CreateEnvironmentOptions();
+            environment = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateWithOptionsAsync(null, fallbackDir, envOptions);
             await ExamWebView.EnsureCoreWebView2Async(environment);
         }
 
@@ -242,11 +283,8 @@ public sealed partial class MainPage : Page
         var settings = ExamWebView.CoreWebView2.Settings;
         if (settings != null)
         {
-            settings.AreDevToolsEnabled = _config?.Security?.AllowDevTools ?? false;
-            settings.AreDefaultContextMenusEnabled = false;
+            WebViewEnvironmentHelper.ConfigureStandardSettings(settings, _config?.Security?.AllowDevTools ?? false);
             settings.AreDefaultScriptDialogsEnabled = false;
-            settings.AreBrowserAcceleratorKeysEnabled = false;
-            settings.IsStatusBarEnabled = false;
         }
 
         // Block shortcut keys: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+P, Ctrl+S, Ctrl+U, F12
@@ -350,7 +388,15 @@ public sealed partial class MainPage : Page
     private void ExamWebView_NewWindowRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NewWindowRequestedEventArgs e)
     {
         e.Handled = true;
-        _auditLogger?.Log(EventType.POPUP_BLOCKED, "ACTIVE", "Popup or new window request suppressed.", e.Uri);
+        var decision = _allowlistManager?.IsExamNavigationAllowed(e.Uri);
+        if (decision is { IsAllowed: true })
+        {
+            ExamWebView.CoreWebView2?.Navigate(e.Uri);
+        }
+        else
+        {
+            _auditLogger?.Log(EventType.POPUP_BLOCKED, "ACTIVE", $"Popup or new window request suppressed: {decision?.Reason ?? "Blocked"}", e.Uri);
+        }
     }
 
     private void ExamWebView_DownloadStarting(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2DownloadStartingEventArgs e)
@@ -443,7 +489,7 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            var wifiInfo = WifiSignalService.GetCurrentWifiSignal();
+            var wifiInfo = _tabWorkerManager?.WifiPortalWorker.LatestWifiInfo ?? WifiSignalService.GetCurrentWifiSignal();
             if (wifiInfo.signalPercentage > 0)
             {
                 WifiSignalTextBlock.Text = $"{wifiInfo.signalPercentage}%";
@@ -626,12 +672,14 @@ public sealed partial class MainPage : Page
         }
 
         UpdateTabHeaderState(isWifiTabActive: true);
+        _tabWorkerManager?.WifiPortalWorker.SetRecoveryMode(true);
         _ = InitializeRecoveryWebViewAsync(forceNavigate);
         StartModalConnectivityPolling();
     }
 
     private void KeepRecoveryActiveInBackground()
     {
+        _tabWorkerManager?.WifiPortalWorker.SetRecoveryMode(false);
         _modalRecoveryPollCts?.Cancel();
         RecoveryModalOverlay.Opacity = 0;
         RecoveryModalOverlay.IsHitTestVisible = false;
@@ -677,7 +725,7 @@ public sealed partial class MainPage : Page
             Directory.CreateDirectory(recoveryProfileDir);
             var envOptions = new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions
             {
-                AdditionalBrowserArguments = "--disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion"
+                AdditionalBrowserArguments = "--process-per-tab --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion"
             };
 
             Microsoft.Web.WebView2.Core.CoreWebView2Environment? environment = null;
@@ -1226,7 +1274,11 @@ public sealed partial class MainPage : Page
             // 3. Uninstall unmanaged low-level keyboard hook immediately
             try { _keyboardHook?.UninstallHook(); } catch { }
 
-            // 4. Dispose background network engine & audit logger
+            // 4. Dispose background network engine, tab workers, security watchdog & audit logger
+            try { _tabWorkerManager?.StopAll(); } catch { }
+            try { _tabWorkerManager?.Dispose(); } catch { }
+            try { _securityWatchdog?.Stop(); } catch { }
+            try { _securityWatchdog?.Dispose(); } catch { }
             try { _networkMonitor?.Stop(); } catch { }
             try { _networkMonitor?.Dispose(); } catch { }
             try { _auditLogger?.Dispose(); } catch { }
