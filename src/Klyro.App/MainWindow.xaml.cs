@@ -22,6 +22,8 @@ public sealed partial class MainWindow : Window
 
     public static MainWindow? CurrentInstance { get; private set; }
 
+    public event EventHandler<WindowActivatedEventArgs>? WindowActivated;
+
     private readonly OnboardingStateStore _onboardingStore = new();
     private bool _isFirstRun;
     private bool _isFullScreenConfigured;
@@ -205,6 +207,12 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
+        try
+        {
+            WindowActivated?.Invoke(this, args);
+        }
+        catch { }
+
         if (!_isFirstRun && !_isFullScreenConfigured && args.WindowActivationState != WindowActivationState.Deactivated)
         {
             _isFullScreenConfigured = true;

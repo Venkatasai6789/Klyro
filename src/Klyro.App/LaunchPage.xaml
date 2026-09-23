@@ -699,14 +699,27 @@
                             </Grid>
                         </Button>
 
+                        <!-- Modern Subtle Divider: OR -->
+                        <Grid Width="380" Margin="0,12,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Height="1" Background="#1E2638" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="OR" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="14,0" VerticalAlignment="Center" />
+                            <Border Grid.Column="2" Height="1" Background="#1E2638" VerticalAlignment="Center" />
+                        </Grid>
+
                         <!-- 4.1 System Browser Action Button (RFC 8252 Industry Best Practice) -->
                         <Button x:Name="SystemBrowserSignInButton"
                                 Click="SystemBrowserSignIn_Click"
+                                PointerEntered="SystemBrowserSignIn_PointerEntered"
+                                PointerExited="SystemBrowserSignIn_PointerExited"
                                 Width="380"
-                                Height="42"
-                                Margin="0,10,0,0"
+                                Height="48"
                                 Padding="16,0"
-                                Background="#141B2D"
+                                Background="#131B2E"
                                 BorderBrush="#253554"
                                 BorderThickness="1"
                                 CornerRadius="8"
@@ -716,45 +729,68 @@
                                 ToolTipService.ToolTip="Launch external browser (Edge/Chrome) for Google authentication"
                                 TabIndex="1">
                             <Grid HorizontalAlignment="Stretch">
-                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                    <FontIcon Glyph="&#xE774;" FontSize="14" Foreground="#38BDF8" VerticalAlignment="Center" />
-                                    <TextBlock Text="Sign in with Default Browser" FontSize="13" FontWeight="Medium" Foreground="#E2E8F0" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                    <Border Width="28" Height="28" CornerRadius="6" Background="#0C1F38" BorderBrush="#1E3A5F" BorderThickness="1">
+                                        <FontIcon Glyph="&#xE774;" FontSize="13" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="Sign in with Default Browser" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock Text="Recommended" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Border Background="#0C1F38" BorderBrush="#1E3A5F" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                                        <TextBlock Text="Recommended" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                    </Border>
+                                    <FontIcon Glyph="&#xE8A7;" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Grid>
                         </Button>
 
-                        <!-- System Browser In-Progress Waiting Card -->
+                        <!-- System Browser In-Progress Waiting Card with IDE-like Live Detection -->
                         <Border x:Name="BrowserAuthWaitingCard"
-                                Background="#141B2D"
+                                Background="#131B2E"
                                 BorderBrush="#253554"
                                 BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="16"
+                                CornerRadius="10"
+                                Padding="18"
                                 Margin="0,16,0,0"
                                 MaxWidth="380"
                                 HorizontalAlignment="Left"
                                 Visibility="Collapsed">
                             <StackPanel Spacing="12">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <ProgressRing IsActive="True" Width="18" Height="18" Foreground="#38BDF8" VerticalAlignment="Center" />
-                                    <TextBlock Text="Waiting for Browser Sign-in..." FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <TextBlock Text="Sign in with your Google account in the browser that just opened. Klyro will automatically verify and proceed."
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <ProgressRing x:Name="BrowserAuthSpinner" IsActive="True" Width="20" Height="20" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="BrowserAuthHeaderTitle" Text="Waiting for Browser Sign-in..." FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Live Status Badge -->
+                                <Border Background="#0C1F38" BorderBrush="#1E3A5F" BorderThickness="1" CornerRadius="4" Padding="8,4" HorizontalAlignment="Left">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="6" Height="6" Fill="#38BDF8" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="BrowserAuthStatusPillText" Text="Listening for callback &amp; window return..." FontSize="11" FontWeight="Medium" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock x:Name="BrowserAuthDescText"
+                                           Text="Sign in in your browser. Klyro will automatically detect your login as soon as you switch back."
                                            FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="18" />
+
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="I've Signed In (Continue)"
+                                    <Button x:Name="BrowserAuthVerifyBtn"
+                                            Content="I've Signed In (Continue)"
                                             Click="VerifyBrowserAuth_Click"
                                             Background="#0066FF"
                                             Foreground="#FFFFFF"
                                             FontSize="12" FontWeight="SemiBold"
-                                            Padding="14,6" CornerRadius="6" />
+                                            Height="34"
+                                            Padding="14,0" CornerRadius="6" />
                                     <Button Content="Cancel"
                                             Click="CancelBrowserAuth_Click"
                                             Background="#1E293B"
                                             Foreground="#CBD5E1"
                                             FontSize="12" FontWeight="Medium"
-                                            Padding="12,6" CornerRadius="6" />
+                                            Height="34"
+                                            Padding="14,0" CornerRadius="6" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
@@ -852,14 +888,15 @@
                             <Button Click="SystemBrowserSignIn_Click"
                                     Height="32"
                                     Padding="10,0"
-                                    Background="#1E293B"
-                                    BorderBrush="#334155"
+                                    Background="#141B2D"
+                                    BorderBrush="#253554"
                                     BorderThickness="1"
-                                    CornerRadius="4"
-                                    ToolTipService.ToolTip="Open in default browser (Chrome/Edge)">
+                                    CornerRadius="6"
+                                    ToolTipService.ToolTip="Switch to external browser (Chrome/Edge)">
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <FontIcon Glyph="&#xE774;" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
-                                    <TextBlock Text="Open in Browser" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <FontIcon Glyph="&#xE774;" FontSize="12" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                    <TextBlock Text="Open in Browser" FontSize="11" FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+                                    <FontIcon Glyph="&#xE8A7;" FontSize="10" Foreground="#38BDF8" VerticalAlignment="Center" Margin="2,0,0,0" />
                                 </StackPanel>
                             </Button>
                             <Button Click="CloseGoogleAuth_Click"

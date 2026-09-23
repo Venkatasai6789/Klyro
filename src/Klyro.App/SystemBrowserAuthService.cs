@@ -87,6 +87,8 @@ public sealed class SystemBrowserAuthService : IDisposable
         }
     }
 
+    public bool IsListening => _listener?.IsListening ?? false;
+
     private void HandleIncomingCallback(HttpListenerContext context)
     {
         try
@@ -137,6 +139,17 @@ public sealed class SystemBrowserAuthService : IDisposable
                         }
                         h2 { margin: 0 0 10px 0; font-size: 22px; font-weight: 700; color: #FFFFFF; }
                         p { margin: 0 0 24px 0; color: #94A3B8; font-size: 14px; line-height: 1.6; }
+                        .btn {
+                            display: inline-block;
+                            padding: 10px 24px;
+                            background: #0066FF;
+                            color: #FFFFFF;
+                            text-decoration: none;
+                            border-radius: 6px;
+                            font-weight: 600;
+                            font-size: 14px;
+                            margin-bottom: 20px;
+                        }
                         .footer { font-size: 12px; color: #64748B; border-top: 1px solid #1E293B; padding-top: 16px; margin-top: 16px; }
                     </style>
                 </head>
@@ -144,9 +157,13 @@ public sealed class SystemBrowserAuthService : IDisposable
                     <div class="card">
                         <div class="badge">✓</div>
                         <h2>Authentication Successful</h2>
-                        <p>Your Google account has been successfully verified for this examination. You may now close this browser window and return to Klyro.</p>
+                        <p>Your Google account has been verified for this examination. Klyro has detected your login and will resume automatically.</p>
+                        <a href="#" onclick="window.close(); return false;" class="btn">Return to Klyro</a>
                         <div class="footer">Klyro Secure Assessment Browser</div>
                     </div>
+                    <script>
+                        setTimeout(() => { try { window.close(); } catch(e){} }, 2500);
+                    </script>
                 </body>
                 </html>
                 """;
@@ -157,6 +174,8 @@ public sealed class SystemBrowserAuthService : IDisposable
             response.StatusCode = 200;
             response.OutputStream.Write(buffer, 0, buffer.Length);
             response.OutputStream.Close();
+
+            try { App.BringToFront(); } catch { }
 
             AuthCompleted?.Invoke(this, emailParam);
         }

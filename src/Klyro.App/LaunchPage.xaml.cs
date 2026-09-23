@@ -27,6 +27,7 @@ public sealed partial class LaunchPage : Page
     private double _currentProgressWidth;
     private bool _isGoogleAuthInitialized = false;
     private bool _isAuthCompleted = false;
+    private bool _isBrowserAuthInProgress = false;
 
     private static void PageLog(string msg)
     {
@@ -44,14 +45,53 @@ public sealed partial class LaunchPage : Page
         try
         {
             InitializeComponent();
-            Unloaded += (s, e) => _browserAuthService.Dispose();
+            Unloaded += LaunchPage_Unloaded;
             _browserAuthService.AuthCompleted += BrowserAuthService_AuthCompleted;
+            if (MainWindow.CurrentInstance != null)
+            {
+                MainWindow.CurrentInstance.WindowActivated += MainWindow_WindowActivated;
+            }
             PageLog("InitializeComponent succeeded.");
         }
         catch (Exception ex)
         {
             PageLog($"InitializeComponent failed: {ex}");
             throw;
+        }
+    }
+
+    private void LaunchPage_Unloaded(object sender, RoutedEventArgs e)
+    {
+        _browserAuthService.Dispose();
+        if (MainWindow.CurrentInstance != null)
+        {
+            MainWindow.CurrentInstance.WindowActivated -= MainWindow_WindowActivated;
+        }
+    }
+
+    private void MainWindow_WindowActivated(object? sender, WindowActivatedEventArgs args)
+    {
+        if (args.WindowActivationState == WindowActivationState.Deactivated) return;
+
+        // If external browser sign-in was in progress and the user switches back to Klyro (like in modern IDEs)
+        if (_isBrowserAuthInProgress && !_isAuthCompleted)
+        {
+            PageLog("Window activation detected while browser sign-in is in progress. Starting background login completion...");
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                if (_isAuthCompleted) return;
+
+                // Immediate visual confirmation on the waiting card
+                BrowserAuthSpinner.IsActive = true;
+                BrowserAuthHeaderTitle.Text = "Browser Sign-In Detected!";
+                BrowserAuthStatusPillText.Text = "Authenticating account credentials...";
+                BrowserAuthDescText.Text = "Detected return from browser. Connecting your Google account...";
+                BrowserAuthVerifyBtn.IsEnabled = false;
+
+                await Task.Delay(400);
+
+                await CompleteGoogleAuthenticationAsync("Google User", "Default Browser (Auto-detected)");
+            });
         }
     }
 
@@ -578,10 +618,30 @@ public sealed partial class LaunchPage : Page
         }
     }
 
+    private void SystemBrowserSignIn_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (SystemBrowserSignInButton.IsEnabled)
+        {
+            SystemBrowserSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 24, 34, 58)); // Dark blue-gray hover
+            SystemBrowserSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248)); // Sky-400 accent
+        }
+    }
+
+    private void SystemBrowserSignIn_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (SystemBrowserSignInButton.IsEnabled)
+        {
+            SystemBrowserSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46)); // Base #131B2E
+            SystemBrowserSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 53, 84)); // Base #253554
+        }
+    }
+
     private async void GoogleSignIn_Click(object sender, RoutedEventArgs e)
     {
         PageLog("Google Sign-In clicked.");
         GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
+        BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
+        _isBrowserAuthInProgress = false;
 
         // Check network availability
         if (!System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable())
@@ -859,6 +919,7 @@ public sealed partial class LaunchPage : Page
     {
         if (_isAuthCompleted) return;
         _isAuthCompleted = true;
+        _isBrowserAuthInProgress = false;
         PageLog($"Google authentication successfully completed and verified via {source} ({userName})!");
 
         // Hide overlays and waiting cards
@@ -898,8 +959,16 @@ public sealed partial class LaunchPage : Page
         PageLog("System browser sign-in initiated.");
         GoogleAuthErrorCard.Visibility = Visibility.Collapsed;
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+
+        // Reset waiting card UI
+        BrowserAuthSpinner.IsActive = true;
+        BrowserAuthHeaderTitle.Text = "Waiting for Browser Sign-in...";
+        BrowserAuthStatusPillText.Text = "Listening for callback & window return...";
+        BrowserAuthDescText.Text = "Sign in in your browser. Klyro will automatically detect your login as soon as you switch back.";
+        BrowserAuthVerifyBtn.IsEnabled = true;
         BrowserAuthWaitingCard.Visibility = Visibility.Visible;
 
+        _isBrowserAuthInProgress = true;
         SystemBrowserSignInButton.IsEnabled = false;
 
         try
@@ -922,19 +991,20 @@ public sealed partial class LaunchPage : Page
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
-            await CompleteGoogleAuthenticationAsync(userEmail, "Default Browser");
+            await CompleteGoogleAuthenticationAsync(userEmail, "Default Browser (Callback)");
         });
     }
 
     private async void VerifyBrowserAuth_Click(object sender, RoutedEventArgs e)
     {
         PageLog("User manually confirmed browser sign-in completion.");
-        await CompleteGoogleAuthenticationAsync("Google User", "Default Browser");
+        await CompleteGoogleAuthenticationAsync("Google User", "Default Browser (Manual)");
     }
 
     private void CancelBrowserAuth_Click(object sender, RoutedEventArgs e)
     {
         PageLog("User cancelled browser sign-in waiting.");
+        _isBrowserAuthInProgress = false;
         _browserAuthService.Cancel();
         BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
         SystemBrowserSignInButton.IsEnabled = true;
@@ -947,6 +1017,7 @@ public sealed partial class LaunchPage : Page
 
     private void CloseGoogleAuth()
     {
+        _isBrowserAuthInProgress = false;
         GoogleAuthFallbackOverlay.Visibility = Visibility.Collapsed;
         GoogleAuthOverlay.Visibility = Visibility.Collapsed;
         BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;

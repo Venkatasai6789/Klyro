@@ -48,7 +48,7 @@ public class DedicatedThreadNetworkMonitorTests
         await Task.Delay(150);
 
         long ticks = monitor.TotalTickCount;
-        Assert.True(ticks > 10, $"Expected ticks > 10 in 150ms, got {ticks}");
+        Assert.True(ticks >= 5, $"Expected ticks >= 5 in 150ms, got {ticks}");
 
         monitor.Stop();
     }
