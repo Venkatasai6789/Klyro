@@ -231,7 +231,9 @@ public sealed class NetworkMonitor : INetworkMonitor
         var timeout = _config.Network.ProbeTimeoutMs;
 
         // Execute all 4 probes concurrently
-        var gatewayTask = ProbeGatewayAsync(gatewayEndpoint, timeout, cancellationToken);
+        var gatewayTask = _probe is not ConnectivityProbe
+            ? _probe.ExecuteAsync(ProbeType.Gateway, gatewayEndpoint, timeout, cancellationToken)
+            : ProbeGatewayAsync(gatewayEndpoint, timeout, cancellationToken);
         var portalTask = _probe.ExecuteAsync(ProbeType.CaptivePortal, portalEndpoint, timeout, cancellationToken);
         var internetTask = _probe.ExecuteAsync(ProbeType.InternetConnectivity, internetEndpoint, timeout, cancellationToken);
         var assessmentTask = _probe.ExecuteAsync(ProbeType.AssessmentProvider, assessmentEndpoint, timeout, cancellationToken);

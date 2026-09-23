@@ -1,12 +1,119 @@
-bin/
-obj/
+# =============================================================================
+# Klyro — Secure Assessment Browser (.gitignore)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Credentials, Secrets & Sensitive Information (NEVER COMMIT)
+# -----------------------------------------------------------------------------
+*.env
+*.env.*
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.der
+credentials.json
+credentials.*.json
+client_secret*.json
+google-services.json
+secrets.json
+appsettings.*.user.json
+*.publishsettings
+*.keystore
+*.jks
+id_rsa*
+id_ed25519*
+id_ecdsa*
+token*.json
+*.oauth
+*token*
+*password*
+!*.md
+
+# -----------------------------------------------------------------------------
+# 2. Klyro Local Runtime Profiles, Storage & Diagnostic Logs
+# -----------------------------------------------------------------------------
+onboarding_state.json
+session_recovery.json
+boot.log
+**/Profiles/
+**/EBWebView/
+**/Logs/
+*.jsonl
+*.log
+*.binlog
+*.dmp
+*.mdmp
+
+# -----------------------------------------------------------------------------
+# 3. .NET & Visual Studio Build Artifacts
+# -----------------------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Xx]64/
+[Xx]86/
+[Aa][Rr][Mm]64/
+dist/
+output/
+.vs/
+.vscode/
+.idea/
+.fleet/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
-.vs/
-.vscode/
-[Dd]ebug/
-[Rr]elease/
-TestResults/
 *.DotSettings.user
+_ReSharper*/
+*.dotCover
+
+# -----------------------------------------------------------------------------
+# 4. Test Results & Code Coverage
+# -----------------------------------------------------------------------------
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# -----------------------------------------------------------------------------
+# 5. WinUI 3, Windows App SDK & MSIX Packaging
+# -----------------------------------------------------------------------------
+Generated\ Files/
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_pkginfo.txt
+*.msix
+*.msixbundle
+*.msixupload
+*.appx
+*.appxbundle
+*.appxupload
+publish/
+PublishScripts/
+*.pubxml
+
+# -----------------------------------------------------------------------------
+# 6. NuGet Packages & Caches
+# -----------------------------------------------------------------------------
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+# -----------------------------------------------------------------------------
+# 7. Operating System & Local Artifacts
+# -----------------------------------------------------------------------------
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+._*

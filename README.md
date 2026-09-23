@@ -1,198 +1,284 @@
+<div align="center">
+
+<img src="docs/assets/klyro_logo.png" alt="Klyro Logo" width="140" style="margin-bottom: 16px;" />
+
 # Klyro — Secure Assessment Browser
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-[![Tests](https://img.shields.io/badge/tests-108%20passed-success.svg)]()
-[![Target Framework](https://img.shields.io/badge/.NET-8.0-blue.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey.svg)]()
+**Enterprise-Grade, Resilient Windows Kiosk Browser Engineered for High-Stakes Coding Examinations**
 
-> **Klyro** is a production-grade, hardened Windows desktop examination browser engineered for university coding assessments. It provides a secure, locked examination environment while solving the critical campus network challenge: **seamless captive-portal recovery without losing student exam state**.
+[![GitHub Release](https://img.shields.io/github/v/release/Venkatasai6789/Klyro?color=0066FF&label=Release&logo=github)](https://github.com/Venkatasai6789/Klyro/releases)
+[![Tests Passing](https://img.shields.io/badge/Tests-155%20Passed-10B981?style=flat&logo=checkmarx)](https://github.com/Venkatasai6789/Klyro)
+[![Framework](https://img.shields.io/badge/.NET-8.0%20LTS-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![UI Framework](https://img.shields.io/badge/UI-WinUI%203%20%7C%20Windows%20App%20SDK-0078D4?logo=windows)](https://learn.microsoft.com/en-us/windows/apps/winui/winui3/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20(x64)-0078D7?logo=windows11)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
----
+<br />
 
-## Key Features
-
-- **Dual-WebView Isolation Architecture**:
-  - Primary `ExamWebView`: Hosts the coding platform (e.g. CodeChef) in a strictly locked, canonical-allowlist sandbox.
-  - Secondary `RecoveryWebView`: Rendered in an isolated overlay modal **only** when captive portal authentication expires.
-  - **Zero State Loss**: The primary browser context is frozen/blurred in-place during network drops; student code in the web editor is never cleared or reloaded.
-
-- **Deterministic Multi-Probe Network Engine**:
-  - Probes Default Gateway, Captive Portal (`http://172.16.103.254:8090/`), Internet 204 (`https://www.gstatic.com/generate_204`), and Assessment endpoint (`codechef.com`).
-  - Damped state machine requires consecutive failures before triggering recovery, preventing UI disruption during brief wireless jitter.
-  - Independent double-verification confirms real Internet access before dismissing the captive portal modal.
-
-- **Layered Defense-in-Depth Security**:
-  - **Windows Shell Launcher v2**: Replaces `explorer.exe` on standard exam accounts (`KLYRO-EXAM`), disabling task switching and desktop shells.
-  - **WDAC / App Control**: Whitelists trusted Klyro binaries and Microsoft WebView2 dependencies.
-  - **Fail-Closed Navigation Guards**: Hard block on unapproved protocols (`file:`, `mailto:`, `ms-settings:`, `cmd:`, `powershell:`), popups, downloads, and external navigations.
-  - **InPrivate Ephemeral Profiles**: Zero persistence of student credentials, browsing history, or keystrokes.
-
-- **Exam Lifecycle & Resilience**:
-  - Native countdown timer running independently of JavaScript timers.
-  - Atomic session persistence (`session.json`) enabling seamless resume in case of machine power glitches or reboots.
-  - Configurable timer pause policy during verified network drops.
-
-- **Administrative Diagnostics & Audit Logging**:
-  - Built-in `Klyro.Admin` CLI utility for pre-flight health checks, configuration validation, and diagnostic telemetry export.
-  - High-throughput asynchronous audit logger (`audit.log`) with automatic redaction of sensitive credentials and tokens.
+<p align="center">
+  <a href="#-quick-download--releases"><b>Download Binary</b></a> •
+  <a href="#-user-interface-walkthrough"><b>Visual Tour</b></a> •
+  <a href="#-key-architectural-features"><b>Key Features</b></a> •
+  <a href="#-building-from-source"><b>Build Guide</b></a> •
+  <a href="#-command-line-reference"><b>CLI Flags</b></a> •
+  <a href="#-documentation"><b>Docs</b></a>
+</p>
 
 ---
 
-## Solution Architecture
+</div>
 
+## 📌 Overview
+
+**Klyro** is a production-hardened, tamper-resistant examination browser engineered specifically for academic institutions, universities, and competitive testing environments. 
+
+Traditional lockdown browsers often crash, wipe written student source code, or lock out students when volatile campus Wi-Fi networks disconnect or captive portal leases expire. Klyro eliminates this critical vulnerability through a patent-grade **Dual-WebView State Isolation Architecture**, preserving written code in-place while providing seamless captive portal re-authentication, Google Workspace authentication, and proctor bypass mechanisms.
+
+> **GitHub Repository:** [https://github.com/Venkatasai6789/Klyro.git](https://github.com/Venkatasai6789/Klyro.git)
+
+---
+
+## 🚀 Quick Download & Releases
+
+Pre-compiled, self-contained **Windows x64** binaries are available directly via GitHub Releases:
+
+📦 **[Download Latest Klyro Executable (`Klyro-v1.0.0-win-x64.zip`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
+
+- **Self-Contained Standalone Executable**: No external .NET runtime installation required.
+- **SHA-256 Checksums**: Provided with every release for verification against supply-chain tampering.
+- **Direct Run**: Extract the archive and launch `Klyro.App.exe`.
+
+---
+
+## 📸 User Interface Walkthrough
+
+Klyro features a cohesive 4-screen onboarding pipeline built with **WinUI 3** and modern hardware-accelerated composition.
+
+### Screen 01: Startup & Diagnostic Pipeline
+*Sequential pre-flight health checks validating runtime environments, network latency, and security hooks (10% $\rightarrow$ 100% Ready).*
+
+<div align="center">
+  <img src="docs/assets/screen1_startup.png" alt="Screen 01: Startup & Diagnostics" width="850" />
+</div>
+
+---
+
+### Screen 02: Welcome Experience
+*Clear student briefing featuring security badges, testing rules, and an intuitive primary action flow.*
+
+<div align="center">
+  <img src="docs/assets/screen2_welcome.png" alt="Screen 02: Welcome to Klyro" width="850" />
+</div>
+
+---
+
+### Screen 03: Google Account Setup & Authentication
+*50/50 split layout featuring custom 3D hardware illustrations and official Google vector authentication.*
+
+<div align="center">
+  <img src="docs/assets/screen3_google_setup.png" alt="Screen 03: Google Account Setup" width="850" />
+</div>
+
+#### Institutional Fallbacks & Invigilator Proctor Bypass
+*If external Google services or the campus WAN are disrupted, Klyro delivers human-readable connection assistance cards, captive Wi-Fi portal navigation, and a proctor PIN authorization modal without displaying raw browser error codes.*
+
+<div align="center">
+  <img src="docs/assets/screen3_network_fallback.png" alt="Screen 03: Network Fallback" width="420" />
+  &nbsp;&nbsp;
+  <img src="docs/assets/screen3_invigilator_modal.png" alt="Screen 03: Invigilator PIN Modal" width="420" />
+</div>
+
+---
+
+### Screen 04: Google Account Connected
+*Dynamic post-authentication confirmation screen reflecting the real authenticated student identity, smart initials fallback, and an interactive account switcher.*
+
+<div align="center">
+  <img src="docs/assets/screen4_account_connected.png" alt="Screen 04: Google Account Connected" width="850" />
+</div>
+
+*Deterministic initials fallback (`PV`, `JD`, `AS`) automatically renders if the student's profile image is unavailable:*
+
+<div align="center">
+  <img src="docs/assets/screen4_initials_fallback.png" alt="Screen 04: Initials Fallback" width="450" />
+</div>
+
+---
+
+## 🛡️ Key Architectural Features
+
+### 1. Dual-WebView Zero State-Loss Architecture
+- **Primary Exam Context (`ExamWebView`)**: Hosts the coding platform (e.g. CodeChef, HackerRank, custom exam portals) under a strictly enforced canonical allowlist.
+- **Secondary Recovery Context (`RecoveryWebView`)**: Instantiated on-demand in an isolated modal **only** when captive portal re-authentication is required.
+- **Zero Loss Guarantee**: The primary browser context is frozen/blurred in-place; student code in the browser editor is never cleared, refreshed, or lost during network dropouts.
+
+### 2. Deterministic Multi-Probe Network Health Engine
+- Continuously probes four deterministic endpoints across dedicated worker threads:
+  1. Default Gateway (`ARP / ICMP`)
+  2. Campus Captive Portal (`http://172.16.103.254:8090/`)
+  3. Internet Connectivity Probe (`https://www.gstatic.com/generate_204`)
+  4. Assessment Target Endpoint (e.g., `codechef.com`)
+- Damped state machine requires consecutive failures before triggering recovery, preventing UI disruption during transient Wi-Fi jitter.
+
+### 3. Layered Kiosk Security (Defense-in-Depth)
+- **Windows Shell Launcher v2**: Replaces `explorer.exe` on designated exam user accounts (`KLYRO-EXAM`), disabling task switching, desktop shells, and notification trays.
+- **Windows Defender Application Control (WDAC)**: Hardware-enforced policy whitelisting only signed Klyro binaries and Microsoft WebView2 dependencies.
+- **Low-Level Keyboard Hook**: Blocks disruptive and exploratory key combinations:
+  - `Alt + Tab`, `Alt + Esc`, `Alt + Space`
+  - `Windows Key`, `Ctrl + Esc`, `Ctrl + Shift + Esc`
+  - `PrintScreen`, `Win + Shift + S`
+- **Security Watchdog**: Dedicated high-priority background thread continuously inspecting the process table for disallowed tools (Cheat Engine, Wireshark, screen recorders, virtualization tools).
+- **Fail-Closed Protocol & Navigation Guards**: Hard block on unapproved URI protocols (`file:`, `mailto:`, `ms-settings:`, `cmd:`, `powershell:`), popups, downloads, and external hyperlinks.
+
+### 4. Ephemeral InPrivate Profiles & Privacy
+- **Zero Local Data Retention**: Browser cache, cookies, passwords, and form submissions are isolated to ephemeral session profiles purged upon exit.
+- **Automated PII Redaction**: Asynchronous audit logging channel (`klyro_audit_*.jsonl`) automatically sanitizes session tokens, credentials, and query parameters before writing to disk.
+
+---
+
+## 🏗️ Solution Architecture
+
+```mermaid
+flowchart TD
+    subgraph OS_Layer ["Layer 1 & 2: Windows Operating System"]
+        A["Shell Launcher v2 (explorer.exe disabled)"] --- B["WDAC Policy & Keyboard Hook"]
+    end
+
+    subgraph Host_Layer ["Layer 3: Klyro Desktop Host (WinUI 3 / .NET 8)"]
+        C["LaunchPage (Onboarding 1 -> 4)"] --> D["MainPage (Exam Shell)"]
+        D --> E["Exam Timer & State Controller"]
+        D --> F["Background Security Watchdog"]
+        D --> G["Async Audit Logger"]
+    end
+
+    subgraph Browser_Layer ["Layer 4: Dual-WebView Isolation"]
+        H["ExamWebView (Active Assessment)"]
+        I["RecoveryWebView (Captive Portal Re-auth)"]
+    end
+
+    subgraph Network_Engine ["Deterministic Multi-Probe Network Engine"]
+        J["Gateway Probe"] --> K["Captive Portal Probe"]
+        K --> L["Internet 204 Probe"]
+        L --> M["Assessment Target Probe"]
+    end
+
+    OS_Layer --> Host_Layer
+    Host_Layer --> Browser_Layer
+    Host_Layer --> Network_Engine
 ```
-                                +--------------------------------------+
-                                |      Windows OS (Layer 1 & 2)        |
-                                |  Shell Launcher v2 + WDAC Lockdown   |
-                                +-------------------+------------------+
-                                                    |
-+---------------------------------------------------+---------------------------------------------------+
-| Klyro.App (WinUI 3 Host / Layer 3)                                                                    |
-|                                                                                                       |
-|  +-------------------------------+   +-----------------------------+   +---------------------------+  |
-|  |       Exam Timer & State      |   |   Pre-flight Health Checker |   |   Audit Logger & Redactor |  |
-|  +---------------+---------------+   +--------------+--------------+   +-------------+-------------+  |
-|                  |                                  |                                |                |
-|  +---------------+----------------------------------+--------------------------------+-------------+  |
-|  |                                  Recovery Controller (Layer 4)                                  |  |
-|  +--------------------+---------------------------------------------------+------------------------+  |
-|                       |                                                   |                           |
-|       +---------------+---------------+                   +---------------+---------------+           |
-|       |     ExamWebView Control       |                   |    RecoveryWebView Modal      |           |
-|       |  (Target: codechef.com)       |                   |  (Target: 172.16.103.254:8090)|           |
-|       |  - Canonical Allowlist Guard  |                   |  - Single-Origin Portal Guard |           |
-|       |  - Downloads/Popups Blocked   |                   |  - Ephemeral Memory Profile   |           |
-|       |  - InPrivate Exam Profile     |                   |  - Verification Monitor       |           |
-|       +-------------------------------+                   +-------------------------------+           |
-|                                                                                                       |
-+-------------------------------------------------------------------------------------------------------+
-| Network State Machine (Layer 4)                                                                       |
-| [Gateway Probe] ---> [Captive Portal Probe] ---> [Internet 204 Probe] ---> [Assessment Endpoint Probe]|
-+-------------------------------------------------------------------------------------------------------+
-```
 
 ---
 
-## Repository Structure
+## 💻 Building from Source
+
+### Prerequisites
+- **Operating System**: Windows 10 (Version 2004 / Build 19041+) or Windows 11
+- **Developer Tools**:
+  - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+  - Visual Studio 2022 (with *Desktop development with .NET* and *Windows App SDK C# Templates*)
+  - Windows 10/11 SDK (`10.0.26100.0` or higher)
+
+### 1. Clone Repository
+```powershell
+git clone https://github.com/Venkatasai6789/Klyro.git
+cd Klyro
+```
+
+### 2. Run Test Suite
+Execute the 155 automated tests across unit, security, network, and recovery domains:
+```powershell
+dotnet test
+```
+
+### 3. Build & Package Standalone Release
+Run the automated release packaging script:
+```powershell
+.\build-release.ps1 -Version "1.0.0"
+```
+The script will run the full test suite, compile the self-contained WinUI 3 binaries, and generate:
+- `dist/Klyro-v1.0.0-win-x64/Klyro.App.exe`
+- `dist/Klyro-v1.0.0-win-x64.zip`
+- `dist/Klyro-v1.0.0-win-x64.zip.sha256`
+
+---
+
+## ⚙️ Command-Line Reference
+
+Klyro provides fine-grained CLI arguments for institutional automation, proctor testing, and diagnostics:
+
+| Flag | Description |
+| :--- | :--- |
+| `(None)` | Normal production startup (Screen 01 $\rightarrow$ Screen 02 $\rightarrow$ Screen 03 $\rightarrow$ Screen 04 $\rightarrow$ Assessment View). |
+| `--screen1` / `--startup` | Directly forces Screen 01 (Startup & Diagnostic Pipeline). |
+| `--screen2` / `--welcome` | Directly forces Screen 02 (Welcome & Feature Overview). |
+| `--screen3` / `--account-setup` | Directly forces Screen 03 (Google Account Setup). |
+| `--screen4` / `--account-connected` | Directly forces Screen 04 (Google Account Connected). |
+| `--test-user-name "<Name>"` | Overrides display name for testing Screen 04 rendering. |
+| `--test-user-email "<Email>"` | Overrides email address for testing Screen 04 rendering. |
+| `--reset` / `--reset-browser` | Purges all cached cookies, persistent profiles, and onboarding state, restoring first-time user status. |
+| `--config <path>` | Specifies a custom JSON configuration file (e.g. `config/exam.json`). |
+| `--dry-run` | Validates configuration integrity and executes pre-flight checks without locking down the desktop shell. |
+
+---
+
+## 📂 Repository Structure
 
 ```
 Klyro/
-|-- config/
-|   |-- default.json               # Default production exam configuration
-|   |-- development.json           # Development profile with debug logging
-|   `-- exam.example.json          # Template for university custom exams
-|-- docs/
-|   |-- Architecture.md            # Comprehensive architecture & layered security specification
-|   |-- ThreatModel.md             # STRIDE threat model & mitigations (T1-T15)
-|   |-- NetworkRecovery.md         # Deterministic multi-probe state machine specification
-|   |-- TestingMatrix.md           # Failure scenarios, chaos testing & keyboard policy
-|   |-- Deployment.md              # IT Admin guide: Shell Launcher, Intune, WDAC, Code Signing
-|   `-- Troubleshooting.md         # Invigilator & proctor quick triage guide
-|-- src/
-|   |-- Klyro.Core/                # Portable domain logic, network probes, guards, logging (.NET 8)
-|   |-- Klyro.App/                 # WinUI 3 desktop application shell & dual-WebView host
-|   |-- Klyro.Admin/               # Command-line administrative diagnostics & telemetry tool
-|   `-- Klyro.Installer/           # Kiosk provisioning, Shell Launcher v2, WDAC & teardown scripts
-`-- tests/
-    |-- Klyro.SecurityTests/       # 51 tests: URL allowlist, protocol blocks, download guards
-    |-- Klyro.NetworkTests/        # 15 tests: Probe evaluation, state transitions, damping
-    |-- Klyro.RecoveryTests/       # 16 tests: Dual-webview modal lifecycle, verification probes
-    `-- Klyro.UnitTests/           # 26 tests: Preflight checks, timer, session recovery, audit logger
+├── .github/
+│   └── workflows/
+│       └── release.yml             # GitHub Actions automated release pipeline
+├── config/
+│   ├── default.json                # Production exam configuration
+│   ├── development.json            # Development profile with verbose telemetry
+│   └── exam.example.json           # Institutional template
+├── docs/
+│   ├── assets/                     # Official brand logo & UI progression screenshots
+│   ├── Architecture.md             # System architecture & defense-in-depth specification
+│   ├── ThreatModel.md              # STRIDE threat model & mitigations (T1-T15)
+│   ├── NetworkRecovery.md          # Multi-probe network state machine specification
+│   ├── Deployment.md               # IT Admin provisioning: Shell Launcher, Intune, WDAC
+│   └── Troubleshooting.md          # Invigilator & proctor quick triage guide
+├── src/
+│   ├── Klyro.Core/                 # Core domain logic, network probes, guards, logging (.NET 8)
+│   ├── Klyro.App/                  # WinUI 3 desktop application & dual-WebView host
+│   ├── Klyro.Admin/                # Command-line administrative diagnostics & telemetry tool
+│   └── Klyro.Installer/            # Shell Launcher v2, WDAC & assigned access scripts
+├── tests/
+│   ├── Klyro.UnitTests/            # Preflight checks, timer, session recovery, audit logger
+│   ├── Klyro.SecurityTests/        # Allowlist filters, protocol blocks, download guards
+│   ├── Klyro.NetworkTests/         # Deterministic probes, latency damping, Wi-Fi service
+│   └── Klyro.RecoveryTests/        # Captive portal recovery controller & modal lifecycle
+├── build-release.ps1               # Production win-x64 release packaging script
+├── CHANGELOG.md                    # Release history adhering to Keep a Changelog
+└── README.md                       # Product documentation
 ```
 
 ---
 
-## Building and Running
+## 📑 Documentation
 
-### Prerequisites
-- Windows 10 (Build 19041+) or Windows 11
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- Microsoft Edge WebView2 Evergreen Runtime
+Deep-dive documentation is available in the [`docs/`](docs/) directory:
 
-### 1. Build the Entire Solution
-```powershell
-dotnet build Klyro.sln -c Release
-```
-
-### 2. Run the Test Suite (108 Tests)
-```powershell
-dotnet test Klyro.sln -v minimal
-```
-
-All 108 tests validate URL canonicalization, lookalike domain rejection, protocol guarding, multi-probe damping, dual-profile isolation, and crash recovery.
-
-### 3. Run Administrative Diagnostics
-```powershell
-& "$HOME\.dotnet\dotnet.exe" "src\Klyro.Admin\bin\Release\net8.0\Klyro.Admin.dll" diagnose
-```
+- 📐 [**Architecture Guide**](docs/Architecture.md) — Comprehensive technical design and security boundary specifications.
+- 🛡️ [**Threat Model**](docs/ThreatModel.md) — STRIDE security assessment, attack surfaces, and countermeasures.
+- 🌐 [**Network Recovery Engine**](docs/NetworkRecovery.md) — Deterministic multi-probe state machine and recovery algorithm.
+- 🚀 [**Deployment & Provisioning**](docs/Deployment.md) — Kiosk setup, Shell Launcher v2 configuration, and WDAC policies.
+- 🩺 [**Troubleshooting & Proctor Guide**](docs/Troubleshooting.md) — Invigilator triage, offline bypass, and error resolution.
+- 📜 [**Changelog**](CHANGELOG.md) — Complete version release history and release notes.
 
 ---
 
-## Configuration Reference
+## 🔒 Security & Vulnerability Reporting
 
-Klyro is configured via JSON. Key settings in `config/default.json`:
-
-```json
-{
-  "Assessment": {
-    "ProviderName": "CodeChef",
-    "StartUrl": "https://www.codechef.com/contests",
-    "AllowedOrigins": [
-      "https://www.codechef.com",
-      "https://cdn.codechef.com",
-      "https://img.codechef.com"
-    ]
-  },
-  "Network": {
-    "CaptivePortalUrl": "http://172.16.103.254:8090/",
-    "AllowedPortalOrigins": [
-      "http://172.16.103.254:8090"
-    ],
-    "InternetProbeUrls": [
-      "https://www.gstatic.com/generate_204",
-      "http://captive.apple.com/hotspot-detect.html"
-    ],
-    "ProbeIntervalSeconds": 5,
-    "ProbeTimeoutSeconds": 3,
-    "ConsecutiveFailureThreshold": 3
-  },
-  "ExamPolicy": {
-    "DurationMinutes": 180,
-    "PauseTimerOnDisconnection": true,
-    "AutoSaveIntervalSeconds": 30
-  }
-}
-```
+Security is foundational to Klyro. If you discover a potential vulnerability, security bypass, or kiosk breakout vector, please **do not open a public issue**. Instead, review our security guidelines and contact the security maintainers directly.
 
 ---
 
-## University Workstation Kiosk Deployment
+## 📄 License
 
-1. **Deploy Workstation Kiosk**:
-   Execute from an elevated PowerShell administrator terminal:
-   ```powershell
-   cd src\Klyro.Installer\Provisioning
-   .\Deploy-KlyroKiosk.ps1 -ExamUser "KLYRO-EXAM"
-   ```
-2. **Revert Workstation to Normal**:
-   ```powershell
-   .\Remove-KlyroKiosk.ps1 -ExamUser "KLYRO-EXAM" -DeleteUser $true -RemoveBinaries $true
-   ```
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-Refer to [`docs/Deployment.md`](docs/Deployment.md) for full instructions on Microsoft Intune, MECM, and Smart App Control (SAC) code signing.
-
----
-
-## Documentation Links
-
-- [System Architecture & Layered Security](docs/Architecture.md)
-- [STRIDE Threat Model & Mitigations](docs/ThreatModel.md)
-- [Deterministic Network Recovery Engine](docs/NetworkRecovery.md)
-- [Testing Matrix & Failure Scenarios](docs/TestingMatrix.md)
-- [Enterprise Deployment & Provisioning Guide](docs/Deployment.md)
-- [Invigilator Triage & Troubleshooting Guide](docs/Troubleshooting.md)
-
----
-
-## License
-Confidential & Proprietary. Developed for university secure assessment environments.
+<div align="center">
+  <sub>Built with ❤️ for universities and academic integrity. Maintained at <a href="https://github.com/Venkatasai6789/Klyro">Venkatasai6789/Klyro</a>.</sub>
+</div>
