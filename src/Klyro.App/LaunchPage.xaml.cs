@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.UI;
@@ -50,6 +51,35 @@ public sealed partial class LaunchPage : Page
         PageLog("Page_Loaded entered.");
         try
         {
+            var cmdArgs = Environment.GetCommandLineArgs();
+            bool directWelcome = cmdArgs.Any(a =>
+                a.Equals("--welcome", StringComparison.OrdinalIgnoreCase) ||
+                a.Equals("--screen2", StringComparison.OrdinalIgnoreCase));
+
+            if (directWelcome)
+            {
+                PageLog("Direct welcome screen requested via CLI arguments.");
+                StartupStateGrid.Visibility = Visibility.Collapsed;
+                WelcomeStateGrid.Visibility = Visibility.Visible;
+                WelcomeStateGrid.Opacity = 1.0;
+
+                string? screenshotWelcomePath = null;
+                for (int i = 0; i < cmdArgs.Length; i++)
+                {
+                    if (cmdArgs[i].Equals("--screenshot-welcome", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                    {
+                        screenshotWelcomePath = cmdArgs[i + 1];
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(screenshotWelcomePath))
+                {
+                    await Task.Delay(400);
+                    await CaptureScreenshotAsync(screenshotWelcomePath);
+                }
+                return;
+            }
+
             await StartStartupPipelineAsync();
         }
         catch (Exception ex)
@@ -79,6 +109,7 @@ public sealed partial class LaunchPage : Page
             var cmdArgs = Environment.GetCommandLineArgs();
             string? screenshotPath = null;
             string? screenshotReadyPath = null;
+            string? screenshotWelcomePath = null;
             bool stayOnLaunch = false;
 
             for (int i = 0; i < cmdArgs.Length; i++)
@@ -91,12 +122,18 @@ public sealed partial class LaunchPage : Page
                 {
                     screenshotReadyPath = cmdArgs[i + 1];
                 }
+                else if (cmdArgs[i].Equals("--screenshot-welcome", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                {
+                    screenshotWelcomePath = cmdArgs[i + 1];
+                }
                 else if (cmdArgs[i].Equals("--stay-on-launch", StringComparison.OrdinalIgnoreCase) ||
                          cmdArgs[i].Equals("--preview", StringComparison.OrdinalIgnoreCase))
                 {
                     stayOnLaunch = true;
                 }
             }
+
+            PageLog($"Startup options: stayOnLaunch={stayOnLaunch}");
 
             // If a screenshot was requested at startup state
             if (!string.IsNullOrEmpty(screenshotPath))
@@ -111,7 +148,7 @@ public sealed partial class LaunchPage : Page
 
             if (result.IsSuccess)
             {
-                UpdateProgress(100, "Ready.");
+                UpdateProgress(100, "Klyro is ready.");
 
                 if (!string.IsNullOrEmpty(screenshotReadyPath))
                 {
@@ -119,35 +156,11 @@ public sealed partial class LaunchPage : Page
                     await CaptureScreenshotAsync(screenshotReadyPath);
                 }
 
-                if (stayOnLaunch)
-                {
-                    PageLog("Staying on launch screen for user preview (--stay-on-launch / --preview specified).");
-                    return;
-                }
+                // 200–400ms pause as per specification
+                await Task.Delay(350);
 
-                await Task.Delay(400);
-
-                // Mark first run completed in persistent store
-                try
-                {
-                    PageLog("Marking onboarding as completed...");
-                    _onboardingStore.MarkCompleted();
-                }
-                catch (Exception exStore)
-                {
-                    PageLog($"OnboardingStore error: {exStore}");
-                }
-
-                // Transition to the exam workspace in full-screen mode
-                PageLog("Transitioning to assessment view...");
-                if (MainWindow.CurrentInstance != null)
-                {
-                    MainWindow.CurrentInstance.NavigateToAssessmentView();
-                }
-                else
-                {
-                    Frame.Navigate(typeof(MainPage));
-                }
+                // Polished transition from Screen 1 (Startup) to Screen 2 (Welcome)
+                await TransitionToWelcomeAsync(screenshotWelcomePath);
             }
             else
             {
@@ -160,6 +173,48 @@ public sealed partial class LaunchPage : Page
         catch (Exception ex)
         {
             PageLog($"StartStartupPipelineAsync fatal exception: {ex}");
+        }
+    }
+
+    private async Task TransitionToWelcomeAsync(string? screenshotWelcomePath)
+    {
+        PageLog("Transitioning from Screen 1 to Screen 2 (Welcome)...");
+        try
+        {
+            // 1. Smooth fade out of StartupStateGrid over ~200ms
+            int steps = 10;
+            for (int i = steps - 1; i >= 0; i--)
+            {
+                StartupStateGrid.Opacity = i / (double)steps;
+                await Task.Delay(20);
+            }
+
+            StartupStateGrid.Visibility = Visibility.Collapsed;
+            WelcomeStateGrid.Visibility = Visibility.Visible;
+            WelcomeStateGrid.Opacity = 0.0;
+
+            // 2. Smooth fade in and settle of WelcomeStateGrid over ~250ms
+            for (int i = 1; i <= steps; i++)
+            {
+                WelcomeStateGrid.Opacity = i / (double)steps;
+                await Task.Delay(25);
+            }
+            WelcomeStateGrid.Opacity = 1.0;
+
+            PageLog("Welcome screen transition complete. Waiting for user interaction.");
+
+            if (!string.IsNullOrEmpty(screenshotWelcomePath))
+            {
+                await Task.Delay(300);
+                await CaptureScreenshotAsync(screenshotWelcomePath);
+            }
+        }
+        catch (Exception ex)
+        {
+            PageLog($"TransitionToWelcomeAsync error: {ex}");
+            StartupStateGrid.Visibility = Visibility.Collapsed;
+            WelcomeStateGrid.Visibility = Visibility.Visible;
+            WelcomeStateGrid.Opacity = 1.0;
         }
     }
 
@@ -238,6 +293,85 @@ public sealed partial class LaunchPage : Page
                 SendMessage(hWnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
             }
         }
+    }
+
+    private void FeatureCard_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, WCard1))
+        {
+            WIconBorder1.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            WIconBorder1.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            WText1.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+        else if (ReferenceEquals(sender, WCard2))
+        {
+            WIconBorder2.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            WIconBorder2.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            WText2.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+        else if (ReferenceEquals(sender, WCard3))
+        {
+            WIconBorder3.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            WIconBorder3.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            WText3.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+    }
+
+    private void FeatureCard_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, WCard1))
+        {
+            WIconBorder1.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            WIconBorder1.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 44, 72));
+            WText1.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+        else if (ReferenceEquals(sender, WCard2))
+        {
+            WIconBorder2.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            WIconBorder2.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 44, 72));
+            WText2.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+        else if (ReferenceEquals(sender, WCard3))
+        {
+            WIconBorder3.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            WIconBorder3.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 44, 72));
+            WText3.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+    }
+
+    private void GetStarted_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        GetStartedButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        GetStartedButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+        ArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        ArrowBadge.Margin = new Thickness(0, 0, -3, 0);
+    }
+
+    private void GetStarted_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        GetStartedButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
+        GetStartedButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        ArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        ArrowBadge.Margin = new Thickness(0);
+    }
+
+    private void GetStarted_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        GetStartedButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 82, 204));
+        GetStartedButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 64, 175));
+    }
+
+    private void GetStarted_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        GetStartedButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        GetStartedButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+    }
+
+    private void GetStarted_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Get Started clicked. Completing first-run onboarding...");
+        _onboardingStore.MarkCompleted();
+        MainWindow.CurrentInstance?.NavigateToAssessmentView();
     }
 
     private async Task CaptureScreenshotAsync(string filePath)

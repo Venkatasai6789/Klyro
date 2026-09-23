@@ -10,6 +10,40 @@
     RequestedTheme="Dark"
     mc:Ignorable="d">
 
+    <Page.Resources>
+        <Style x:Key="GetStartedButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#0066FF" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#2563EB" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="RootBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{TemplateBinding CornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <LinearGradientBrush x:Key="KlyroTextGradientBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#5DCBFA" Offset="0.0" />
+            <GradientStop Color="#40A8FD" Offset="0.45" />
+            <GradientStop Color="#1075FE" Offset="0.85" />
+            <GradientStop Color="#116FF9" Offset="1.0" />
+        </LinearGradientBrush>
+    </Page.Resources>
+
     <!-- Root 50/50 Split Container matching 1536 x 1024 reference layout -->
     <Grid x:Name="RootGrid" Background="#0F1219">
         <Grid.ColumnDefinitions>
@@ -77,7 +111,8 @@
                         Padding="0"
                         Background="Transparent"
                         BorderThickness="0"
-                        CornerRadius="4">
+                        CornerRadius="4"
+                        IsTabStop="False">
                     <FontIcon Glyph="&#xE921;" FontSize="11" Foreground="#94A3B8" />
                 </Button>
 
@@ -90,7 +125,8 @@
                         Padding="0"
                         Background="Transparent"
                         BorderThickness="0"
-                        CornerRadius="4">
+                        CornerRadius="4"
+                        IsTabStop="False">
                     <FontIcon x:Name="MaximizeIcon" Glyph="&#xE922;" FontSize="11" Foreground="#94A3B8" />
                 </Button>
 
@@ -104,6 +140,7 @@
                         Background="Transparent"
                         BorderThickness="0"
                         CornerRadius="4"
+                        IsTabStop="False"
                         PointerEntered="CloseButton_PointerEntered"
                         PointerExited="CloseButton_PointerExited">
                     <FontIcon x:Name="CloseIcon" Glyph="&#xE8BB;" FontSize="11" Foreground="#94A3B8" />
@@ -111,219 +148,388 @@
             </StackPanel>
             </Grid>
 
-            <!-- 2. Main Content Stack (Title, Subtitle, Description, Progress, Status) -->
-            <StackPanel Grid.Row="1"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Left"
-                        Margin="48,0,0,0"
-                        MaxWidth="380">
+            <!-- Content Container holding both Onboarding States (Startup & Welcome) -->
+            <Grid Grid.Row="1" Grid.RowSpan="2">
 
-                <!-- Brand Title: "Klyro" -->
-                <TextBlock Text="Klyro"
-                           FontSize="52"
-                           FontWeight="Bold"
-                           Foreground="#FFFFFF"
-                           CharacterSpacing="10"
-                           Margin="0,0,0,4" />
+                <!-- ============================================================ -->
+                <!-- STATE 1: STARTUP / INITIALIZATION (Screen 01)                -->
+                <!-- ============================================================ -->
+                <Grid x:Name="StartupStateGrid" Visibility="Visible" Opacity="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <!-- Product Subtitle: "Secure Assessment Browser" -->
-                <TextBlock Text="Secure Assessment Browser"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Foreground="#CBD5E1"
-                           Margin="0,0,0,20" />
+                    <!-- Main Content Stack (Title, Subtitle, Description, Progress, Status) -->
+                    <StackPanel Grid.Row="0"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Margin="48,0,0,0"
+                                MaxWidth="380">
 
-                <!-- Description (Two lines on desktop) -->
-                <TextBlock FontSize="15"
-                           LineHeight="24"
-                           Foreground="#94A3B8"
-                           TextWrapping="Wrap"
-                           MaxWidth="380"
-                           Margin="0,0,0,30">
-                    <Run Text="A safe and controlled browsing environment" /><LineBreak />
-                    <Run Text="for fair and secure assessments." />
-                </TextBlock>
+                        <!-- Brand Title: "Klyro" -->
+                        <TextBlock Text="Klyro"
+                                   FontSize="52"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource KlyroTextGradientBrush}"
+                                   HorizontalAlignment="Left"
+                                   CharacterSpacing="10"
+                                   Margin="0,0,0,4" />
 
-                <!-- Startup Horizontal Progress Bar Track (380 x 14 px) -->
-                <Grid Width="380"
-                      Height="14"
-                      HorizontalAlignment="Left"
-                      Margin="0,0,0,14">
-                    <!-- Dark Gray Track -->
-                    <Border Background="#1E2638" CornerRadius="7" />
+                        <!-- Product Subtitle: "Secure Assessment Browser" -->
+                        <TextBlock Text="Secure Assessment Browser"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CBD5E1"
+                                   Margin="0,0,0,20" />
 
-                    <!-- Blue Progress Fill Bar -->
-                    <Border x:Name="ProgressBarFill"
-                            Width="0"
-                            Height="14"
-                            Background="#0066FF"
-                            CornerRadius="7"
-                            HorizontalAlignment="Left" />
+                        <!-- Description (Two lines on desktop) -->
+                        <TextBlock FontSize="15"
+                                   LineHeight="24"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="380"
+                                   Margin="0,0,0,30">
+                            <Run Text="A safe and controlled browsing environment" /><LineBreak />
+                            <Run Text="for fair and secure assessments." />
+                        </TextBlock>
+
+                        <!-- Startup Horizontal Progress Bar Track (380 x 14 px) -->
+                        <Grid Width="380"
+                              Height="14"
+                              HorizontalAlignment="Left"
+                              Margin="0,0,0,14">
+                            <!-- Dark Gray Track -->
+                            <Border Background="#1E2638" CornerRadius="7" />
+
+                            <!-- Blue Progress Fill Bar -->
+                            <Border x:Name="ProgressBarFill"
+                                    Width="0"
+                                    Height="14"
+                                    Background="#0066FF"
+                                    CornerRadius="7"
+                                    HorizontalAlignment="Left" />
+                        </Grid>
+
+                        <!-- Dynamic Status Text -->
+                        <TextBlock x:Name="StatusTextBlock"
+                                   Text="Starting Klyro..."
+                                   FontSize="14"
+                                   FontWeight="Normal"
+                                   Foreground="#94A3B8"
+                                   Margin="0,0,0,0" />
+
+                        <!-- Startup Error Card (Displayed only when initialization fails) -->
+                        <Border x:Name="StartupErrorCard"
+                                Background="#1C1418"
+                                BorderBrush="#7F1D1D"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16,12"
+                                Margin="0,18,0,0"
+                                MaxWidth="380"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed">
+                            <StackPanel Spacing="10">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xEB55;" FontSize="16" Foreground="#EF4444" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="StartupErrorMessage"
+                                               Text="Startup check failed."
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FCA5A5"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Button x:Name="RetryButton"
+                                            Content="Retry Startup"
+                                            Click="Retry_Click"
+                                            Background="#2563EB"
+                                            Foreground="#FFFFFF"
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Padding="16,6"
+                                            CornerRadius="6" />
+                                    <Button Content="Exit"
+                                            Click="Close_Click"
+                                            Background="#1E293B"
+                                            Foreground="#CBD5E1"
+                                            FontSize="12"
+                                            Padding="16,6"
+                                            CornerRadius="6" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Feature Indicators Row (Bottom of Right Panel) -->
+                    <Grid Grid.Row="1"
+                          Width="380"
+                          HorizontalAlignment="Left"
+                          Margin="48,0,0,48">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="125" />
+                            <ColumnDefinition Width="1" />
+                            <ColumnDefinition Width="128" />
+                            <ColumnDefinition Width="1" />
+                            <ColumnDefinition Width="125" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- FEATURE 1: Secure Environment -->
+                        <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Width="44" Height="44" CornerRadius="10" Background="#131B2E" BorderBrush="#1E2C48" BorderThickness="1" HorizontalAlignment="Center">
+                                <Image Source="ms-appx:///Assets/Secure_Environment.png" Width="26" Height="26" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock FontSize="12" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="16" Margin="0,8,0,0">
+                                <Run Text="Secure" /><LineBreak /><Run Text="Environment" />
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Border Grid.Column="1" Width="1" Height="48" Background="#1E293B" VerticalAlignment="Center" />
+
+                        <!-- FEATURE 2: Distraction Free -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Width="44" Height="44" CornerRadius="10" Background="#131B2E" BorderBrush="#1E2C48" BorderThickness="1" HorizontalAlignment="Center">
+                                <Image Source="ms-appx:///Assets/distraction_free.png" Width="26" Height="26" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock FontSize="12" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="16" Margin="0,8,0,0">
+                                <Run Text="Distraction" /><LineBreak /><Run Text="Free" />
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Border Grid.Column="3" Width="1" Height="48" Background="#1E293B" VerticalAlignment="Center" />
+
+                        <!-- FEATURE 3: Trusted by Institutions -->
+                        <StackPanel Grid.Column="4" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border Width="44" Height="44" CornerRadius="10" Background="#131B2E" BorderBrush="#1E2C48" BorderThickness="1" HorizontalAlignment="Center">
+                                <Image Source="ms-appx:///Assets/Trusted_Instructions.png" Width="26" Height="26" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock FontSize="12" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="16" Margin="0,8,0,0">
+                                <Run Text="Trusted by" /><LineBreak /><Run Text="Institutions" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
 
-                <!-- Dynamic Status Text -->
-                <TextBlock x:Name="StatusTextBlock"
-                           Text="Starting Klyro..."
-                           FontSize="14"
-                           FontWeight="Normal"
-                           Foreground="#94A3B8"
-                           Margin="0,0,0,0" />
+                <!-- ============================================================ -->
+                <!-- STATE 2: WELCOME TO KLYRO (Screen 02)                        -->
+                <!-- ============================================================ -->
+                <Grid x:Name="WelcomeStateGrid" Visibility="Collapsed" Opacity="0">
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Margin="48,0,0,0"
+                                MaxWidth="380">
 
-                <!-- Startup Error Card (Displayed only when initialization fails) -->
-                <Border x:Name="StartupErrorCard"
-                        Background="#1C1418"
-                        BorderBrush="#7F1D1D"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="16,12"
-                        Margin="0,18,0,0"
-                        MaxWidth="380"
-                        HorizontalAlignment="Left"
-                        Visibility="Collapsed">
-                    <StackPanel Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <FontIcon Glyph="&#xEB55;" FontSize="16" Foreground="#EF4444" VerticalAlignment="Center" />
-                            <TextBlock x:Name="StartupErrorMessage"
-                                       Text="Startup check failed."
-                                       FontSize="13"
+                        <!-- 1. Header Sub-badge: Horizontal Blue Accent Bar + WELCOME -->
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Spacing="10"
+                                    Margin="0,0,0,24">
+                            <Border Width="36"
+                                    Height="3"
+                                    CornerRadius="1.5"
+                                    Background="#0066FF"
+                                    VerticalAlignment="Center" />
+                            <TextBlock Text="WELCOME"
+                                       FontSize="11"
                                        FontWeight="SemiBold"
-                                       Foreground="#FCA5A5"
-                                       TextWrapping="Wrap" />
+                                       CharacterSpacing="200"
+                                       Foreground="#94A3B8"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button x:Name="RetryButton"
-                                    Content="Retry Startup"
-                                    Click="Retry_Click"
-                                    Background="#2563EB"
-                                    Foreground="#FFFFFF"
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    Padding="16,6"
-                                    CornerRadius="6" />
-                            <Button Content="Exit"
-                                    Click="Close_Click"
-                                    Background="#1E293B"
-                                    Foreground="#CBD5E1"
-                                    FontSize="12"
-                                    Padding="16,6"
-                                    CornerRadius="6" />
+
+                        <!-- 2. Main Heading: "Welcome to \n Klyro" -->
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="Welcome to"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       Foreground="#FFFFFF"
+                                       LineHeight="46" />
+                            <TextBlock Text="Klyro"
+                                       FontSize="50"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource KlyroTextGradientBrush}"
+                                       HorizontalAlignment="Left"
+                                       LineHeight="52" />
                         </StackPanel>
+
+                        <!-- 3. Subtitle / Description -->
+                        <TextBlock FontSize="15"
+                                   LineHeight="24"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="380"
+                                   Margin="0,0,0,32">
+                            <Run Text="Your secure environment for university" /><LineBreak />
+                            <Run Text="assessments." />
+                        </TextBlock>
+
+                        <!-- 4. Feature Indicators Row (With subtle hover micro-interactions) -->
+                        <Grid Width="380"
+                              HorizontalAlignment="Left"
+                              Margin="0,0,0,36">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="125" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="128" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="125" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- FEATURE 1: Secure Environment -->
+                            <StackPanel x:Name="WCard1"
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        PointerEntered="FeatureCard_PointerEntered"
+                                        PointerExited="FeatureCard_PointerExited">
+                                <Border x:Name="WIconBorder1"
+                                        Width="44" Height="44"
+                                        CornerRadius="10"
+                                        Background="#131B2E"
+                                        BorderBrush="#1E2C48"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Center">
+                                    <Image Source="ms-appx:///Assets/Secure_Environment.png"
+                                           Width="26" Height="26"
+                                           Stretch="Uniform"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock x:Name="WText1"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="#94A3B8"
+                                           TextAlignment="Center"
+                                           LineHeight="16"
+                                           Margin="0,8,0,0">
+                                    <Run Text="Secure" /><LineBreak /><Run Text="Environment" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <Border Grid.Column="1" Width="1" Height="48" Background="#1E293B" VerticalAlignment="Center" />
+
+                            <!-- FEATURE 2: Distraction Free -->
+                            <StackPanel x:Name="WCard2"
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        PointerEntered="FeatureCard_PointerEntered"
+                                        PointerExited="FeatureCard_PointerExited">
+                                <Border x:Name="WIconBorder2"
+                                        Width="44" Height="44"
+                                        CornerRadius="10"
+                                        Background="#131B2E"
+                                        BorderBrush="#1E2C48"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Center">
+                                    <Image Source="ms-appx:///Assets/distraction_free.png"
+                                           Width="26" Height="26"
+                                           Stretch="Uniform"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock x:Name="WText2"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="#94A3B8"
+                                           TextAlignment="Center"
+                                           LineHeight="16"
+                                           Margin="0,8,0,0">
+                                    <Run Text="Distraction" /><LineBreak /><Run Text="Free" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <Border Grid.Column="3" Width="1" Height="48" Background="#1E293B" VerticalAlignment="Center" />
+
+                            <!-- FEATURE 3: Trusted by Institutions -->
+                            <StackPanel x:Name="WCard3"
+                                        Grid.Column="4"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        PointerEntered="FeatureCard_PointerEntered"
+                                        PointerExited="FeatureCard_PointerExited">
+                                <Border x:Name="WIconBorder3"
+                                        Width="44" Height="44"
+                                        CornerRadius="10"
+                                        Background="#131B2E"
+                                        BorderBrush="#1E2C48"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Center">
+                                    <Image Source="ms-appx:///Assets/Trusted_Instructions.png"
+                                           Width="26" Height="26"
+                                           Stretch="Uniform"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock x:Name="WText3"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="#94A3B8"
+                                           TextAlignment="Center"
+                                           LineHeight="16"
+                                           Margin="0,8,0,0">
+                                    <Run Text="Trusted by" /><LineBreak /><Run Text="Institutions" />
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- 5. Get Started Primary Action Button (Screen 1 Consistent: 380 DIP width, 8px radius, Royal Blue) -->
+                        <Button x:Name="GetStartedButton"
+                                Style="{StaticResource GetStartedButtonStyle}"
+                                Click="GetStarted_Click"
+                                PointerEntered="GetStarted_PointerEntered"
+                                PointerExited="GetStarted_PointerExited"
+                                PointerPressed="GetStarted_PointerPressed"
+                                PointerReleased="GetStarted_PointerReleased"
+                                Width="380"
+                                Height="48"
+                                Padding="20,0"
+                                Background="#0066FF"
+                                BorderThickness="1"
+                                BorderBrush="#2563EB"
+                                CornerRadius="8"
+                                HorizontalAlignment="Left"
+                                HorizontalContentAlignment="Stretch"
+                                AutomationProperties.Name="Get Started"
+                                ToolTipService.ToolTip="Continue to university assessment"
+                                TabIndex="0">
+                            <Grid HorizontalAlignment="Stretch">
+                                <TextBlock Text="Get Started"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="#FFFFFF"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Left" />
+
+                                <Border x:Name="ArrowBadge"
+                                        Width="30"
+                                        Height="30"
+                                        CornerRadius="15"
+                                        Background="#1A75FF"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                    <FontIcon x:Name="ArrowIcon"
+                                              Glyph="&#xE72A;"
+                                              FontSize="13"
+                                              Foreground="#FFFFFF"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </Button>
+
+                        <!-- 6. Helper Text: First-time users only. -->
+                        <TextBlock Text="First-time users only."
+                                   FontSize="13"
+                                   Foreground="#64748B"
+                                   HorizontalAlignment="Left"
+                                   Margin="0,12,0,0" />
                     </StackPanel>
-                </Border>
-            </StackPanel>
-
-            <!-- 3. Feature Indicators Row (Bottom of Right Panel) -->
-            <Grid Grid.Row="2"
-                  Width="380"
-                  HorizontalAlignment="Left"
-                  Margin="48,0,0,48">
-                <Grid.ColumnDefinitions>
-                    <!-- Feature 1: Secure Environment -->
-                    <ColumnDefinition Width="125" />
-                    <!-- Vertical Separator 1 -->
-                    <ColumnDefinition Width="1" />
-                    <!-- Feature 2: Distraction Free -->
-                    <ColumnDefinition Width="128" />
-                    <!-- Vertical Separator 2 -->
-                    <ColumnDefinition Width="1" />
-                    <!-- Feature 3: Trusted by Institutions -->
-                    <ColumnDefinition Width="125" />
-                </Grid.ColumnDefinitions>
-
-                <!-- FEATURE 1: Secure Environment -->
-                <StackPanel Grid.Column="0"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-                    <Border Width="44" Height="44"
-                            CornerRadius="10"
-                            Background="#131B2E"
-                            BorderBrush="#1E2C48"
-                            BorderThickness="1"
-                            HorizontalAlignment="Center">
-                        <Image Source="ms-appx:///Assets/Secure_Environment.png"
-                               Width="26" Height="26"
-                               Stretch="Uniform"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock FontSize="12"
-                               FontWeight="Medium"
-                               Foreground="#94A3B8"
-                               TextAlignment="Center"
-                               LineHeight="16"
-                               Margin="0,8,0,0">
-                        <Run Text="Secure" /><LineBreak />
-                        <Run Text="Environment" />
-                    </TextBlock>
-                </StackPanel>
-
-                <!-- Vertical Separator 1 -->
-                <Border Grid.Column="1"
-                        Width="1"
-                        Height="48"
-                        Background="#1E293B"
-                        VerticalAlignment="Center" />
-
-                <!-- FEATURE 2: Distraction Free -->
-                <StackPanel Grid.Column="2"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-                    <Border Width="44" Height="44"
-                            CornerRadius="10"
-                            Background="#131B2E"
-                            BorderBrush="#1E2C48"
-                            BorderThickness="1"
-                            HorizontalAlignment="Center">
-                        <Image Source="ms-appx:///Assets/distraction_free.png"
-                               Width="26" Height="26"
-                               Stretch="Uniform"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock FontSize="12"
-                               FontWeight="Medium"
-                               Foreground="#94A3B8"
-                               TextAlignment="Center"
-                               LineHeight="16"
-                               Margin="0,8,0,0">
-                        <Run Text="Distraction" /><LineBreak />
-                        <Run Text="Free" />
-                    </TextBlock>
-                </StackPanel>
-
-                <!-- Vertical Separator 2 -->
-                <Border Grid.Column="3"
-                        Width="1"
-                        Height="48"
-                        Background="#1E293B"
-                        VerticalAlignment="Center" />
-
-                <!-- FEATURE 3: Trusted by Institutions -->
-                <StackPanel Grid.Column="4"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-                    <Border Width="44" Height="44"
-                            CornerRadius="10"
-                            Background="#131B2E"
-                            BorderBrush="#1E2C48"
-                            BorderThickness="1"
-                            HorizontalAlignment="Center">
-                        <Image Source="ms-appx:///Assets/Trusted_Instructions.png"
-                               Width="26" Height="26"
-                               Stretch="Uniform"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
-                    </Border>
-                    <TextBlock FontSize="12"
-                               FontWeight="Medium"
-                               Foreground="#94A3B8"
-                               TextAlignment="Center"
-                               LineHeight="16"
-                               Margin="0,8,0,0">
-                        <Run Text="Trusted by" /><LineBreak />
-                        <Run Text="Institutions" />
-                    </TextBlock>
-                </StackPanel>
+                </Grid>
             </Grid>
         </Grid>
     </Grid>
