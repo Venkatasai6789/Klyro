@@ -76,7 +76,8 @@ public static class Program
         Log($"Main entered. PID: {Environment.ProcessId}. Args: {string.Join(" ", args)}");
 
         if (args.Any(a => a.Equals("--reset", StringComparison.OrdinalIgnoreCase) ||
-                          a.Equals("--reset-browser", StringComparison.OrdinalIgnoreCase)))
+                          a.Equals("--reset-browser", StringComparison.OrdinalIgnoreCase) ||
+                          a.Equals("--reset-only", StringComparison.OrdinalIgnoreCase)))
         {
             try
             {
@@ -93,6 +94,10 @@ public static class Program
                     if (Directory.Exists(profilesDir)) Directory.Delete(profilesDir, recursive: true);
                 }
                 Log("Browser profiles, cookies, and onboarding state successfully reset via --reset switch.");
+                if (args.Any(a => a.Equals("--reset-only", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return;
+                }
             }
             catch (Exception exReset)
             {
