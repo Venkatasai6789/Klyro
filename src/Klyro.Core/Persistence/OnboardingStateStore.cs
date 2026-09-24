@@ -114,9 +114,14 @@ public sealed class OnboardingStateStore
     public void SaveAuthenticatedUser(AuthenticatedUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
+        if (!BrowserProfileDetector.IsValidGoogleEmail(user.Email))
+        {
+            return;
+        }
+
         var state = LoadState();
-        if (!string.IsNullOrWhiteSpace(user.Email)) state.GoogleEmail = user.Email;
-        if (!string.IsNullOrWhiteSpace(user.DisplayName)) state.GoogleDisplayName = user.DisplayName;
+        state.GoogleEmail = user.Email.Trim();
+        state.GoogleDisplayName = BrowserProfileDetector.FormatCleanDisplayName(user.DisplayName, user.Email);
         if (!string.IsNullOrWhiteSpace(user.PhotoUrl)) state.GooglePhotoUrl = user.PhotoUrl;
         if (!string.IsNullOrWhiteSpace(user.GoogleSub)) state.GoogleSub = user.GoogleSub;
         if (!string.IsNullOrWhiteSpace(user.GivenName)) state.GoogleGivenName = user.GivenName;
@@ -128,11 +133,16 @@ public sealed class OnboardingStateStore
     public void MarkCompleted(AuthenticatedUser user)
     {
         ArgumentNullException.ThrowIfNull(user);
+        if (!BrowserProfileDetector.IsValidGoogleEmail(user.Email))
+        {
+            return;
+        }
+
         var state = LoadState();
         state.IsFirstRunCompleted = true;
         state.CompletedAt = DateTime.UtcNow;
-        if (!string.IsNullOrWhiteSpace(user.Email)) state.GoogleEmail = user.Email;
-        if (!string.IsNullOrWhiteSpace(user.DisplayName)) state.GoogleDisplayName = user.DisplayName;
+        state.GoogleEmail = user.Email.Trim();
+        state.GoogleDisplayName = BrowserProfileDetector.FormatCleanDisplayName(user.DisplayName, user.Email);
         if (!string.IsNullOrWhiteSpace(user.PhotoUrl)) state.GooglePhotoUrl = user.PhotoUrl;
         if (!string.IsNullOrWhiteSpace(user.GoogleSub)) state.GoogleSub = user.GoogleSub;
         if (!string.IsNullOrWhiteSpace(user.GivenName)) state.GoogleGivenName = user.GivenName;
@@ -144,17 +154,20 @@ public sealed class OnboardingStateStore
     public AuthenticatedUser? GetAuthenticatedUser()
     {
         var state = LoadState();
-        if (string.IsNullOrWhiteSpace(state.GoogleEmail))
+        if (string.IsNullOrWhiteSpace(state.GoogleEmail) || !BrowserProfileDetector.IsValidGoogleEmail(state.GoogleEmail))
         {
             return null;
         }
+
+        var cleanEmail = state.GoogleEmail.Trim();
+        var cleanDisplayName = BrowserProfileDetector.FormatCleanDisplayName(state.GoogleDisplayName, cleanEmail);
 
         return new AuthenticatedUser
         {
             Id = state.GoogleSub ?? string.Empty,
             GoogleSub = state.GoogleSub ?? string.Empty,
-            Email = state.GoogleEmail,
-            DisplayName = !string.IsNullOrWhiteSpace(state.GoogleDisplayName) ? state.GoogleDisplayName : state.GoogleEmail,
+            Email = cleanEmail,
+            DisplayName = cleanDisplayName,
             PhotoUrl = state.GooglePhotoUrl,
             GivenName = state.GoogleGivenName,
             FamilyName = state.GoogleFamilyName,

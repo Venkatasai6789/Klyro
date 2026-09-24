@@ -66,6 +66,14 @@ public static class Program
             File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] {message}\n");
         }
         catch { }
+
+        try
+        {
+            var localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro");
+            Directory.CreateDirectory(localAppData);
+            File.AppendAllText(Path.Combine(localAppData, "boot.log"), $"[{DateTime.UtcNow:O}] {message}\n");
+        }
+        catch { }
     }
 
     [System.STAThread]

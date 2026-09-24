@@ -126,6 +126,63 @@ public class BrowserProfileDetectorTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("p.venkatasai07@gmail.com", true)]
+    [InlineData("venkatasai@gmail.com", true)]
+    [InlineData("alex.morgan@univ.edu", true)]
+    [InlineData("user.name+tag@sub.domain.co.uk", true)]
+    [InlineData("student123@campus.edu", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData("not-an-email", false)]
+    [InlineData("@gmail.com", false)]
+    [InlineData("user@", false)]
+    [InlineData("user@domain", false)]
+    [InlineData("user@domain.c", false)]
+    [InlineData("user with spaces@gmail.com", false)]
+    [InlineData("user%name@gmail.com", false)]
+    [InlineData("null@example.com", false)]
+    [InlineData("user@gstatic.com", false)]
+    [InlineData("user@googleapis.com", false)]
+    [InlineData("https://www.gstatic.com/test", false)]
+    [InlineData("javascript:alert(1)@test.com", false)]
+    [InlineData("%.@.null,null,null,\"https://www.gstatic.com/_/mss/boq-identity/_/js/test\"]", false)]
+    public void IsValidGoogleEmail_ValidatesStrictly(string? candidate, bool expected)
+    {
+        bool isValid = BrowserProfileDetector.IsValidGoogleEmail(candidate);
+        Assert.Equal(expected, isValid);
+    }
+
+    [Fact]
+    public void FormatCleanDisplayName_RejectsGarbledRawNamesAndDerivesCleanly()
+    {
+        // Garbled gstatic bundle / percent strings as raw name
+        string garbled1 = "%";
+        string garbled2 = "%.@.null";
+        string garbled3 = "https://www.gstatic.com/something";
+
+        Assert.Equal("P Venkatasai", BrowserProfileDetector.FormatCleanDisplayName(garbled1, "p.venkatasai07@gmail.com"));
+        Assert.Equal("P Venkatasai", BrowserProfileDetector.FormatCleanDisplayName(garbled2, "p.venkatasai07@gmail.com"));
+        Assert.Equal("P Venkatasai", BrowserProfileDetector.FormatCleanDisplayName(garbled3, "p.venkatasai07@gmail.com"));
+
+        // User initials
+        var user = new AuthenticatedUser
+        {
+            Email = "p.venkatasai07@gmail.com",
+            DisplayName = BrowserProfileDetector.FormatCleanDisplayName(null, "p.venkatasai07@gmail.com")
+        };
+        Assert.Equal("P Venkatasai", user.DisplayName);
+        Assert.Equal("PV", user.GetInitials());
+
+        var userWithGreetingName = new AuthenticatedUser
+        {
+            Email = "p.venkatasai07@gmail.com",
+            DisplayName = "Venkata Sai"
+        };
+        Assert.Equal("VS", userWithGreetingName.GetInitials());
+    }
+
     [Fact]
     public void DetectLatestGoogleAccount_OnRealMachine_ReturnsRealAccountIfPresent()
     {

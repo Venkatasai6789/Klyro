@@ -24,6 +24,16 @@ public sealed class GoogleOAuthConfiguration
     public string Scopes { get; set; } = DefaultScopes;
 
     /// <summary>
+    /// Checks whether a valid, non-placeholder Google Cloud OAuth Client ID is configured.
+    /// Returns false if ClientId is missing, empty, or set to placeholder/revoked IDs (such as 406964657835...).
+    /// </summary>
+    public bool HasValidClientId =>
+        !string.IsNullOrWhiteSpace(ClientId) &&
+        !ClientId.Contains("406964657835", StringComparison.OrdinalIgnoreCase) &&
+        !ClientId.StartsWith("dummy", StringComparison.OrdinalIgnoreCase) &&
+        !ClientId.StartsWith("placeholder", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Loads OAuth configuration from config/default.json or environment variables.
     /// </summary>
     public static GoogleOAuthConfiguration LoadFromEnvironmentOrConfig(string? configFilePath = null)
@@ -82,6 +92,7 @@ public sealed class GoogleOAuthConfiguration
 
     /// <summary>
     /// Builds the authorization URL following RFC 8252 and RFC 7636 (PKCE S256).
+    /// If no valid institutional Client ID is configured, routes cleanly to the local interactive loopback bridge (/auth-bridge/).
     /// </summary>
     public string BuildAuthorizationUrl(string redirectUri, string codeChallenge, string state)
     {
@@ -89,15 +100,16 @@ public sealed class GoogleOAuthConfiguration
         ArgumentException.ThrowIfNullOrWhiteSpace(codeChallenge);
         ArgumentException.ThrowIfNullOrWhiteSpace(state);
 
-        // If no custom Client ID is configured, use Google's official public installed app authorization URL
-        // or loopback landing flow
-        string effectiveClientId = !string.IsNullOrWhiteSpace(ClientId)
-            ? ClientId
-            : "406964657835-aq8lmja8j9nmbfbs8s2vmqnoajvd4nv5.apps.googleusercontent.com"; // Standard desktop OAuth public client ID
+        // If no institutional Google Cloud OAuth Client ID is registered, route directly to the local
+        // interactive bridge on loopback port so the candidate never encounters Google's Error 401 invalid_client.
+        if (!HasValidClientId)
+        {
+            return redirectUri.Replace("/auth-callback/", "/auth-bridge/");
+        }
 
         var sb = new System.Text.StringBuilder();
         sb.Append(AuthorizationEndpoint);
-        sb.Append("?client_id=").Append(Uri.EscapeDataString(effectiveClientId));
+        sb.Append("?client_id=").Append(Uri.EscapeDataString(ClientId));
         sb.Append("&redirect_uri=").Append(Uri.EscapeDataString(redirectUri));
         sb.Append("&response_type=code");
         sb.Append("&scope=").Append(Uri.EscapeDataString(Scopes));

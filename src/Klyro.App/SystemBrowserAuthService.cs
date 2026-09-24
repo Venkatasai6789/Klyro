@@ -29,6 +29,7 @@ public sealed class SystemBrowserAuthService : IDisposable
     private GoogleOAuthConfiguration? _currentConfig;
 
     public event EventHandler<AuthenticatedUser>? AuthCompleted;
+    public string? CurrentRedirectUri => _currentRedirectUri;
 
     /// <summary>
     /// Starts the complete Firefox-style Google OAuth 2.0 PKCE authentication flow.
@@ -59,35 +60,25 @@ public sealed class SystemBrowserAuthService : IDisposable
             _listener.Prefixes.Add(_currentRedirectUri);
             _listener.Prefixes.Add(bridgePrefix);
             _listener.Start();
+            Log($"HttpListener started successfully on {_currentRedirectUri} & {bridgePrefix}");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SystemBrowserAuth] Failed to start HttpListener on {_currentRedirectUri}: {ex.Message}");
+            Log($"Failed to start HttpListener on {_currentRedirectUri}: {ex.Message}");
             return false;
         }
 
         // Build RFC 8252 Google OAuth URL with PKCE
         string authUrl = config.BuildAuthorizationUrl(_currentRedirectUri, codeChallenge, _currentState);
 
-        // Launch system default browser
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = authUrl,
-                UseShellExecute = true
-            };
-            Process.Start(psi);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[SystemBrowserAuth] Failed to launch system browser: {ex.Message}");
-            _listener.Stop();
-            return false;
-        }
+        // Start processing incoming requests concurrently so the listener is ready immediately
+        var processTask = ProcessIncomingRequestsAsync();
+
+        // Launch system default browser with robust fallback on background thread
+        _ = Task.Run(() => LaunchBrowserUrl(authUrl));
 
         // Await incoming callback from browser
-        return await ProcessIncomingRequestsAsync();
+        return await processTask;
     }
 
     /// <summary>
@@ -111,31 +102,66 @@ public sealed class SystemBrowserAuthService : IDisposable
             _listener.Prefixes.Add(_currentRedirectUri);
             _listener.Prefixes.Add(bridgePrefix);
             _listener.Start();
+            Log($"HttpListener started successfully on {_currentRedirectUri} & {bridgePrefix}");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SystemBrowserAuth] Failed to start HttpListener on {_currentRedirectUri}: {ex.Message}");
+            Log($"Failed to start HttpListener on {_currentRedirectUri}: {ex.Message}");
             return false;
         }
 
-        // Launch system default browser
+        // Start processing incoming requests concurrently
+        var processTask = ProcessIncomingRequestsAsync();
+
+        // Launch system default browser on background thread
+        _ = Task.Run(() => LaunchBrowserUrl(authUrl));
+
+        return await processTask;
+    }
+
+    private static void Log(string message)
+    {
         try
         {
+            var localAppData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro");
+            Directory.CreateDirectory(localAppData);
+            File.AppendAllText(Path.Combine(localAppData, "boot.log"), $"[{DateTime.UtcNow:O}] [SystemBrowserAuth] {message}\n");
+        }
+        catch { }
+    }
+
+    private static void LaunchBrowserUrl(string url)
+    {
+        try
+        {
+            Log($"Launching browser for URL: {url}");
             var psi = new ProcessStartInfo
             {
-                FileName = authUrl,
+                FileName = url,
                 UseShellExecute = true
             };
             Process.Start(psi);
+            Log($"Launched browser via ShellExecute for: {url}");
         }
-        catch (Exception ex)
+        catch (Exception exLaunch)
         {
-            Debug.WriteLine($"[SystemBrowserAuth] Failed to launch system browser: {ex.Message}");
-            _listener.Stop();
-            return false;
+            Log($"ShellExecute browser launch failed: {exLaunch.Message}. Attempting cmd start fallback...");
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c start \"\" \"{url}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
+                Log($"Launched browser via cmd fallback for: {url}");
+            }
+            catch (Exception exCmd)
+            {
+                Log($"cmd fallback also failed: {exCmd.Message}. HttpListener remains active.");
+            }
         }
-
-        return await ProcessIncomingRequestsAsync();
     }
 
     public bool IsListening => _listener?.IsListening ?? false;
@@ -146,12 +172,15 @@ public sealed class SystemBrowserAuthService : IDisposable
 
         try
         {
+            Log("ProcessIncomingRequestsAsync: Loop started, actively awaiting requests...");
             while (!_cts.Token.IsCancellationRequested && _listener.IsListening)
             {
                 var context = await _listener.GetContextAsync().WaitAsync(_cts.Token);
+                Log($"ProcessIncomingRequestsAsync: Context received for {context.Request.Url}");
                 bool completed = await HandleIncomingContextAsync(context);
                 if (completed)
                 {
+                    Log("ProcessIncomingRequestsAsync: Auth flow marked completed.");
                     return true;
                 }
             }
@@ -159,12 +188,12 @@ public sealed class SystemBrowserAuthService : IDisposable
         }
         catch (OperationCanceledException)
         {
-            Debug.WriteLine("[SystemBrowserAuth] Listener timed out or was cancelled.");
+            Log("ProcessIncomingRequestsAsync: Listener timed out or was cancelled.");
             return false;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SystemBrowserAuth] Listener loop error: {ex.Message}");
+            Log($"ProcessIncomingRequestsAsync: Listener loop error: {ex.Message}");
             return false;
         }
         finally
@@ -178,10 +207,12 @@ public sealed class SystemBrowserAuthService : IDisposable
         var request = context.Request;
         var response = context.Response;
         string path = request.Url?.AbsolutePath ?? "";
+        Log($"HandleIncomingContext: {request.HttpMethod} {request.Url}");
 
         // Route: Auth Bridge Landing (interactive fallback)
         if (path.StartsWith("/auth-bridge", StringComparison.OrdinalIgnoreCase))
         {
+            Log("Serving /auth-bridge/ page to browser.");
             ServeAuthBridgePage(response);
             return false; // Keep listening for final callback
         }
@@ -204,6 +235,8 @@ public sealed class SystemBrowserAuthService : IDisposable
             string? nameParam = request.QueryString["name"];
             string? photoParam = request.QueryString["photo"];
 
+            Log($"HandleAuthCallback: emailParam='{emailParam}', nameParam='{nameParam}', hasCode={!string.IsNullOrWhiteSpace(code)}");
+
             AuthenticatedUser? user = null;
 
             // 1. Check for OAuth 2.0 authorization code (Firefox OAuth2.sys.mjs flow)
@@ -219,22 +252,24 @@ public sealed class SystemBrowserAuthService : IDisposable
             }
 
             // 2. Check for explicit query parameters (from bridge or callback redirect)
-            if (user == null && !string.IsNullOrWhiteSpace(emailParam) && emailParam.Contains('@'))
+            if (user == null && BrowserProfileDetector.IsValidGoogleEmail(emailParam))
             {
                 user = new AuthenticatedUser
                 {
                     Id = Guid.NewGuid().ToString("N"),
-                    Email = emailParam.Trim(),
+                    Email = emailParam!.Trim(),
                     DisplayName = BrowserProfileDetector.FormatCleanDisplayName(nameParam, emailParam),
                     PhotoUrl = photoParam,
                     AuthenticatedAt = DateTime.UtcNow
                 };
             }
 
-            // 3. Fallback: Dynamically detect authentic account from most recently active desktop browser profile
+            // 3. Fallback: If neither OAuth exchange nor query param resolved, redirect browser to interactive bridge
             if (user == null)
             {
-                user = BrowserProfileDetector.DetectLatestGoogleAccount();
+                response.Redirect("/auth-bridge/");
+                response.OutputStream.Close();
+                return false;
             }
 
             string displayEmail = user?.Email ?? "";
@@ -331,6 +366,7 @@ public sealed class SystemBrowserAuthService : IDisposable
                 AuthenticatedAt = DateTime.UtcNow
             };
 
+            Log($"AuthCompleted successfully invoked for: {resolvedUser.Email} ({resolvedUser.DisplayName})");
             AuthCompleted?.Invoke(this, resolvedUser);
             return true;
         }
@@ -349,20 +385,24 @@ public sealed class SystemBrowserAuthService : IDisposable
 
             if (detectedAccounts.Count > 0)
             {
-                sb.Append("<div style=\"margin: 20px 0; text-align: left;\">");
-                sb.Append("<p style=\"font-size: 12px; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 12px;\">Select an Active Account:</p>");
+                sb.Append("<div style=\"margin: 22px 0 16px 0; text-align: left;\">");
+                sb.Append("<p style=\"font-size: 11px; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 10px;\">Choose an active account from this browser:</p>");
                 foreach (var acc in detectedAccounts)
                 {
                     string safeEmail = WebUtility.HtmlEncode(acc.Email);
                     string safeName = WebUtility.HtmlEncode(acc.DisplayName);
+                    string initials = WebUtility.HtmlEncode(acc.GetInitials());
                     string callbackUrl = $"/auth-callback/?email={Uri.EscapeDataString(acc.Email)}&name={Uri.EscapeDataString(acc.DisplayName)}";
                     sb.Append($"""
-                        <a href="{callbackUrl}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; margin-bottom: 8px; background: #0C1F38; border: 1px solid #1E3A5F; border-radius: 8px; text-decoration: none; color: #FFFFFF; transition: all 0.2s;">
-                            <div>
-                                <div style="font-weight: 600; font-size: 14px;">{safeName}</div>
-                                <div style="font-size: 12px; color: #38BDF8;">{safeEmail}</div>
+                        <a href="{callbackUrl}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; margin-bottom: 8px; background: #0C1A30; border: 1px solid #1E3A5F; border-radius: 8px; text-decoration: none; color: #FFFFFF; transition: all 0.2s;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 36px; height: 36px; border-radius: 18px; background: #0066FF; color: #FFFFFF; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">{initials}</div>
+                                <div>
+                                    <div style="font-weight: 600; font-size: 14px; color: #FFFFFF;">{safeName}</div>
+                                    <div style="font-size: 12px; color: #38BDF8;">{safeEmail}</div>
+                                </div>
                             </div>
-                            <div style="font-size: 13px; color: #38BDF8; font-weight: 600;">Use this &rarr;</div>
+                            <div style="font-size: 12px; color: #38BDF8; font-weight: 600; padding: 6px 12px; background: rgba(56, 189, 248, 0.1); border-radius: 4px;">Use Account &rarr;</div>
                         </a>
                         """);
                 }
@@ -376,41 +416,92 @@ public sealed class SystemBrowserAuthService : IDisposable
                 <html lang="en">
                 <head>
                     <meta charset="utf-8" />
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                     <title>Klyro — Candidate Sign-In Bridge</title>
                     <style>
+                        * { box-sizing: border-box; }
                         body {
-                            margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh;
+                            margin: 0; padding: 24px; display: flex; align-items: center; justify-content: center; min-height: 100vh;
                             background-color: #0F1219; color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                         }
                         .card {
-                            background: #131B2E; border: 1px solid #253554; border-radius: 12px; padding: 36px; max-width: 480px; width: 100%; box-sizing: border-box; text-align: center;
+                            background: #131B2E; border: 1px solid #253554; border-radius: 12px; padding: 36px; max-width: 500px; width: 100%; box-shadow: 0 16px 36px rgba(0,0,0,0.5);
                         }
-                        h2 { margin: 0 0 8px 0; font-size: 22px; font-weight: 700; color: #FFFFFF; }
-                        p { margin: 0 0 20px 0; color: #94A3B8; font-size: 13px; line-height: 1.5; }
-                        input[type="email"] {
-                            width: 100%; box-sizing: border-box; padding: 12px 14px; background: #0C1424; border: 1px solid #253554; border-radius: 6px; color: #FFFFFF; font-size: 14px; margin-bottom: 12px;
+                        .logo-badge {
+                            display: inline-flex; align-items: center; gap: 8px; margin-bottom: 16px;
                         }
-                        input[type="email"]:focus { border-color: #0066FF; outline: none; }
+                        .logo-badge span {
+                            font-size: 11px; font-weight: 700; color: #38BDF8; letter-spacing: 0.12em; text-transform: uppercase; background: rgba(56, 189, 248, 0.12); padding: 4px 10px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25);
+                        }
+                        h2 { margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #FFFFFF; }
+                        p.subtitle { margin: 0 0 20px 0; color: #94A3B8; font-size: 13px; line-height: 1.5; }
+                        label { display: block; font-size: 11px; color: #94A3B8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+                        input[type="text"], input[type="email"] {
+                            width: 100%; padding: 10px 14px; background: #0C1424; border: 1px solid #253554; border-radius: 6px; color: #FFFFFF; font-size: 14px; margin-bottom: 12px;
+                        }
+                        input:focus { border-color: #0066FF; outline: none; }
                         .btn {
-                            display: block; width: 100%; box-sizing: border-box; padding: 12px; background: #0066FF; color: #FFFFFF; border: none; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer;
+                            display: block; width: 100%; padding: 12px; background: #0066FF; color: #FFFFFF; border: none; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.2s;
                         }
-                        .footer { font-size: 11px; color: #64748B; margin-top: 20px; }
+                        .btn:hover { background: #0052CC; }
+                        .divider { display: flex; align-items: center; margin: 20px 0 16px 0; }
+                        .divider-line { flex: 1; height: 1px; background: #1E293B; }
+                        .divider-text { padding: 0 12px; font-size: 11px; color: #64748B; font-weight: 600; }
+                        .web-signin {
+                            margin-top: 20px; padding-top: 16px; border-top: 1px solid #1E293B; text-align: center;
+                        }
+                        .web-signin a {
+                            display: inline-block; padding: 8px 16px; background: #0C1F38; border: 1px solid #1E3A5F; border-radius: 6px; color: #38BDF8; font-size: 12px; font-weight: 600; text-decoration: none;
+                        }
+                        .web-signin a:hover { background: #132D52; }
+                        .footer { font-size: 11px; color: #64748B; margin-top: 24px; text-align: center; }
                     </style>
                 </head>
                 <body>
                     <div class="card">
-                        <h2>Klyro Assessment Sign-In</h2>
-                        <p>Authenticate with your institution Google account to proceed with the examination.</p>
+                        <div class="logo-badge">
+                            <span>KLYRO ASSESSMENT BROWSER</span>
+                        </div>
+                        <h2>Candidate Sign-In</h2>
+                        <p class="subtitle">Connect your institutional or university Google Account to continue with your scheduled examination.</p>
+                        
                         {{accountsListHtml}}
-                        <form method="GET" action="/auth-callback/" style="margin-top: 16px; text-align: left;">
-                            <label style="font-size: 12px; color: #94A3B8; font-weight: 600; text-transform: uppercase;">Or enter your university email:</label>
-                            <div style="margin-top: 8px;">
-                                <input type="email" name="email" placeholder="student@university.edu" required />
-                                <button type="submit" class="btn">Connect Account &rarr;</button>
-                            </div>
+
+                        <div class="divider">
+                            <div class="divider-line"></div>
+                            <div class="divider-text">OR ENTER DETAILS</div>
+                            <div class="divider-line"></div>
+                        </div>
+
+                        <form id="authForm" method="GET" action="/auth-callback/" style="text-align: left;" onsubmit="return validateAndSubmit();">
+                            <label for="nameInput">Full Name (optional):</label>
+                            <input type="text" id="nameInput" name="name" placeholder="e.g. Venkata Sai" />
+
+                            <label for="emailInput">University / Google Email:</label>
+                            <input type="email" id="emailInput" name="email" placeholder="student@university.edu" required />
+
+                            <button type="submit" class="btn">Connect Account &rarr;</button>
                         </form>
+
+                        <div class="web-signin">
+                            <p style="font-size: 12px; color: #94A3B8; margin: 0 0 10px 0;">Need to log into Google on this machine first?</p>
+                            <a href="https://accounts.google.com/AddSession?continue=https%3A%2F%2Fmyaccount.google.com%2F" target="_blank">Sign in on Google Web &nearr;</a>
+                            <p style="font-size: 11px; color: #64748B; margin: 8px 0 0 0;">Once signed in, refresh this page to select your active account.</p>
+                        </div>
+
                         <div class="footer">Klyro Secure Assessment Browser &bull; RFC 8252 Loopback Bridge</div>
                     </div>
+
+                    <script>
+                        function validateAndSubmit() {
+                            const email = document.getElementById('emailInput').value.trim();
+                            if (!email || !email.includes('@') || email.length < 5) {
+                                alert('Please enter a valid university or Google email address.');
+                                return false;
+                            }
+                            return true;
+                        }
+                    </script>
                 </body>
                 </html>
                 """;

@@ -114,6 +114,48 @@ public class PkceHelperTests
         Assert.Contains("prompt=select_account", url);
     }
 
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData("406964657835-aq8lmja8j9nmbfbs8s2vmqnoajvd4nv5.apps.googleusercontent.com", false)]
+    [InlineData("dummy-client-id", false)]
+    [InlineData("placeholder-id", false)]
+    [InlineData("my-real-client-12345.apps.googleusercontent.com", true)]
+    public void GoogleOAuthConfiguration_HasValidClientId_ValidatesProperly(string clientId, bool expectedValid)
+    {
+        var config = new GoogleOAuthConfiguration { ClientId = clientId };
+        Assert.Equal(expectedValid, config.HasValidClientId);
+    }
+
+    [Fact]
+    public void GoogleOAuthConfiguration_WithoutValidClientId_RoutesToAuthBridge()
+    {
+        var config = new GoogleOAuthConfiguration(); // Default: empty / no custom client id
+        string redirectUri = "http://127.0.0.1:58291/auth-callback/";
+        string challenge = "test_challenge_hash";
+        string state = "random_csrf_token";
+
+        string url = config.BuildAuthorizationUrl(redirectUri, challenge, state);
+
+        Assert.Equal("http://127.0.0.1:58291/auth-bridge/", url);
+    }
+
+    [Fact]
+    public void GoogleOAuthConfiguration_WithDefunctClientId_RoutesToAuthBridge()
+    {
+        var config = new GoogleOAuthConfiguration
+        {
+            ClientId = "406964657835-aq8lmja8j9nmbfbs8s2vmqnoajvd4nv5.apps.googleusercontent.com"
+        };
+        string redirectUri = "http://127.0.0.1:58291/auth-callback/";
+        string challenge = "test_challenge_hash";
+        string state = "random_csrf_token";
+
+        string url = config.BuildAuthorizationUrl(redirectUri, challenge, state);
+
+        Assert.Equal("http://127.0.0.1:58291/auth-bridge/", url);
+    }
+
     [Fact]
     public void ParseFirefoxLoginsFile_WithGoogleAccount_ExtractsIdentityCorrectly()
     {

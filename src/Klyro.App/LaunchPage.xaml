@@ -935,7 +935,7 @@
                                                    VerticalAlignment="Center" />
 
                                         <!-- Circular Profile Photo -->
-                                        <Border x:Name="ConnectedUserPhotoBorder" Width="92" Height="92" CornerRadius="46">
+                                        <Border x:Name="ConnectedUserPhotoBorder" Width="92" Height="92" CornerRadius="46" Visibility="Collapsed">
                                             <Border.Background>
                                                 <ImageBrush x:Name="ConnectedUserPhotoBrush" Stretch="UniformToFill" ImageOpened="ConnectedUserPhoto_ImageOpened" ImageFailed="ConnectedUserPhoto_ImageFailed" />
                                             </Border.Background>

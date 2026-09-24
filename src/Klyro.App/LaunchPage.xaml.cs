@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -36,6 +37,8 @@ public sealed partial class LaunchPage : Page
     private AuthenticatedUser? _currentUser;
     private AuthenticatedUser? _previousUser;
     private bool _isAccountSwitching = false;
+    private string? _lastObservedEmailInWebView = null;
+    private string? _lastObservedNameInWebView = null;
 
     private static void PageLog(string msg)
     {
@@ -43,6 +46,14 @@ public sealed partial class LaunchPage : Page
         {
             var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "boot.log");
             System.IO.File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [LaunchPage] {msg}\n");
+        }
+        catch { }
+
+        try
+        {
+            var localAppData = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klyro");
+            System.IO.Directory.CreateDirectory(localAppData);
+            System.IO.File.AppendAllText(System.IO.Path.Combine(localAppData, "boot.log"), $"[{DateTime.UtcNow:O}] [LaunchPage] {msg}\n");
         }
         catch { }
     }
@@ -82,25 +93,15 @@ public sealed partial class LaunchPage : Page
     {
         if (args.WindowActivationState == WindowActivationState.Deactivated) return;
 
-        // If external browser sign-in was in progress and the user switches back to Klyro (like in modern IDEs)
+        // If external browser sign-in was in progress and the user switches back to Klyro
         if (_isBrowserAuthInProgress && !_isAuthCompleted)
         {
-            PageLog("Window activation detected while browser sign-in is in progress. Starting background login completion...");
-            DispatcherQueue.TryEnqueue(async () =>
+            PageLog("Window activation detected while browser sign-in is in progress. Awaiting browser completion callback...");
+            DispatcherQueue.TryEnqueue(() =>
             {
                 if (_isAuthCompleted) return;
-
-                // Immediate visual confirmation on the waiting card
-                BrowserAuthSpinner.IsActive = true;
-                BrowserAuthHeaderTitle.Text = "Browser Sign-In Detected!";
-                BrowserAuthStatusPillText.Text = "Authenticating account credentials...";
-                BrowserAuthDescText.Text = "Detected return from browser. Connecting your Google account...";
-                BrowserAuthVerifyBtn.IsEnabled = false;
-
-                await Task.Delay(400);
-
-                var detectedUser = BrowserProfileDetector.DetectLatestGoogleAccount();
-                await CompleteGoogleAuthenticationAsync(detectedUser, "Default Browser (Auto-detected)");
+                BrowserAuthStatusPillText.Text = "Waiting for browser sign-in to complete...";
+                BrowserAuthDescText.Text = "Please complete sign-in in your browser. Klyro will connect automatically once finished.";
             });
         }
     }
@@ -240,7 +241,8 @@ public sealed partial class LaunchPage : Page
                 var detectedAcc = BrowserProfileDetector.DetectLatestGoogleAccount();
                 string testName = savedAcc?.DisplayName ?? detectedAcc?.DisplayName ?? string.Empty;
                 string testEmail = savedAcc?.Email ?? detectedAcc?.Email ?? string.Empty;
-                string? testPhoto = savedAcc?.PhotoUrl ?? detectedAcc?.PhotoUrl;
+                string? explicitTestPhoto = null;
+                bool hasExplicitPhoto = false;
                 string? screenshotScreen4Path = null;
                 string? screenshotScreen4FallbackPath = null;
 
@@ -261,18 +263,35 @@ public sealed partial class LaunchPage : Page
                     else if (cmdArgs[i].Equals("--test-user-email", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
                         testEmail = cmdArgs[i + 1];
                     else if (cmdArgs[i].Equals("--test-user-photo", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
-                        testPhoto = cmdArgs[i + 1];
+                    {
+                        explicitTestPhoto = cmdArgs[i + 1];
+                        hasExplicitPhoto = true;
+                    }
                     else if (cmdArgs[i].Equals("--screenshot-screen4", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
                         screenshotScreen4Path = cmdArgs[i + 1];
                     else if (cmdArgs[i].Equals("--screenshot-screen4-fallback", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
                         screenshotScreen4FallbackPath = cmdArgs[i + 1];
                 }
 
+                string? resolvedPhoto = null;
+                if (hasExplicitPhoto)
+                {
+                    resolvedPhoto = explicitTestPhoto;
+                }
+                else if (string.Equals(testEmail, savedAcc?.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    resolvedPhoto = savedAcc?.PhotoUrl;
+                }
+                else if (string.Equals(testEmail, detectedAcc?.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    resolvedPhoto = detectedAcc?.PhotoUrl;
+                }
+
                 var user = new AuthenticatedUser
                 {
-                    DisplayName = testName,
+                    DisplayName = !string.IsNullOrWhiteSpace(testName) ? testName : BrowserProfileDetector.FormatCleanDisplayName(null, testEmail),
                     Email = testEmail,
-                    PhotoUrl = testPhoto
+                    PhotoUrl = resolvedPhoto
                 };
                 SetConnectedUser(user);
 
@@ -390,6 +409,12 @@ public sealed partial class LaunchPage : Page
                 {
                     PageLog("Auto-triggering GoogleSignIn_Click for testing...");
                     GoogleSignIn_Click(this, new RoutedEventArgs());
+                }
+
+                if (cmdArgs.Any(a => a.Equals("--test-click-browser", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering SystemBrowserSignIn_Click for testing...");
+                    SystemBrowserSignIn_Click(this, new RoutedEventArgs());
                 }
                 return;
             }
@@ -615,19 +640,6 @@ public sealed partial class LaunchPage : Page
             PageLog($"IsExistingUser: Returning candidate detected from state store: {saved.Email}");
             user = saved;
             return true;
-        }
-
-        // 3. Fallback: Check if onboarding was completed previously and browser profile has a Google account
-        if (_onboardingStore.IsFirstRunCompleted())
-        {
-            var detected = BrowserProfileDetector.DetectLatestGoogleAccount();
-            if (detected != null && !string.IsNullOrWhiteSpace(detected.Email))
-            {
-                PageLog($"IsExistingUser: Completed onboarding previously, detected user: {detected.Email}");
-                user = detected;
-                try { _onboardingStore.SaveAuthenticatedUser(detected); } catch { }
-                return true;
-            }
         }
 
         PageLog("IsExistingUser: No existing authenticated session found. Candidate treated as first-time user.");
@@ -1048,11 +1060,91 @@ public sealed partial class LaunchPage : Page
                     GoogleAuthWebView.CoreWebView2.NavigationCompleted += GoogleAuthWebView_NavigationCompleted;
                     GoogleAuthWebView.CoreWebView2.SourceChanged += GoogleAuthWebView_SourceChanged;
                     GoogleAuthWebView.CoreWebView2.NewWindowRequested += GoogleAuthWebView_NewWindowRequested;
+                    GoogleAuthWebView.CoreWebView2.WebMessageReceived += GoogleAuthWebView_WebMessageReceived;
                     GoogleAuthWebView.CoreWebView2.ProcessFailed += (s, args) =>
                     {
                         PageLog($"GoogleAuth WebView2 process failed: {args.ProcessFailedKind}");
                         ShowGoogleAuthFallback(null);
                     };
+
+                    const string documentObserverScript = @"
+                        (() => {
+                            function isValidEmail(e) {
+                                if (!e || typeof e !== 'string') return false;
+                                e = e.trim();
+                                if (e.length < 5 || e.length > 100) return false;
+                                if (e.includes(' ') || e.includes('/') || e.includes('\\') || e.includes('%') || 
+                                    e.includes('null') || e.includes('gstatic') || e.includes('googleapis') || 
+                                    e.includes(',') || e.includes(';') || e.includes('""') || e.includes('\'') ||
+                                    e.includes('[') || e.includes(']') || e.includes('(') || e.includes(')')) return false;
+                                return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$/.test(e);
+                            }
+
+                            function scan() {
+                                try {
+                                    const profId = document.getElementById('profileIdentifier') ||
+                                                   document.querySelector('[data-profile-identifier]') ||
+                                                   document.querySelector('[data-email]') ||
+                                                   document.querySelector('div[data-identifier]');
+                                    if (profId) {
+                                        const val = profId.value || profId.getAttribute('data-email') || profId.getAttribute('data-profile-identifier') || profId.getAttribute('data-identifier') || profId.textContent || '';
+                                        if (isValidEmail(val)) {
+                                            window.chrome?.webview?.postMessage(JSON.stringify({ type: 'account_detected', email: val.trim() }));
+                                            return;
+                                        }
+                                    }
+
+                                    const input = document.querySelector('input[type=""email""], input[name=""identifier""], #identifierId');
+                                    if (input && input.value && isValidEmail(input.value)) {
+                                        window.chrome?.webview?.postMessage(JSON.stringify({ type: 'account_detected', email: input.value.trim() }));
+                                        return;
+                                    }
+
+                                    const accountLinks = Array.from(document.querySelectorAll('a[aria-label], button[aria-label], div[aria-label]'));
+                                    for (const el of accountLinks) {
+                                        const label = el.getAttribute('aria-label') || '';
+                                        if (!label.includes('@')) continue;
+                                        const match = label.match(/^(?:Google Account:\s*)?(.*?)(?:\s*\((.*?@.*?)\)|\n\((.*?@.*?)\)|\s*\n\s*(.*?@.*?)$)/i);
+                                        if (match) {
+                                            const cName = (match[1] || '').trim();
+                                            const cEmail = (match[2] || match[3] || match[4] || '').trim();
+                                            if (isValidEmail(cEmail)) {
+                                                window.chrome?.webview?.postMessage(JSON.stringify({
+                                                    type: 'account_detected',
+                                                    email: cEmail,
+                                                    name: (!cName.includes('%') && !cName.includes('@') && !cName.includes('http')) ? cName : ''
+                                                }));
+                                                return;
+                                            }
+                                        }
+                                    }
+                                } catch(e) {}
+                            }
+
+                            if (document.readyState === 'loading') {
+                                document.addEventListener('DOMContentLoaded', scan);
+                            } else {
+                                scan();
+                            }
+
+                            document.addEventListener('input', (e) => {
+                                if (e.target && (e.target.type === 'email' || e.target.id === 'identifierId')) {
+                                    if (isValidEmail(e.target.value)) {
+                                        window.chrome?.webview?.postMessage(JSON.stringify({ type: 'account_detected', email: e.target.value.trim() }));
+                                    }
+                                }
+                            }, true);
+
+                            document.addEventListener('submit', scan, true);
+
+                            try {
+                                const obs = new MutationObserver(scan);
+                                obs.observe(document.documentElement, { childList: true, subtree: true });
+                            } catch(e) {}
+                        })();
+                    ";
+
+                    await GoogleAuthWebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(documentObserverScript);
                 }
                 _isGoogleAuthInitialized = true;
             }
@@ -1069,7 +1161,15 @@ public sealed partial class LaunchPage : Page
             GoogleAuthOverlay.Opacity = 1.0;
 
             // Navigate to official Google Sign-In / Account Chooser
-            GoogleAuthWebView.CoreWebView2?.Navigate("https://accounts.google.com/ServiceLogin");
+            _lastObservedEmailInWebView = null;
+            _lastObservedNameInWebView = null;
+            _isAuthCompleted = false;
+
+            string authUrl = _isAccountSwitching
+                ? "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmyaccount.google.com%2F&prompt=select_account"
+                : "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmyaccount.google.com%2F";
+            PageLog($"Navigating GoogleAuthWebView to: {authUrl}");
+            GoogleAuthWebView.CoreWebView2?.Navigate(authUrl);
         }
         catch (Exception ex)
         {
@@ -1084,6 +1184,7 @@ public sealed partial class LaunchPage : Page
     private void GoogleAuthWebView_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
         PageLog($"GoogleAuth navigating to: {e.Uri}");
+        _ = ProbeAndCaptureEmailFromWebViewAsync();
     }
 
     private void GoogleAuthWebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -1095,7 +1196,152 @@ public sealed partial class LaunchPage : Page
             ShowGoogleAuthFallback(e.WebErrorStatus);
             return;
         }
+        _ = ProbeAndCaptureEmailFromWebViewAsync();
         CheckGoogleAuthCompletionAsync();
+    }
+
+    private void GoogleAuthWebView_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            var rawJson = e.TryGetWebMessageAsString();
+            if (string.IsNullOrWhiteSpace(rawJson)) return;
+
+            using var doc = System.Text.Json.JsonDocument.Parse(rawJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("type", out var typeElem) && typeElem.GetString() == "account_detected")
+            {
+                if (root.TryGetProperty("email", out var emailElem))
+                {
+                    var email = emailElem.GetString()?.Trim();
+                    if (BrowserProfileDetector.IsValidGoogleEmail(email))
+                    {
+                        _lastObservedEmailInWebView = email;
+                        PageLog($"Real-time candidate email captured via WebView message: {_lastObservedEmailInWebView}");
+                    }
+                }
+
+                if (root.TryGetProperty("name", out var nameElem))
+                {
+                    var name = nameElem.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(name) && !name.Contains('%') && !name.Contains('@') && !name.Contains("http", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _lastObservedNameInWebView = name;
+                        PageLog($"Real-time candidate name captured via WebView message: {_lastObservedNameInWebView}");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            PageLog($"GoogleAuthWebView_WebMessageReceived error: {ex.Message}");
+        }
+    }
+
+    private async Task ProbeAndCaptureEmailFromWebViewAsync()
+    {
+        if (GoogleAuthWebView.CoreWebView2 == null) return;
+        try
+        {
+            const string script = @"
+                (() => {
+                    function isValidEmail(e) {
+                        if (!e || typeof e !== 'string') return false;
+                        e = e.trim();
+                        if (e.length < 5 || e.length > 100) return false;
+                        if (e.includes(' ') || e.includes('/') || e.includes('\\') || e.includes('%') || 
+                            e.includes('null') || e.includes('gstatic') || e.includes('googleapis') || 
+                            e.includes(',') || e.includes(';') || e.includes('""') || e.includes('\'') ||
+                            e.includes('[') || e.includes(']') || e.includes('(') || e.includes(')')) return false;
+                        return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$/.test(e);
+                    }
+
+                    let email = '';
+                    let name = '';
+                    try {
+                        const profId = document.getElementById('profileIdentifier') ||
+                                       document.querySelector('[data-profile-identifier]') ||
+                                       document.querySelector('[data-email]') ||
+                                       document.querySelector('div[data-identifier]');
+                        if (profId) {
+                            const val = profId.value || profId.getAttribute('data-email') || profId.getAttribute('data-profile-identifier') || profId.getAttribute('data-identifier') || profId.textContent || '';
+                            if (isValidEmail(val)) email = val.trim();
+                        }
+
+                        if (!email) {
+                            const input = document.querySelector('input[type=""email""], input[name=""identifier""], #identifierId');
+                            if (input && input.value && isValidEmail(input.value)) {
+                                email = input.value.trim();
+                            }
+                        }
+
+                        if (!email) {
+                            const accountLinks = Array.from(document.querySelectorAll('a[aria-label], button[aria-label], div[aria-label]'));
+                            for (const el of accountLinks) {
+                                const label = el.getAttribute('aria-label') || '';
+                                if (!label.includes('@')) continue;
+                                const match = label.match(/^(?:Google Account:\s*)?(.*?)(?:\s*\((.*?@.*?)\)|\n\((.*?@.*?)\)|\s*\n\s*(.*?@.*?)$)/i);
+                                if (match) {
+                                    const cName = (match[1] || '').trim();
+                                    const cEmail = (match[2] || match[3] || match[4] || '').trim();
+                                    if (isValidEmail(cEmail)) {
+                                        email = cEmail;
+                                        if (cName && !cName.includes('%') && !cName.includes('@') && !cName.includes('http')) {
+                                            name = cName;
+                                        }
+                                        break;
+                                    }
+                                }
+                                const m = label.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}/);
+                                if (m && isValidEmail(m[0])) {
+                                    email = m[0].trim();
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!email && document.body) {
+                            const headings = Array.from(document.querySelectorAll('header, [role=""heading""], div[data-item-id]'));
+                            for (const h of headings) {
+                                const text = h.textContent || '';
+                                const m = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}/);
+                                if (m && isValidEmail(m[0])) {
+                                    email = m[0].trim();
+                                    break;
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                    return JSON.stringify({ email: email || '', name: name || '' });
+                })()
+            ";
+
+            string jsonResult = await GoogleAuthWebView.CoreWebView2.ExecuteScriptAsync(script);
+            if (!string.IsNullOrWhiteSpace(jsonResult) && jsonResult != "null")
+            {
+                string unescaped = System.Text.Json.JsonSerializer.Deserialize<string>(jsonResult) ?? jsonResult;
+                using var doc = System.Text.Json.JsonDocument.Parse(unescaped);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("email", out var eElem))
+                {
+                    var probedEmail = eElem.GetString()?.Trim();
+                    if (BrowserProfileDetector.IsValidGoogleEmail(probedEmail))
+                    {
+                        _lastObservedEmailInWebView = probedEmail;
+                        PageLog($"Captured candidate email from WebView sign-in: {_lastObservedEmailInWebView}");
+                    }
+                }
+                if (root.TryGetProperty("name", out var nElem))
+                {
+                    var probedName = nElem.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(probedName) && !probedName.Contains('%') && !probedName.Contains('@') && !probedName.Contains("http", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _lastObservedNameInWebView = probedName;
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
     private void GoogleAuthWebView_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
@@ -1263,24 +1509,53 @@ public sealed partial class LaunchPage : Page
             var uri = GoogleAuthWebView.Source?.ToString() ?? "";
             PageLog($"Checking auth status on URI: {uri}");
 
-            // Check if navigation reached myaccount.google.com, accounts.google.com/ManageAccount, or google.com search/home
-            bool isSuccessUrl = uri.Contains("myaccount.google.com", StringComparison.OrdinalIgnoreCase) ||
-                                uri.Contains("accounts.google.com/ManageAccount", StringComparison.OrdinalIgnoreCase) ||
-                                (uri.Contains("google.com", StringComparison.OrdinalIgnoreCase) &&
-                                 !uri.Contains("signin", StringComparison.OrdinalIgnoreCase) &&
-                                 !uri.Contains("ServiceLogin", StringComparison.OrdinalIgnoreCase) &&
-                                 !uri.Contains("identifier", StringComparison.OrdinalIgnoreCase) &&
-                                 !uri.Contains("challenge", StringComparison.OrdinalIgnoreCase));
+            if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsedUri)) return;
 
-            // Also check for Google authentication session cookies in the profile
+            // Check for Google authentication session cookies in the profile
             var cookieManager = GoogleAuthWebView.CoreWebView2.CookieManager;
             var cookies = await cookieManager.GetCookiesAsync("https://accounts.google.com");
             bool hasAuthCookies = cookies.Any(c => c.Name is "SID" or "SSID" or "SAPISID" or "HSID" or "__Secure-1PSID");
 
-            if (isSuccessUrl && hasAuthCookies)
+            if (!hasAuthCookies)
             {
-                await CompleteGoogleAuthenticationAsync((AuthenticatedUser?)null, "In-App WebView");
+                return;
             }
+
+            bool isMyAccountHost = parsedUri.Host.Equals("myaccount.google.com", StringComparison.OrdinalIgnoreCase);
+            bool isManageAccountPath = parsedUri.Host.Equals("accounts.google.com", StringComparison.OrdinalIgnoreCase) &&
+                                       parsedUri.AbsolutePath.IndexOf("ManageAccount", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            // If authenticated with cookies but currently on intermediate Google redirects (CheckCookie, gds.google.com, etc.)
+            if (!isMyAccountHost && !isManageAccountPath)
+            {
+                if (parsedUri.Host.Contains("gds.google.com", StringComparison.OrdinalIgnoreCase) ||
+                    parsedUri.AbsolutePath.Contains("CheckCookie", StringComparison.OrdinalIgnoreCase) ||
+                    parsedUri.AbsolutePath.Contains("LoginDoneHtml", StringComparison.OrdinalIgnoreCase) ||
+                    (parsedUri.Host.EndsWith("google.com", StringComparison.OrdinalIgnoreCase) && parsedUri.AbsolutePath == "/"))
+                {
+                    PageLog($"Auth cookies detected on intermediate page ({uri}). Redirecting WebView2 to myaccount.google.com for profile extraction...");
+                    GoogleAuthWebView.CoreWebView2.Navigate("https://myaccount.google.com/");
+                }
+                return;
+            }
+
+            // We have reached myaccount.google.com or accounts.google.com/ManageAccount WITH active session cookies!
+            PageLog($"Reached authenticated account portal: {uri}. Proceeding to extract user profile...");
+            AuthenticatedUser? initialCandidate = null;
+            if (BrowserProfileDetector.IsValidGoogleEmail(_lastObservedEmailInWebView))
+            {
+                initialCandidate = new AuthenticatedUser
+                {
+                    Email = _lastObservedEmailInWebView!.Trim(),
+                    DisplayName = !string.IsNullOrWhiteSpace(_lastObservedNameInWebView) &&
+                                  !_lastObservedNameInWebView.Contains('%') &&
+                                  !_lastObservedNameInWebView.Contains('@')
+                        ? _lastObservedNameInWebView.Trim()
+                        : BrowserProfileDetector.FormatCleanDisplayName(null, _lastObservedEmailInWebView!.Trim()),
+                    AuthenticatedAt = DateTime.UtcNow
+                };
+            }
+            await CompleteGoogleAuthenticationAsync(initialCandidate, "In-App WebView");
         }
         catch (Exception ex)
         {
@@ -1290,10 +1565,10 @@ public sealed partial class LaunchPage : Page
 
     private Task CompleteGoogleAuthenticationAsync(string? fallbackEmail, string source)
     {
-        var initialUser = !string.IsNullOrWhiteSpace(fallbackEmail) && fallbackEmail.Contains('@')
+        var initialUser = BrowserProfileDetector.IsValidGoogleEmail(fallbackEmail)
             ? new AuthenticatedUser
             {
-                Email = fallbackEmail.Trim(),
+                Email = fallbackEmail!.Trim(),
                 DisplayName = BrowserProfileDetector.FormatCleanDisplayName(null, fallbackEmail.Trim()),
                 AuthenticatedAt = DateTime.UtcNow
             }
@@ -1305,11 +1580,32 @@ public sealed partial class LaunchPage : Page
     private async Task CompleteGoogleAuthenticationAsync(AuthenticatedUser? initialUser, string source)
     {
         if (_isAuthCompleted && !_isAccountSwitching) return;
-        _isAuthCompleted = true;
-        _isBrowserAuthInProgress = false;
 
         // Dynamically extract authentic profile details without hardcoded fallbacks
         var user = await ExtractGoogleUserProfileAsync(initialUser);
+
+        if (!BrowserProfileDetector.IsValidGoogleEmail(user.Email))
+        {
+            PageLog($"Google authentication extraction failed: email is invalid ('{user.Email}'). Aborting transition.");
+            _isAuthCompleted = false;
+            _isBrowserAuthInProgress = false;
+            GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
+            GoogleAuthProgressRing.IsActive = false;
+            GoogleSignInButton.IsEnabled = true;
+            GoogleButtonText.Text = "Continue with Google";
+            GoogleArrowIcon.Visibility = Visibility.Visible;
+            GoogleArrowIcon.Glyph = "\uE72A";
+
+            GoogleAuthOverlay.Visibility = Visibility.Collapsed;
+            BrowserAuthWaitingCard.Visibility = Visibility.Collapsed;
+            GoogleAuthErrorCard.Visibility = Visibility.Visible;
+            GoogleAuthErrorTitle.Text = "Authentication Verification Required";
+            GoogleAuthErrorMessage.Text = "We were unable to verify your Google Account credentials. Please sign in again or use system browser sign-in.";
+            return;
+        }
+
+        _isAuthCompleted = true;
+        _isBrowserAuthInProgress = false;
         _currentUser = user;
         _isAccountSwitching = false;
         _onboardingStore.SaveAuthenticatedUser(user);
@@ -1336,115 +1632,245 @@ public sealed partial class LaunchPage : Page
 
         // Transition to Screen 4 (Google Account Connected)
         await TransitionToAccountConnectedAsync(user);
+
+        var args = Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i].Equals("--screenshot-screen4", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                await Task.Delay(400);
+                await CaptureScreenshotAsync(args[i + 1]);
+                break;
+            }
+        }
     }
 
     private async Task<AuthenticatedUser> ExtractGoogleUserProfileAsync(AuthenticatedUser? initialUser)
     {
-        var saved = _onboardingStore.GetAuthenticatedUser();
         var user = new AuthenticatedUser
         {
-            Email = initialUser?.Email ?? saved?.Email ?? string.Empty,
-            DisplayName = initialUser?.DisplayName ?? saved?.DisplayName ?? string.Empty,
-            PhotoUrl = initialUser?.PhotoUrl ?? saved?.PhotoUrl,
-            Id = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (!string.IsNullOrWhiteSpace(saved?.GoogleSub) ? saved.GoogleSub : (initialUser?.Id ?? string.Empty)),
-            GoogleSub = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (!string.IsNullOrWhiteSpace(saved?.GoogleSub) ? saved.GoogleSub : (initialUser?.Id ?? string.Empty)),
-            GivenName = initialUser?.GivenName ?? saved?.GivenName,
-            FamilyName = initialUser?.FamilyName ?? saved?.FamilyName,
-            HostedDomain = initialUser?.HostedDomain ?? saved?.HostedDomain
+            Email = BrowserProfileDetector.IsValidGoogleEmail(initialUser?.Email) ? initialUser!.Email.Trim() : string.Empty,
+            DisplayName = initialUser?.DisplayName ?? string.Empty,
+            PhotoUrl = initialUser?.PhotoUrl,
+            Id = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (initialUser?.Id ?? string.Empty),
+            GoogleSub = !string.IsNullOrWhiteSpace(initialUser?.GoogleSub) ? initialUser.GoogleSub : (initialUser?.Id ?? string.Empty),
+            GivenName = initialUser?.GivenName,
+            FamilyName = initialUser?.FamilyName,
+            HostedDomain = initialUser?.HostedDomain
         };
 
-        // 1. If email is not yet present and in-app WebView2 has navigated, attempt DOM extraction
-        if ((string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@')) && GoogleAuthWebView.CoreWebView2 != null)
+        // If initialUser already has a valid authenticated email (e.g. from System Browser callback,
+        // bridge selection, or OAuth code exchange), preserve it and do not allow in-app WebView2 DOM to overwrite it.
+        bool hasAuthenticatedInitialUser = BrowserProfileDetector.IsValidGoogleEmail(initialUser?.Email);
+
+        // If email not set from initialUser, check if we observed a valid email from the sign-in interaction
+        if (!hasAuthenticatedInitialUser && string.IsNullOrWhiteSpace(user.Email) && BrowserProfileDetector.IsValidGoogleEmail(_lastObservedEmailInWebView))
         {
-            try
+            user.Email = _lastObservedEmailInWebView!.Trim();
+            PageLog($"Pre-seeded user email from captured sign-in credential: {user.Email}");
+        }
+
+        if (string.IsNullOrWhiteSpace(user.DisplayName) && !string.IsNullOrWhiteSpace(_lastObservedNameInWebView) &&
+            !_lastObservedNameInWebView.Contains('%') && !_lastObservedNameInWebView.Contains('@'))
+        {
+            user.DisplayName = _lastObservedNameInWebView.Trim();
+        }
+
+        // Only poll WebView2 DOM if:
+        // 1. We don't already have a verified user from an external browser / bridge callback, AND
+        // 2. The in-app WebView is initialized and active
+        if (!hasAuthenticatedInitialUser && GoogleAuthWebView.CoreWebView2 != null)
+        {
+            const string extractionScript = @"
+                (() => {
+                    function isValidEmail(e) {
+                        if (!e || typeof e !== 'string') return false;
+                        e = e.trim();
+                        if (e.length < 5 || e.length > 100) return false;
+                        if (e.includes(' ') || e.includes('/') || e.includes('\\') || e.includes('%') || 
+                            e.includes('null') || e.includes('gstatic') || e.includes('googleapis') || 
+                            e.includes(',') || e.includes(';') || e.includes('""') || e.includes('\'') ||
+                            e.includes('[') || e.includes(']') || e.includes('(') || e.includes(')')) return false;
+                        return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$/.test(e);
+                    }
+
+                    let email = '';
+                    let name = '';
+                    let photo = '';
+
+                    try {
+                        // A. Account badge aria-label: 'Google Account: First Last (email@domain.com)'
+                        const accountLinks = Array.from(document.querySelectorAll('a[aria-label], button[aria-label], div[aria-label]'));
+                        for (const el of accountLinks) {
+                            const label = el.getAttribute('aria-label') || '';
+                            if (!label.includes('@')) continue;
+
+                            const match = label.match(/^(?:Google Account:\s*)?(.*?)(?:\s*\((.*?@.*?)\)|\n\((.*?@.*?)\)|\s*\n\s*(.*?@.*?)$)/i);
+                            if (match) {
+                                const cName = (match[1] || '').trim();
+                                const cEmail = (match[2] || match[3] || match[4] || '').trim();
+                                if (isValidEmail(cEmail)) {
+                                    email = cEmail;
+                                    if (cName && !cName.includes('%') && !cName.includes('@') && !cName.includes('http') && cName.length < 60) {
+                                        name = cName;
+                                    }
+                                    break;
+                                }
+                            }
+
+                            const m = label.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}/);
+                            if (m && isValidEmail(m[0])) {
+                                email = m[0].trim();
+                                break;
+                            }
+                        }
+
+                        // B. data-email attribute
+                        if (!email) {
+                            const dataEl = document.querySelector('[data-email]');
+                            if (dataEl) {
+                                const val = dataEl.getAttribute('data-email') || '';
+                                if (isValidEmail(val)) email = val.trim();
+                            }
+                        }
+
+                        // C. Header / Greeting name: 'Welcome, Jane Doe' or 'Welcome Jane Doe'
+                        if (!name) {
+                            const headings = Array.from(document.querySelectorAll('h1, h2, div[role=""heading""]'));
+                            for (const h of headings) {
+                                const text = (h.textContent || '').trim();
+                                if (/^Welcome,\s+/i.test(text)) {
+                                    const parsed = text.replace(/^Welcome,\s+/i, '').trim();
+                                    if (parsed && !parsed.includes('%') && !parsed.includes('@') && !parsed.includes('http') && parsed.length < 60) {
+                                        name = parsed;
+                                        break;
+                                    }
+                                } else if (/^Welcome\s+/i.test(text)) {
+                                    const parsed = text.replace(/^Welcome\s+/i, '').trim();
+                                    if (parsed && !parsed.includes('%') && !parsed.includes('@') && !parsed.includes('http') && parsed.length < 60) {
+                                        name = parsed;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // D. Profile photo
+                        const imgEls = Array.from(document.querySelectorAll('img[src*=""googleusercontent.com""], img[src*=""profile""], img[alt*=""profile"" i]'));
+                        for (const img of imgEls) {
+                            const src = img.src || '';
+                            if (src && (src.includes('googleusercontent.com') || src.includes('avatar') || src.includes('photos')) && !src.endsWith('.svg') && !src.includes('cleardot.gif')) {
+                                photo = src;
+                                break;
+                            }
+                        }
+                    } catch(e) {}
+
+                    return JSON.stringify({ email: email || '', name: name || '', photo: photo || '' });
+                })()
+            ";
+
+            for (int attempt = 1; attempt <= 6; attempt++)
             {
-                string script = @"
-                    (() => {
-                        let email = '';
-                        let name = '';
-                        let photo = '';
-
-                        try {
-                            const accountLinks = Array.from(document.querySelectorAll('a[aria-label*=""@""], button[aria-label*=""@""], div[aria-label*=""@""]'));
-                            for (const el of accountLinks) {
-                                const label = el.getAttribute('aria-label') || '';
-                                const match = label.match(/^(?:Google Account:\s*)?(.*?)(?:\s*\((.*?@.*?)\)|\n\((.*?@.*?)\))/i);
-                                if (match) {
-                                    name = (match[1] || '').trim();
-                                    email = (match[2] || match[3] || '').trim();
-                                    break;
-                                }
-                            }
-
-                            if (!email) {
-                                const el = document.querySelector('[data-email]');
-                                if (el) email = el.getAttribute('data-email') || '';
-                            }
-
-                            if (!email) {
-                                const m = document.body.innerHTML.match(/[\w\.-]+@[\w\.-]+\.\w+/);
-                                if (m) email = m[0];
-                            }
-
-                            if (!name && email) {
-                                const nameEl = document.querySelector('div[aria-label*=""Google Account""] div') ||
-                                               document.querySelector('header h1, header h2');
-                                if (nameEl) name = nameEl.textContent.trim();
-                            }
-
-                            const imgEls = Array.from(document.querySelectorAll('img[src*=""googleusercontent.com""], img[src*=""profile""], img[alt*=""profile"" i]'));
-                            for (const img of imgEls) {
-                                const src = img.src;
-                                if (src && (src.includes('googleusercontent.com') || src.includes('avatar') || src.includes('photos'))) {
-                                    photo = src;
-                                    break;
-                                }
-                            }
-                        } catch(e) {}
-
-                        return JSON.stringify({ email: email || '', name: name || '', photo: photo || '' });
-                    })()
-                ";
-
-                string jsonResult = await GoogleAuthWebView.CoreWebView2.ExecuteScriptAsync(script);
-                if (!string.IsNullOrWhiteSpace(jsonResult) && jsonResult != "null")
+                try
                 {
-                    string unescaped = System.Text.Json.JsonSerializer.Deserialize<string>(jsonResult) ?? jsonResult;
-                    using var doc = System.Text.Json.JsonDocument.Parse(unescaped);
-                    var root = doc.RootElement;
-                    if (root.TryGetProperty("email", out var eElem) && !string.IsNullOrWhiteSpace(eElem.GetString()))
-                        user.Email = eElem.GetString()!.Trim();
-                    if (root.TryGetProperty("name", out var nElem) && !string.IsNullOrWhiteSpace(nElem.GetString()))
-                        user.DisplayName = nElem.GetString()!.Trim();
-                    if (root.TryGetProperty("photo", out var pElem) && !string.IsNullOrWhiteSpace(pElem.GetString()))
-                        user.PhotoUrl = pElem.GetString()!.Trim();
+                    string jsonResult = await GoogleAuthWebView.CoreWebView2.ExecuteScriptAsync(extractionScript);
+                    if (!string.IsNullOrWhiteSpace(jsonResult) && jsonResult != "null")
+                    {
+                        string unescaped = System.Text.Json.JsonSerializer.Deserialize<string>(jsonResult) ?? jsonResult;
+                        using var doc = System.Text.Json.JsonDocument.Parse(unescaped);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("email", out var eElem))
+                        {
+                            var extractedEmail = eElem.GetString()?.Trim();
+                            if (BrowserProfileDetector.IsValidGoogleEmail(extractedEmail))
+                            {
+                                if (string.IsNullOrWhiteSpace(user.Email))
+                                {
+                                    user.Email = extractedEmail!;
+                                }
+                                else if (!string.Equals(user.Email, extractedEmail, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    PageLog($"DOM extraction found email '{extractedEmail}', but candidate is already authenticated as '{user.Email}'. Ignoring mismatched WebView DOM.");
+                                    continue;
+                                }
+                            }
+                        }
+                        if (root.TryGetProperty("name", out var nElem))
+                        {
+                            var extractedName = nElem.GetString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(extractedName) &&
+                                !extractedName.Contains('%') &&
+                                !extractedName.Contains('@') &&
+                                !extractedName.Contains("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                user.DisplayName = extractedName;
+                            }
+                        }
+                        if (root.TryGetProperty("photo", out var pElem))
+                        {
+                            var extractedPhoto = pElem.GetString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(extractedPhoto) && extractedPhoto.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                user.PhotoUrl = extractedPhoto;
+                            }
+                        }
+                    }
+
+                    if (BrowserProfileDetector.IsValidGoogleEmail(user.Email) && !string.IsNullOrWhiteSpace(user.DisplayName))
+                    {
+                        PageLog($"Successfully extracted user profile from WebView2 DOM on attempt {attempt}: {user.Email} ({user.DisplayName})");
+                        break;
+                    }
+
+                    if (BrowserProfileDetector.IsValidGoogleEmail(user.Email) && attempt >= 3)
+                    {
+                        PageLog($"Extracted verified email on attempt {attempt}: {user.Email} - proceeding with formatted display name.");
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    PageLog($"DOM extraction attempt {attempt} error: {ex.Message}");
+                }
+
+                if (attempt < 6)
+                {
+                    await Task.Delay(300);
                 }
             }
-            catch (Exception ex)
-            {
-                PageLog($"ExtractGoogleUserProfileAsync WebView2 error: {ex.Message}");
-            }
         }
 
-        // 2. If email is still missing or not verified, query BrowserProfileDetector (inspects the most recently active desktop browser profile)
-        if (string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@'))
+        // Final verification & fallbacks
+        if (!BrowserProfileDetector.IsValidGoogleEmail(user.Email))
         {
-            var detectedFromBrowser = BrowserProfileDetector.DetectLatestGoogleAccount();
-            if (detectedFromBrowser != null && !string.IsNullOrWhiteSpace(detectedFromBrowser.Email))
+            if (BrowserProfileDetector.IsValidGoogleEmail(initialUser?.Email))
             {
-                user.Email = detectedFromBrowser.Email;
-                if (string.IsNullOrWhiteSpace(user.DisplayName)) user.DisplayName = detectedFromBrowser.DisplayName;
-                if (string.IsNullOrWhiteSpace(user.PhotoUrl)) user.PhotoUrl = detectedFromBrowser.PhotoUrl;
-                if (string.IsNullOrWhiteSpace(user.Id)) user.Id = detectedFromBrowser.Id;
-                if (string.IsNullOrWhiteSpace(user.GoogleSub)) user.GoogleSub = detectedFromBrowser.GoogleSub;
-                if (string.IsNullOrWhiteSpace(user.GivenName)) user.GivenName = detectedFromBrowser.GivenName;
-                if (string.IsNullOrWhiteSpace(user.FamilyName)) user.FamilyName = detectedFromBrowser.FamilyName;
-                PageLog($"Extracted authentic Google account from browser profile: {user.Email} ({user.DisplayName}) [Sub: {user.GoogleSub}]");
+                user.Email = initialUser!.Email.Trim();
+                PageLog($"Using verified initial email: {user.Email}");
+            }
+            else if (BrowserProfileDetector.IsValidGoogleEmail(_lastObservedEmailInWebView))
+            {
+                user.Email = _lastObservedEmailInWebView!.Trim();
+                PageLog($"Using verified observed sign-in email from WebView: {user.Email}");
             }
         }
 
-        // 3. Format clean title-cased display name if name is empty or lowercase
+        if (string.IsNullOrWhiteSpace(user.DisplayName))
+        {
+            if (!string.IsNullOrWhiteSpace(_lastObservedNameInWebView) &&
+                !_lastObservedNameInWebView.Contains('%') &&
+                !_lastObservedNameInWebView.Contains('@'))
+            {
+                user.DisplayName = _lastObservedNameInWebView.Trim();
+            }
+        }
+
         user.DisplayName = BrowserProfileDetector.FormatCleanDisplayName(user.DisplayName, user.Email);
+        if (string.IsNullOrWhiteSpace(user.Id))
+        {
+            user.Id = Guid.NewGuid().ToString("N");
+        }
 
         return user;
     }
@@ -1457,10 +1883,17 @@ public sealed partial class LaunchPage : Page
     private void SetConnectedUser(AuthenticatedUser user)
     {
         _currentUser = user;
-        ConnectedUserName.Text = !string.IsNullOrWhiteSpace(user.DisplayName)
-            ? user.DisplayName
-            : (!string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@') ? BrowserProfileDetector.FormatCleanDisplayName(null, user.Email) : "Candidate");
-        ConnectedUserEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : string.Empty;
+
+        var cleanEmail = BrowserProfileDetector.IsValidGoogleEmail(user.Email) ? user.Email.Trim() : string.Empty;
+        var cleanName = !string.IsNullOrWhiteSpace(user.DisplayName) && !user.DisplayName.Contains('%') && !user.DisplayName.Contains('@')
+            ? user.DisplayName.Trim()
+            : (!string.IsNullOrWhiteSpace(cleanEmail) ? BrowserProfileDetector.FormatCleanDisplayName(null, cleanEmail) : "Candidate");
+
+        user.DisplayName = cleanName;
+        user.Email = cleanEmail;
+
+        ConnectedUserName.Text = cleanName;
+        ConnectedUserEmail.Text = cleanEmail;
         ConnectedUserInitials.Text = user.GetInitials();
         ConnectedUserInitials.Visibility = Visibility.Visible;
         ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
@@ -1871,15 +2304,16 @@ public sealed partial class LaunchPage : Page
     {
         if (user != null && (!string.IsNullOrWhiteSpace(user.Email) || !string.IsNullOrWhiteSpace(user.DisplayName)))
         {
-            string displayName = !string.IsNullOrWhiteSpace(user.DisplayName)
-                ? user.DisplayName
-                : (!string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@') ? BrowserProfileDetector.FormatCleanDisplayName(null, user.Email) : "Candidate");
+            var cleanEmail = BrowserProfileDetector.IsValidGoogleEmail(user.Email) ? user.Email.Trim() : string.Empty;
+            string displayName = !string.IsNullOrWhiteSpace(user.DisplayName) && !user.DisplayName.Contains('%') && !user.DisplayName.Contains('@')
+                ? user.DisplayName.Trim()
+                : (!string.IsNullOrWhiteSpace(cleanEmail) ? BrowserProfileDetector.FormatCleanDisplayName(null, cleanEmail) : "Candidate");
 
             PreflightCandidateName.Text = displayName;
-            PreflightCandidateEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : string.Empty;
+            PreflightCandidateEmail.Text = cleanEmail;
             PreflightCandidateInitials.Text = user.GetInitials();
             PreflightCandidatePill.Visibility = Visibility.Visible;
-            PageLog($"PreflightCandidatePill updated: {displayName} ({user.Email}) [{user.GetInitials()}]");
+            PageLog($"PreflightCandidatePill updated: {displayName} ({cleanEmail}) [{user.GetInitials()}]");
         }
         else
         {
@@ -1894,6 +2328,22 @@ public sealed partial class LaunchPage : Page
         _isAccountSwitching = true;
         _previousUser = _currentUser;
         _isAuthCompleted = false;
+        _lastObservedEmailInWebView = null;
+        _lastObservedNameInWebView = null;
+
+        try
+        {
+            if (GoogleAuthWebView.CoreWebView2 != null)
+            {
+                var cookieManager = GoogleAuthWebView.CoreWebView2.CookieManager;
+                var cookies = await cookieManager.GetCookiesAsync("https://accounts.google.com");
+                foreach (var cookie in cookies)
+                {
+                    cookieManager.DeleteCookie(cookie);
+                }
+            }
+        }
+        catch { }
 
         try
         {
@@ -1960,12 +2410,28 @@ public sealed partial class LaunchPage : Page
         ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
     }
 
-    private void UseDifferentAccount_Click(object sender, RoutedEventArgs e)
+    private async void UseDifferentAccount_Click(object sender, RoutedEventArgs e)
     {
         PageLog("Use a different account clicked on Screen 4. Transitioning back to Screen 3 (Account Setup)...");
         _isAccountSwitching = true;
         _previousUser = _currentUser;
         _isAuthCompleted = false;
+        _lastObservedEmailInWebView = null;
+        _lastObservedNameInWebView = null;
+
+        try
+        {
+            if (GoogleAuthWebView.CoreWebView2 != null)
+            {
+                var cookieManager = GoogleAuthWebView.CoreWebView2.CookieManager;
+                var cookies = await cookieManager.GetCookiesAsync("https://accounts.google.com");
+                foreach (var cookie in cookies)
+                {
+                    cookieManager.DeleteCookie(cookie);
+                }
+            }
+        }
+        catch { }
 
         // Transition back to Screen 3 (Account Setup)
         AccountConnectedStateGrid.Visibility = Visibility.Collapsed;
@@ -2052,9 +2518,27 @@ public sealed partial class LaunchPage : Page
 
     private async void VerifyBrowserAuth_Click(object sender, RoutedEventArgs e)
     {
-        PageLog("User manually confirmed browser sign-in completion.");
-        var detectedUser = BrowserProfileDetector.DetectLatestGoogleAccount();
-        await CompleteGoogleAuthenticationAsync(detectedUser, "Default Browser (Manual)");
+        PageLog("User manually clicked Verify on browser auth waiting card.");
+
+        // 1. First, check if an active authenticated Google account is detectable across local browser profiles
+        var detected = BrowserProfileDetector.DetectLatestGoogleAccount();
+        if (detected != null && BrowserProfileDetector.IsValidGoogleEmail(detected.Email))
+        {
+            PageLog($"VerifyBrowserAuth: Discovered active browser account {detected.Email} ({detected.DisplayName}). Completing sign-in...");
+            await CompleteGoogleAuthenticationAsync(detected, "System Browser (Profile Discovery)");
+            return;
+        }
+
+        // 2. Otherwise launch or re-focus the interactive bridge in the browser
+        if (_browserAuthService.IsListening && !string.IsNullOrWhiteSpace(_browserAuthService.CurrentRedirectUri))
+        {
+            var bridgeUri = _browserAuthService.CurrentRedirectUri.Replace("/auth-callback/", "/auth-bridge/");
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = bridgeUri, UseShellExecute = true });
+            }
+            catch { }
+        }
     }
 
     private void CancelBrowserAuth_Click(object sender, RoutedEventArgs e)

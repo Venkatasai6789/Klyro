@@ -142,4 +142,35 @@ public class OnboardingStateStoreTests : IDisposable
         Assert.Equal("account.b@gmail.com", current.Email);
         Assert.Equal("Account B", current.DisplayName);
     }
+
+    [Fact]
+    public void SaveAuthenticatedUser_RejectsInvalidEmailsAndPreservesStore()
+    {
+        var invalidUser = new Klyro.Core.Authentication.AuthenticatedUser
+        {
+            Email = "%.@.null,null,null,\"https://www.gstatic.com/_/mss/boq-identity/_/js/test\"]",
+            DisplayName = "%"
+        };
+
+        _store.SaveAuthenticatedUser(invalidUser);
+
+        // Store must remain empty/null because the email is invalid
+        Assert.Null(_store.GetAuthenticatedUser());
+    }
+
+    [Fact]
+    public void GetAuthenticatedUser_ReturnsNullIfStoredFileContainsInvalidEmail()
+    {
+        // Simulate corrupted state file on disk
+        var corruptedState = new OnboardingState
+        {
+            IsFirstRunCompleted = true,
+            GoogleEmail = "%.@.null,null,null,\"https://www.gstatic.com\"",
+            GoogleDisplayName = "%"
+        };
+        _store.SaveState(corruptedState);
+
+        // GetAuthenticatedUser must refuse to return corrupted user
+        Assert.Null(_store.GetAuthenticatedUser());
+    }
 }

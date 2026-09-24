@@ -11,7 +11,7 @@ Write-Host "==========================================================" -Foregro
 Write-Host "  Installing Klyro Secure Assessment Browser              " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-$sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+$sourcePublish = Join-Path $PSScriptRoot "artifacts\publish"
 $installDir = "C:\Klyro"
 $exePath = Join-Path $installDir "Klyro.App.exe"
 
@@ -24,13 +24,14 @@ Start-Sleep -Milliseconds 500
 Write-Host "[2/5] Publishing application binaries..." -ForegroundColor Yellow
 $dotnet = if (Test-Path "$HOME\.dotnet\dotnet.exe") { "$HOME\.dotnet\dotnet.exe" } else { "dotnet" }
 $projPath = Join-Path $PSScriptRoot "src\Klyro.App\Klyro.App.csproj"
-& $dotnet publish $projPath -c Debug -r win-x64 -p:Platform=x64 --self-contained true
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet publish failed with exit code $LASTEXITCODE"
+
+if (Test-Path $sourcePublish) {
+    Remove-Item -Path $sourcePublish -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-if (-not (Test-Path $sourcePublish)) {
-    $sourcePublish = Join-Path $PSScriptRoot "src\Klyro.App\bin\Debug\net8.0-windows10.0.26100.0\win-x64\publish"
+& $dotnet publish $projPath -c Debug -r win-x64 --self-contained true -o $sourcePublish
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE"
 }
 
 # 3. Deploy to Installation Directory
@@ -46,12 +47,28 @@ if (-not (Test-Path $installDir)) {
     Remove-Item -Path "$installDir\*.log" -Force -ErrorAction SilentlyContinue
 }
 
+# Reset all previous user onboarding and cached sessions for a clean new-user experience
+Write-Host "Resetting previous user data and cached session state..." -ForegroundColor Yellow
+$klyroDataDir = Join-Path $env:LOCALAPPDATA "Klyro"
+if (Test-Path $klyroDataDir) {
+    Remove-Item (Join-Path $klyroDataDir "onboarding_state.json*") -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $klyroDataDir "Profiles") -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Copy-Item -Path "$sourcePublish\*" -Destination $installDir -Recurse -Force
 $configSource = Join-Path $PSScriptRoot "config"
 if (Test-Path $configSource) {
     Copy-Item -Path "$configSource\*" -Destination (Join-Path $installDir "config") -Recurse -Force
 }
 Get-ChildItem -Path $installDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
+
+# Ensure Users group has full read/write access to C:\Klyro
+try {
+    $acl = Get-Acl $installDir
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
+    $acl.AddAccessRule($rule)
+    Set-Acl $installDir $acl
+} catch { }
 
 # 4. Create Windows Shortcuts (Desktop & Start Menu)
 Write-Host "[4/5] Creating Desktop and Start Menu shortcuts..." -ForegroundColor Yellow

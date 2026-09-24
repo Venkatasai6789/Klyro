@@ -11,8 +11,59 @@ namespace Klyro.Core.Authentication;
 /// Discovers and extracts authentic Google Account identity profiles from local system browser profiles (Chrome, Edge, Brave).
 /// Reads non-destructively using non-locking shared read access so active browser sessions can be inspected safely.
 /// </summary>
-public static class BrowserProfileDetector
+public static partial class BrowserProfileDetector
 {
+    [GeneratedRegex(@"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$", RegexOptions.Compiled | RegexOptions.IgnoreCase)]
+    private static partial Regex StrictEmailRegex();
+
+    /// <summary>
+    /// Strictly validates that an email candidate is a genuine, properly formatted Google or academic/corporate email.
+    /// Rejects malformed strings, internal Google script bundles, URLs, and forbidden characters.
+    /// </summary>
+    public static bool IsValidGoogleEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return false;
+        var trimmed = email.Trim();
+        if (trimmed.Length < 5 || trimmed.Length > 254) return false;
+
+        // Reject control characters, whitespaces, brackets, quotes, slashes, semicolons, commas, percent
+        foreach (char c in trimmed)
+        {
+            if (char.IsWhiteSpace(c) || c is '/' or '\\' or '"' or '\'' or ',' or ';' or ':' or '%' or '[' or ']' or '(' or ')' or '{' or '}' or '<' or '>' or '=' or '?' or '&')
+            {
+                return false;
+            }
+        }
+
+        // Must not contain JavaScript or bundle keywords
+        if (trimmed.Contains("null", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("undefined", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("gstatic", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("googleapis", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("javascript", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.Contains("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Must have an '@' and a domain dot
+        int atIndex = trimmed.IndexOf('@');
+        if (atIndex <= 0 || atIndex != trimmed.LastIndexOf('@')) return false;
+
+        string domain = trimmed[(atIndex + 1)..];
+        if (!domain.Contains('.') || domain.StartsWith('.') || domain.EndsWith('.')) return false;
+
+        // Domain must not be just "google.com" without prefix (like script path end)
+        if (trimmed.EndsWith("google.com", StringComparison.OrdinalIgnoreCase) &&
+            !trimmed.EndsWith("@google.com", StringComparison.OrdinalIgnoreCase) &&
+            !trimmed.EndsWith(".google.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return StrictEmailRegex().IsMatch(trimmed);
+    }
+
     private static readonly string[] BrowserUserDataRelativePaths =
     [
         Path.Combine("Google", "Chrome", "User Data"),
@@ -140,7 +191,7 @@ public static class BrowserProfileDetector
             {
                 if (!item.TryGetProperty("email", out var emailProp)) continue;
                 var email = emailProp.GetString()?.Trim() ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(email) || !email.Contains('@')) continue;
+                if (!IsValidGoogleEmail(email)) continue;
 
                 string? fullName = null;
                 if (item.TryGetProperty("full_name", out var fnProp) && !string.IsNullOrWhiteSpace(fnProp.GetString()))
@@ -261,7 +312,7 @@ public static class BrowserProfileDetector
                     if (!hostname.Contains("google.com", StringComparison.OrdinalIgnoreCase)) continue;
 
                     string username = item.TryGetProperty("username", out var u) ? u.GetString() ?? "" : "";
-                    if (string.IsNullOrWhiteSpace(username) || !username.Contains('@')) continue;
+                    if (!IsValidGoogleEmail(username)) continue;
 
                     long timeLastUsed = item.TryGetProperty("timeLastUsed", out var tlu) && tlu.TryGetInt64(out var t) ? t : 0;
                     DateTime lastUsedUtc = timeLastUsed > 0
@@ -300,14 +351,20 @@ public static class BrowserProfileDetector
         if (!string.IsNullOrWhiteSpace(rawName))
         {
             var trimmed = rawName.Trim();
-            // If rawName is already properly mixed case (e.g. "Hemanth Reddy", "P. Venkata Sai"), preserve it
-            if (trimmed.Any(char.IsUpper) && trimmed.Any(char.IsLower))
+            // Reject rawNames that contain invalid URL, email, or bundle characters
+            if (!trimmed.Contains('%') && !trimmed.Contains('@') && !trimmed.Contains("http", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.Contains('{') && !trimmed.Contains('}') && !trimmed.Contains('<') && !trimmed.Contains('>') &&
+                !trimmed.Contains("null", StringComparison.OrdinalIgnoreCase))
             {
-                return trimmed;
-            }
+                // If rawName is already properly mixed case (e.g. "Hemanth Reddy", "P. Venkata Sai"), preserve it
+                if (trimmed.Any(char.IsUpper) && trimmed.Any(char.IsLower))
+                {
+                    return trimmed;
+                }
 
-            // If rawName is all lower or all upper, convert to title case
-            return ToTitleCase(trimmed);
+                // If rawName is all lower or all upper, convert to title case
+                return ToTitleCase(trimmed);
+            }
         }
 
         // Derive name from email user portion (e.g., "p.venkatsai333@gmail.com" -> "P Venkatsai")
@@ -319,10 +376,10 @@ public static class BrowserProfileDetector
             {
                 return ToTitleCase(clean);
             }
-            return email.Split('@')[0];
+            return userPart;
         }
 
-        return string.Empty;
+        return "Candidate";
     }
 
     private static string ToTitleCase(string input)
