@@ -502,6 +502,7 @@ public sealed class KeyboardHookManager : IDisposable
     }
 
     private static readonly System.Collections.Generic.Dictionary<string, object?> _originalPtpSettings = new();
+    private static object? _originalTouchGestureSetting;
     private static object? _originalEdgeUiUserSetting;
 
     public static void ApplyTouchpadRestrictions()
@@ -547,7 +548,16 @@ public sealed class KeyboardHookManager : IDisposable
                     catch { }
                 }
 
-                // B. Disable screen & trackpad edge swipes (Action Center, Notifications, Widgets)
+                // B. Windows 11 Three- and Four-Finger Gestures (Control Panel\Desktop\TouchGestureSetting)
+                string desktopKeyPath = @"HKEY_CURRENT_USER\Control Panel\Desktop";
+                try
+                {
+                    _originalTouchGestureSetting = Registry.GetValue(desktopKeyPath, "TouchGestureSetting", null);
+                    Registry.SetValue(desktopKeyPath, "TouchGestureSetting", 0, RegistryValueKind.DWord);
+                }
+                catch { }
+
+                // C. Disable screen & trackpad edge swipes (Action Center, Notifications, Widgets)
                 string edgeUiSubPath = @"Software\Policies\Microsoft\Windows\EdgeUI";
                 try
                 {
@@ -564,8 +574,9 @@ public sealed class KeyboardHookManager : IDisposable
                 }
                 catch { }
 
-                // C. Broadcast WM_SETTINGCHANGE so system and input components reload settings immediately
+                // D. Broadcast WM_SETTINGCHANGE so system and input components reload settings immediately
                 BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Control Panel\\Desktop");
                 BroadcastSettingsChange("Policy");
             }
         }
@@ -602,6 +613,27 @@ public sealed class KeyboardHookManager : IDisposable
                 }
                 _originalPtpSettings.Clear();
 
+                // Restore TouchGestureSetting
+                string desktopSubPath = @"Control Panel\Desktop";
+                using (var desktopKey = Registry.CurrentUser.OpenSubKey(desktopSubPath, writable: true))
+                {
+                    if (desktopKey != null)
+                    {
+                        try
+                        {
+                            if (_originalTouchGestureSetting == null)
+                            {
+                                desktopKey.DeleteValue("TouchGestureSetting", throwOnMissingValue: false);
+                            }
+                            else
+                            {
+                                desktopKey.SetValue("TouchGestureSetting", _originalTouchGestureSetting, RegistryValueKind.DWord);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
                 string edgeUiSubPath = @"Software\Policies\Microsoft\Windows\EdgeUI";
                 using (var edgeKey = Registry.CurrentUser.OpenSubKey(edgeUiSubPath, writable: true))
                 {
@@ -624,6 +656,7 @@ public sealed class KeyboardHookManager : IDisposable
 
                 // Broadcast restored settings
                 BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Control Panel\\Desktop");
                 BroadcastSettingsChange("Policy");
             }
         }

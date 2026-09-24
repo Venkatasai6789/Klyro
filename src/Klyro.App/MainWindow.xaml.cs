@@ -247,36 +247,36 @@ public sealed partial class MainWindow : Window
         }
         catch { }
 
-        if (RootFrame.Content is MainPage)
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            if (args.WindowActivationState == WindowActivationState.Deactivated)
+            // Security lockdown: prevent backgrounding or minimizing caused by gestures or external prompts
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
             {
-                // Active assessment security: prevent backgrounding or minimizing caused by gestures or external prompts
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                try
                 {
-                    try
+                    var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+                    if (hWnd != IntPtr.Zero)
                     {
-                        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-                        if (hWnd != IntPtr.Zero)
+                        ShowWindow(hWnd, SW_RESTORE);
+                        BringWindowToTop(hWnd);
+                        SetForegroundWindow(hWnd);
+                        if (RootFrame.Content is MainPage)
                         {
-                            ShowWindow(hWnd, SW_RESTORE);
-                            BringWindowToTop(hWnd);
-                            SetForegroundWindow(hWnd);
                             ConfigureFullScreenExamMode();
                         }
                     }
-                    catch { }
-                });
-            }
-            else if (!_isFullScreenConfigured)
-            {
-                _isFullScreenConfigured = true;
+                }
+                catch { }
+            });
+        }
+        else if (RootFrame.Content is MainPage && !_isFullScreenConfigured)
+        {
+            _isFullScreenConfigured = true;
 
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                {
-                    ConfigureFullScreenExamMode();
-                });
-            }
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                ConfigureFullScreenExamMode();
+            });
         }
     }
 

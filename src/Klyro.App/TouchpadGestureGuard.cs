@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
@@ -11,7 +11,7 @@ namespace Klyro_App;
 /// Intercepts and neutralizes Windows Precision Touchpad multi-finger gestures
 /// (3-finger swipe up/down/left/right, 4-finger gestures, edge swipes, and multi-finger taps)
 /// via Win32 SetGestureConfig, RegisterTouchpadCapableWindow, RegisterTouchWindow, Window Subclassing,
-/// WinRT TouchpadGesturesController, and Registry policies.
+/// Windows 11 TouchGestureSetting, PrecisionTouchPad registry policies, and Explorer shell cache synchronization.
 /// </summary>
 public sealed class TouchpadGestureGuard : IDisposable
 {
@@ -60,7 +60,7 @@ public sealed class TouchpadGestureGuard : IDisposable
     private const uint WM_SETTINGCHANGE = 0x001A;
     private const uint SMTO_ABORTIFHUNG = 0x0002;
 
-    // Window Subclassing for WM_GESTURE & WM_GESTURENOTIFY suppression
+    // Window Subclassing for WM_GESTURE, WM_GESTURENOTIFY, and WM_SYSCOMMAND SC_MINIMIZE suppression
     private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData);
 
     [DllImport("comctl32.dll", SetLastError = true)]
@@ -77,18 +77,19 @@ public sealed class TouchpadGestureGuard : IDisposable
     private const uint WM_SYSCOMMAND = 0x0112;
     private const int SC_MINIMIZE = 0xF020;
     private const int SC_TASKLIST = 0xF130;
+    private const int SC_SCREENSAVE = 0xF140;
 
     private static readonly UIntPtr SubclassId = new(9876);
     private readonly SubclassProc _subclassProc;
     private IntPtr _hookedHwnd;
     private bool _isSubclassed;
 
-    private object? _controller;
     private readonly Dictionary<string, object?> _originalPtpSettings = new();
+    private object? _originalTouchGestureSetting;
     private object? _originalEdgeUiUserSetting;
     private bool _isDisposed;
 
-    public bool IsActive => _controller != null || _isSubclassed;
+    public bool IsActive => _isSubclassed;
 
     public TouchpadGestureGuard()
     {
@@ -122,13 +123,13 @@ public sealed class TouchpadGestureGuard : IDisposable
                 Log($"Win32 window gesture setup warning: {ex.Message}");
             }
 
-            // 2. Activate WinRT TouchpadGesturesController if available
-            InitializeTouchpadGesturesController();
-
-            // 3. Enforce registry policies to disable 3-finger, 4-finger, and edge swipes
+            // 2. Enforce registry policies across Precision Touchpad, Desktop TouchGestureSetting, and EdgeUI
             ApplyTouchpadRegistryPolicies();
 
-            Log("TouchpadGestureGuard successfully enabled across WinRT controller, Win32 PTP capability, Window Subclassing, and Registry policies.");
+            // 3. Force Explorer shell to reload settings cache so gesture handlers take effect immediately
+            RefreshExplorer();
+
+            Log("TouchpadGestureGuard successfully enabled: multi-finger gestures disabled across Win32, Registry, and Explorer cache.");
         }
         catch (Exception ex)
         {
@@ -151,11 +152,11 @@ public sealed class TouchpadGestureGuard : IDisposable
             return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         }
 
-        // 3. Prevent minimize or tasklist triggered by trackpad gestures (e.g. 3-finger swipe down)
+        // 3. Prevent minimize, tasklist, or screen save triggered by trackpad gestures (e.g. 3-finger swipe down)
         if (uMsg == WM_SYSCOMMAND)
         {
             int cmd = (int)((long)wParam & 0xFFF0);
-            if (cmd == SC_MINIMIZE || cmd == SC_TASKLIST)
+            if (cmd == SC_MINIMIZE || cmd == SC_TASKLIST || cmd == SC_SCREENSAVE)
             {
                 return IntPtr.Zero; // Swallow minimize/tasklist attempt from gesture
             }
@@ -184,53 +185,6 @@ public sealed class TouchpadGestureGuard : IDisposable
             }
         }
         catch { }
-    }
-
-    private void InitializeTouchpadGesturesController()
-    {
-        try
-        {
-            var controllerType = Type.GetType("Windows.UI.Input.TouchpadGesturesController, Windows, ContentType=WindowsRuntime")
-                ?? Type.GetType("Windows.UI.Input.TouchpadGesturesController, Windows.Foundation, ContentType=WindowsRuntime");
-
-            if (controllerType != null)
-            {
-                var isSupportedMethod = controllerType.GetMethod("IsSupported", BindingFlags.Public | BindingFlags.Static);
-                bool isSupported = (bool)(isSupportedMethod?.Invoke(null, null) ?? false);
-
-                if (isSupported)
-                {
-                    var createMethod = controllerType.GetMethod("CreateForProcess", BindingFlags.Public | BindingFlags.Static);
-                    _controller = createMethod?.Invoke(null, null);
-
-                    if (_controller != null)
-                    {
-                        var kindsType = Type.GetType("Windows.UI.Input.TouchpadGlobalGestureKinds, Windows, ContentType=WindowsRuntime")
-                            ?? Type.GetType("Windows.UI.Input.TouchpadGlobalGestureKinds, Windows.Foundation, ContentType=WindowsRuntime");
-
-                        if (kindsType != null)
-                        {
-                            // Combine 3-finger, 4-finger, and 5-finger manipulations (swipes) and actions (taps)
-                            object allKinds = Enum.Parse(kindsType, "ThreeFingerManipulations, FourFingerManipulations, FiveFingerManipulations, ThreeFingerActions, FourFingerActions, FiveFingerActions");
-                            controllerType.GetProperty("SupportedGestures")?.SetValue(_controller, allKinds);
-                        }
-
-                        // Enable controller: system will route all multi-finger swipes to this process instead of Windows Shell
-                        controllerType.GetProperty("Enabled")?.SetValue(_controller, true);
-
-                        Log("WinRT TouchpadGesturesController activated: 3-finger & 4-finger swipes routed to process and suppressed.");
-                    }
-                }
-                else
-                {
-                    Log("WinRT TouchpadGesturesController is not supported on this device.");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log($"WinRT TouchpadGesturesController activation exception: {ex.Message}");
-        }
     }
 
     private void ApplyTouchpadRegistryPolicies()
@@ -276,7 +230,16 @@ public sealed class TouchpadGestureGuard : IDisposable
                     catch { }
                 }
 
-                // B. EdgeUI Policy (HKCU & HKLM) - Disables screen edge swipe
+                // B. Windows 11 Three- and Four-Finger Gestures (Control Panel\Desktop\TouchGestureSetting)
+                string desktopKeyPath = @"HKEY_CURRENT_USER\Control Panel\Desktop";
+                try
+                {
+                    _originalTouchGestureSetting = Registry.GetValue(desktopKeyPath, "TouchGestureSetting", null);
+                    Registry.SetValue(desktopKeyPath, "TouchGestureSetting", 0, RegistryValueKind.DWord);
+                }
+                catch { }
+
+                // C. EdgeUI Policy (HKCU & HKLM) - Disables screen and edge swipe
                 string edgeUiSubPath = @"Software\Policies\Microsoft\Windows\EdgeUI";
                 try
                 {
@@ -293,8 +256,9 @@ public sealed class TouchpadGestureGuard : IDisposable
                 }
                 catch { }
 
-                // C. Broadcast WM_SETTINGCHANGE so system and input components reload settings immediately
+                // D. Broadcast WM_SETTINGCHANGE so system and input components reload settings
                 BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Control Panel\\Desktop");
                 BroadcastSettingsChange("Policy");
             }
         }
@@ -320,12 +284,31 @@ public sealed class TouchpadGestureGuard : IDisposable
         catch { }
     }
 
+    public static void RefreshExplorer()
+    {
+        try
+        {
+            var explorerProcesses = Process.GetProcessesByName("explorer");
+            foreach (var p in explorerProcesses)
+            {
+                try
+                {
+                    p.Kill();
+                    p.WaitForExit(1500);
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
     public void RestoreTouchpadRegistryPolicies()
     {
         try
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
+                // Restore PrecisionTouchPad settings
                 string ptpKeyPath = @"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
                 using (var ptpKey = Registry.CurrentUser.OpenSubKey(ptpKeyPath, writable: true))
                 {
@@ -350,6 +333,27 @@ public sealed class TouchpadGestureGuard : IDisposable
                 }
                 _originalPtpSettings.Clear();
 
+                // Restore TouchGestureSetting
+                string desktopSubPath = @"Control Panel\Desktop";
+                using (var desktopKey = Registry.CurrentUser.OpenSubKey(desktopSubPath, writable: true))
+                {
+                    if (desktopKey != null)
+                    {
+                        try
+                        {
+                            if (_originalTouchGestureSetting == null)
+                            {
+                                desktopKey.DeleteValue("TouchGestureSetting", throwOnMissingValue: false);
+                            }
+                            else
+                            {
+                                desktopKey.SetValue("TouchGestureSetting", _originalTouchGestureSetting, RegistryValueKind.DWord);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
                 // Restore EdgeUI policy
                 string edgeUiSubPath = @"Software\Policies\Microsoft\Windows\EdgeUI";
                 using (var edgeKey = Registry.CurrentUser.OpenSubKey(edgeUiSubPath, writable: true))
@@ -371,9 +375,11 @@ public sealed class TouchpadGestureGuard : IDisposable
                     }
                 }
 
-                // Broadcast restored settings
+                // Broadcast restored settings and refresh Explorer to restore user preferences
                 BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Control Panel\\Desktop");
                 BroadcastSettingsChange("Policy");
+                RefreshExplorer();
             }
         }
         catch (Exception ex)
@@ -390,13 +396,6 @@ public sealed class TouchpadGestureGuard : IDisposable
             {
                 RemoveWindowSubclass(_hookedHwnd, _subclassProc, SubclassId);
                 _isSubclassed = false;
-            }
-
-            if (_controller != null)
-            {
-                var controllerType = _controller.GetType();
-                controllerType.GetProperty("Enabled")?.SetValue(_controller, false);
-                _controller = null;
             }
 
             RestoreTouchpadRegistryPolicies();
