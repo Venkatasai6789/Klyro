@@ -43,12 +43,12 @@ Traditional lockdown browsers often crash, wipe written student source code, or 
 ### 📦 Recommended: Standalone Windows Setup Installer
 Download the official single-file installer executable directly via GitHub Releases:
 
-💿 **[Download Klyro Setup Installer (`Klyro-Setup-v1.0.0-win-x64.exe`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
+💿 **[Download Klyro Setup Installer (`Klyro-Setup-v1.1.0-win-x64.exe`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
 
 - **Single Self-Contained Executable**: Zero archive extraction or manual copying required. Simply run the installer executable to start the 4-step guided setup wizard.
 - **Embedded Application Payload**: Full secure browser engine, assets, and runtime dependencies bundled inside the single `.exe`.
 - **SHA-256 Checksum**: Cryptographically verifiable against supply-chain tampering.
-- **Portable ZIP Alternative**: `Klyro-v1.0.0-win-x64.zip` is also provided for portable lab deployments.
+- **Portable ZIP Alternative**: `Klyro-v1.1.0-win-x64.zip` is also provided for portable lab deployments.
 
 ---
 
@@ -218,7 +218,7 @@ cd Klyro
 ```
 
 ### 2. Run Test Suite
-Execute the 155 automated tests across unit, security, network, and recovery domains:
+Execute the 251 automated tests across unit, security, network, recovery, and installer domains:
 ```powershell
 dotnet test
 ```
@@ -226,12 +226,13 @@ dotnet test
 ### 3. Build & Package Standalone Release
 Run the automated release packaging script:
 ```powershell
-.\build-release.ps1 -Version "1.0.0"
+.\build-release.ps1 -Version "1.1.0"
 ```
 The script will run the full test suite, compile the self-contained WinUI 3 binaries, and generate:
-- `dist/Klyro-v1.0.0-win-x64/Klyro.App.exe`
-- `dist/Klyro-v1.0.0-win-x64.zip`
-- `dist/Klyro-v1.0.0-win-x64.zip.sha256`
+- `dist/Klyro-Setup-v1.1.0-win-x64.exe` (Single-file standalone installer)
+- `dist/Klyro-Setup-v1.1.0-win-x64.exe.sha256`
+- `dist/Klyro-v1.1.0-win-x64.zip` (Portable lab archive)
+- `dist/Klyro-v1.1.0-win-x64.zip.sha256`
 
 ---
 

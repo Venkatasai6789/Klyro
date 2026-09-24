@@ -31,6 +31,8 @@ public sealed class KeyboardHookManager : IDisposable
     public const uint VK_F4 = 0x73;
     public const uint VK_F11 = 0x7A;
     public const uint VK_F12 = 0x7B;
+    public const uint VK_SHIFT = 0x10;
+    public const uint VK_Q = 0x51;
     public const uint VK_APPS = 0x5D;
     public const uint VK_F21 = 0x84;
     public const uint VK_F22 = 0x85;
@@ -104,6 +106,7 @@ public sealed class KeyboardHookManager : IDisposable
     public bool IsHookInstalled => _hookId != IntPtr.Zero;
 
     public event EventHandler? ExitRequested;
+    public event EventHandler? EmergencyForceExitRequested;
 
     public KeyboardHookManager()
     {
@@ -217,6 +220,7 @@ public sealed class KeyboardHookManager : IDisposable
 
             bool isAltDown = (kbd.flags & LLKHF_ALTDOWN) != 0 || ((GetAsyncKeyState((int)VK_MENU) & 0x8000) != 0);
             bool isCtrlDown = ((GetKeyState((int)VK_CONTROL) & 0x8000) != 0) || ((GetAsyncKeyState((int)VK_CONTROL) & 0x8000) != 0);
+            bool isShiftDown = ((GetKeyState((int)VK_SHIFT) & 0x8000) != 0) || ((GetAsyncKeyState((int)VK_SHIFT) & 0x8000) != 0);
 
             // Special fast-path for 'G' key when Win is down: aggressively terminate any Game Bar process and swallow
             if (kbd.vkCode == VK_G && isWinDown)
@@ -225,9 +229,13 @@ public sealed class KeyboardHookManager : IDisposable
                 return (IntPtr)1;
             }
 
-            if (ShouldBlockKeystroke(msg, kbd.vkCode, kbd.flags, isCtrlDown, isAltDown, isWinDown, out bool isExitRequested))
+            if (ShouldBlockKeystroke(msg, kbd.vkCode, kbd.flags, isCtrlDown, isAltDown, isWinDown, isShiftDown, out bool isExitRequested, out bool isEmergencyExitRequested))
             {
-                if (isExitRequested)
+                if (isEmergencyExitRequested)
+                {
+                    _instance?.EmergencyForceExitRequested?.Invoke(_instance, EventArgs.Empty);
+                }
+                else if (isExitRequested)
                 {
                     _instance?.ExitRequested?.Invoke(_instance, EventArgs.Empty);
                 }
@@ -247,7 +255,33 @@ public sealed class KeyboardHookManager : IDisposable
         bool isWinDown,
         out bool isExitRequested)
     {
+        return ShouldBlockKeystroke(wParam, vkCode, flags, isCtrlDown, isAltDown, isWinDown, isShiftDown: false, out isExitRequested, out _);
+    }
+
+    public static bool ShouldBlockKeystroke(
+        int wParam,
+        uint vkCode,
+        uint flags,
+        bool isCtrlDown,
+        bool isAltDown,
+        bool isWinDown,
+        bool isShiftDown,
+        out bool isExitRequested,
+        out bool isEmergencyExitRequested)
+    {
         isExitRequested = false;
+        isEmergencyExitRequested = false;
+
+        // 0. Invigilator Master Emergency Override: Ctrl + Alt + Shift + F12 or Ctrl + Alt + Shift + Q
+        // Provides fail-safe breakout even if the UI modal or PasswordBox is completely unresponsive.
+        if (isCtrlDown && isAltDown && isShiftDown && (vkCode == VK_F12 || vkCode == VK_Q))
+        {
+            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
+            {
+                isEmergencyExitRequested = true;
+            }
+            return true;
+        }
 
         // 1. Block Windows Keys unconditionally (blocks Win key press & release: VK_LWIN and VK_RWIN)
         if (vkCode == VK_LWIN || vkCode == VK_RWIN)

@@ -49,11 +49,24 @@ jobs:
           Compress-Archive -Path output/Klyro-win-x64/* -DestinationPath "output/Klyro-$ver-win-x64.zip" -Force
           Get-FileHash -Path "output/Klyro-$ver-win-x64.zip" -Algorithm SHA256 | Out-File "output/Klyro-$ver-win-x64.zip.sha256"
 
+      - name: Build Standalone Windows x64 Setup Executable
+        run: |
+          $ver = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart('v') } else { "${{ github.event.inputs.version }}" }
+          $resourcesDir = "src/Klyro.Installer/Resources"
+          if (-not (Test-Path $resourcesDir)) { New-Item -Path $resourcesDir -ItemType Directory -Force }
+          Compress-Archive -Path output/Klyro-win-x64/* -DestinationPath "$resourcesDir/app.payload.zip" -Force -CompressionLevel Fastest
+          dotnet publish src/Klyro.Installer/Klyro.Installer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=$ver -o output/installer-build
+          Move-Item -Path output/installer-build/Klyro.Installer.exe -Destination "output/Klyro-Setup-v$ver-win-x64.exe" -Force
+          Copy-Item -Path "output/Klyro-Setup-v$ver-win-x64.exe" -Destination "output/Klyro-Setup-x64.exe" -Force
+          Get-FileHash -Path "output/Klyro-Setup-v$ver-win-x64.exe" -Algorithm SHA256 | Out-File "output/Klyro-Setup-v$ver-win-x64.exe.sha256"
+
       - name: Upload Release Assets to GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
+            output/Klyro-Setup-*.exe
+            output/Klyro-Setup-*.exe.sha256
             output/Klyro-*.zip
             output/Klyro-*.zip.sha256
             output/Klyro-win-x64/Klyro.App.exe

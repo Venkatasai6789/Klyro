@@ -47,6 +47,33 @@ public sealed partial class MainWindow : Window
         // Install global low-level keyboard hook immediately on application boot
         _keyboardHook.InstallHook();
 
+        // Wire global keyboard hook events for exit requests and emergency invigilator breakout
+        _keyboardHook.ExitRequested += (s, e) =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (RootFrame.Content is MainPage mainPage)
+                {
+                    mainPage.PromptForExitPin();
+                }
+                else
+                {
+                    _touchpadGestureGuard.Dispose();
+                    _keyboardHook.UninstallHook();
+                    App.ExitCompletely();
+                }
+            });
+        };
+
+        _keyboardHook.EmergencyForceExitRequested += (s, e) =>
+        {
+            string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
+            try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow] Low-level emergency override shortcut triggered (Ctrl+Alt+Shift+F12/Q). Terminating immediately...\n"); } catch { }
+            try { _touchpadGestureGuard.Dispose(); } catch { }
+            try { _keyboardHook.UninstallHook(); } catch { }
+            App.ExitCompletely();
+        };
+
         try
         {
             var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);

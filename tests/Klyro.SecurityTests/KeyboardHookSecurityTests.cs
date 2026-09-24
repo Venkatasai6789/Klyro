@@ -241,4 +241,45 @@ public class KeyboardHookSecurityTests
             Assert.Null(cleanKey);
         }
     }
+
+    [Theory]
+    [InlineData(KeyboardHookManager.VK_F12)]
+    [InlineData(KeyboardHookManager.VK_Q)]
+    public void ShouldBlockKeystroke_SignalsEmergencyExit_OnCtrlAltShiftF12AndQ(uint vkCode)
+    {
+        // When Ctrl + Alt + Shift + F12 (or Q) is pressed, emergency exit MUST be signaled and keystroke blocked
+        bool blocked = KeyboardHookManager.ShouldBlockKeystroke(
+            WM_KEYDOWN,
+            vkCode,
+            KeyboardHookManager.LLKHF_ALTDOWN,
+            isCtrlDown: true,
+            isAltDown: true,
+            isWinDown: false,
+            isShiftDown: true,
+            out var isExitRequested,
+            out var isEmergencyExitRequested);
+
+        Assert.True(blocked, "Emergency hotkey must be swallowed.");
+        Assert.True(isEmergencyExitRequested, "Emergency exit flag must be asserted.");
+    }
+
+    [Fact]
+    public void ShouldBlockKeystroke_F12WithoutShiftOrAlt_BlocksDevTools_WithoutEmergencyExit()
+    {
+        // Standalone F12 or F12 without all 3 modifiers (Ctrl+Alt+Shift) blocks DevTools but does NOT trigger emergency exit
+        bool blocked = KeyboardHookManager.ShouldBlockKeystroke(
+            WM_KEYDOWN,
+            KeyboardHookManager.VK_F12,
+            0,
+            isCtrlDown: false,
+            isAltDown: false,
+            isWinDown: false,
+            isShiftDown: false,
+            out var isExitRequested,
+            out var isEmergencyExitRequested);
+
+        Assert.True(blocked, "F12 must be blocked to prevent developer tools.");
+        Assert.False(isEmergencyExitRequested, "F12 without full modifier chord must NOT trigger emergency exit.");
+    }
 }
+

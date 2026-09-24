@@ -6,11 +6,11 @@
     embedded installer payload, and compiles Klyro.Installer into a single-file x64 executable:
     dist\Klyro-Setup-v<Version>-win-x64.exe
 .PARAMETER Version
-    The semantic version string (e.g. 1.0.0). Defaults to 1.0.0.
+    The semantic version string (e.g. 1.1.0). Defaults to 1.1.0.
 #>
 
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [switch]$SkipAppPublish
 )
 
