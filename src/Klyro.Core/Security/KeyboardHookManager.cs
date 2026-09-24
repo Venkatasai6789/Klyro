@@ -77,6 +77,20 @@ public sealed class KeyboardHookManager : IDisposable
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int vKey);
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd,
+        uint Msg,
+        UIntPtr wParam,
+        string? lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out UIntPtr lpdwResult);
+
+    private const int HWND_BROADCAST = 0xffff;
+    private const uint WM_SETTINGCHANGE = 0x001A;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
+
     private static IntPtr _hookId = IntPtr.Zero;
     private static LowLevelKeyboardProc? _proc;
     private static KeyboardHookManager? _instance;
@@ -511,7 +525,12 @@ public sealed class KeyboardHookManager : IDisposable
                     "FourFingerSlideUp",
                     "FourFingerSlideDown",
                     "FourFingerSlideLeft",
-                    "FourFingerSlideRight"
+                    "FourFingerSlideRight",
+                    "ThreeFingerSlides",
+                    "FourFingerSlides",
+                    "ThreeFingerTaps",
+                    "FourFingerTaps",
+                    "ZoomEnabled"
                 };
 
                 foreach (var valName in ptpValues)
@@ -519,7 +538,10 @@ public sealed class KeyboardHookManager : IDisposable
                     try
                     {
                         var orig = Registry.GetValue(ptpKeyPath, valName, null);
-                        _originalPtpSettings[valName] = orig;
+                        if (!_originalPtpSettings.ContainsKey(valName))
+                        {
+                            _originalPtpSettings[valName] = orig;
+                        }
                         Registry.SetValue(ptpKeyPath, valName, 0, RegistryValueKind.DWord);
                     }
                     catch { }
@@ -541,6 +563,10 @@ public sealed class KeyboardHookManager : IDisposable
                     lmKey?.SetValue("AllowEdgeSwipe", 0, RegistryValueKind.DWord);
                 }
                 catch { }
+
+                // C. Broadcast WM_SETTINGCHANGE so system and input components reload settings immediately
+                BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Policy");
             }
         }
         catch { }
@@ -595,7 +621,27 @@ public sealed class KeyboardHookManager : IDisposable
                         catch { }
                     }
                 }
+
+                // Broadcast restored settings
+                BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Policy");
             }
+        }
+        catch { }
+    }
+
+    private static void BroadcastSettingsChange(string? section)
+    {
+        try
+        {
+            SendMessageTimeout(
+                (IntPtr)HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                UIntPtr.Zero,
+                section,
+                SMTO_ABORTIFHUNG,
+                150,
+                out _);
         }
         catch { }
     }

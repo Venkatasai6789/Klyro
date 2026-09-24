@@ -1,122 +1,110 @@
 <#
 .SYNOPSIS
-    Automated Local Installer & Shortcut Creator for Klyro Secure Assessment Browser.
+    Automated Local Installer & Setup Wizard for Klyro Secure Assessment Browser.
 .DESCRIPTION
-    Installs Klyro into C:\Klyro, removes Mark-of-the-Web zone flags, and creates Desktop and Start Menu shortcuts.
+    Launches the modern Klyro Setup Wizard GUI featuring Terms & Conditions agreement,
+    destination selection, shortcut configuration radial buttons, live progress tracking,
+    and automatic application launch.
+.PARAMETER Silent
+    Runs the installation in unattended silent mode without displaying the GUI wizard.
+.PARAMETER NoGui
+    Alias for -Silent.
+.PARAMETER InstallDir
+    Target directory for installation (default: C:\Klyro).
+.PARAMETER NoShortcuts
+    Skips shortcut creation in silent mode.
 #>
+
+[CmdletBinding()]
+param(
+    [switch]$Silent,
+    [switch]$NoGui,
+    [string]$InstallDir = "C:\Klyro",
+    [switch]$NoShortcuts,
+    [switch]$Force,
+    [string]$Configuration = "Release"
+)
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "  Installing Klyro Secure Assessment Browser              " -ForegroundColor Cyan
-Write-Host "==========================================================" -ForegroundColor Cyan
-
+$installerProj = Join-Path $PSScriptRoot "src\Klyro.Installer\Klyro.Installer.csproj"
+$installerExe = Join-Path $PSScriptRoot "src\Klyro.Installer\bin\Debug\net8.0-windows\Klyro.Installer.exe"
+$appProj = Join-Path $PSScriptRoot "src\Klyro.App\Klyro.App.csproj"
 $sourcePublish = Join-Path $PSScriptRoot "artifacts\publish"
-$installDir = "C:\Klyro"
-$exePath = Join-Path $installDir "Klyro.App.exe"
+$dotnet = if ($env:USERPROFILE -and (Test-Path "$env:USERPROFILE\.dotnet\dotnet.exe")) { "$env:USERPROFILE\.dotnet\dotnet.exe" } else { "dotnet" }
 
-# 1. Stop any running Klyro processes before building
-Write-Host "[1/5] Stopping any existing Klyro processes..." -ForegroundColor Yellow
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "  Klyro Secure Assessment Browser Setup Wizard            " -ForegroundColor Cyan
+Write-Host "==========================================================" -ForegroundColor Cyan
+
+# 1. Stop any running Klyro processes before building or deploying
+Write-Host "[1/3] Checking running processes..." -ForegroundColor Yellow
 Get-Process -Name "Klyro*", "msedgewebview2*" -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 800
 
-# 2. Build and Publish Self-Contained Binaries
-Write-Host "[2/5] Publishing application binaries..." -ForegroundColor Yellow
-$dotnet = if (Test-Path "$HOME\.dotnet\dotnet.exe") { "$HOME\.dotnet\dotnet.exe" } else { "dotnet" }
-$projPath = Join-Path $PSScriptRoot "src\Klyro.App\Klyro.App.csproj"
+# 2. Ensure application binaries and installer are compiled
+Write-Host "[2/3] Verifying and building binaries..." -ForegroundColor Yellow
 
-if (Test-Path $sourcePublish) {
-    Remove-Item -Path $sourcePublish -Recurse -Force -ErrorAction SilentlyContinue
+$publishedExe = Join-Path $sourcePublish "Klyro.App.exe"
+$shouldPublish = $Force -or (-not (Test-Path $publishedExe))
+if (-not $shouldPublish) {
+    $latestSource = Get-ChildItem -Recurse (Join-Path $PSScriptRoot "src") | Measure-Object -Property LastWriteTime -Maximum
+    $pubExeTime = (Get-Item $publishedExe).LastWriteTime
+    if ($latestSource.Maximum -gt $pubExeTime) {
+        $shouldPublish = $true
+    }
 }
 
-& $dotnet publish $projPath -c Debug -r win-x64 --self-contained true -o $sourcePublish
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet publish failed with exit code $LASTEXITCODE"
-}
-
-# 3. Deploy to Installation Directory
-Write-Host "[3/5] Deploying to $installDir..." -ForegroundColor Yellow
-Get-Process -Name "Klyro*", "msedgewebview2*" -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Milliseconds 800
-
-Remove-Item -Path "$sourcePublish\*.log" -Force -ErrorAction SilentlyContinue
-
-if (-not (Test-Path $installDir)) {
-    New-Item -Path $installDir -ItemType Directory -Force | Out-Null
+if ($shouldPublish) {
+    Write-Host "Publishing Klyro self-contained binaries to artifacts\publish ($Configuration)..." -ForegroundColor Gray
+    & $dotnet publish $appProj -c $Configuration -r win-x64 --self-contained true -o $sourcePublish
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed with exit code $LASTEXITCODE"
+    }
 } else {
-    Remove-Item -Path "$installDir\*.log" -Force -ErrorAction SilentlyContinue
+    Write-Host "Published binaries are up to date ($publishedExe)." -ForegroundColor Gray
 }
 
-# Reset all previous user onboarding and cached sessions for a clean new-user experience
-Write-Host "Resetting previous user data and cached session state..." -ForegroundColor Yellow
-$klyroDataDir = Join-Path $env:LOCALAPPDATA "Klyro"
-if (Test-Path $klyroDataDir) {
-    Remove-Item (Join-Path $klyroDataDir "onboarding_state.json*") -Force -ErrorAction SilentlyContinue
-    Remove-Item (Join-Path $klyroDataDir "Profiles") -Recurse -Force -ErrorAction SilentlyContinue
+$shouldBuildInstaller = $Force -or (-not (Test-Path $installerExe))
+if (-not $shouldBuildInstaller) {
+    $latestInstallerSource = Get-ChildItem -Recurse (Join-Path $PSScriptRoot "src\Klyro.Installer") | Measure-Object -Property LastWriteTime -Maximum
+    $instExeTime = (Get-Item $installerExe).LastWriteTime
+    if ($latestInstallerSource.Maximum -gt $instExeTime) {
+        $shouldBuildInstaller = $true
+    }
 }
 
-Copy-Item -Path "$sourcePublish\*" -Destination $installDir -Recurse -Force
-$configSource = Join-Path $PSScriptRoot "config"
-if (Test-Path $configSource) {
-    Copy-Item -Path "$configSource\*" -Destination (Join-Path $installDir "config") -Recurse -Force
+if ($shouldBuildInstaller) {
+    Write-Host "Compiling Klyro Setup Wizard..." -ForegroundColor Gray
+    & $dotnet build $installerProj -c Debug
+    if ($LASTEXITCODE -ne 0) {
+        throw "Installer build failed with exit code $LASTEXITCODE"
+    }
+} else {
+    Write-Host "Installer executable is up to date ($installerExe)." -ForegroundColor Gray
 }
-Get-ChildItem -Path $installDir -Recurse | Unblock-File -ErrorAction SilentlyContinue
 
-# Ensure Users group has full read/write access to C:\Klyro
-try {
-    $acl = Get-Acl $installDir
-    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Users", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
-    $acl.AddAccessRule($rule)
-    Set-Acl $installDir $acl
-} catch { }
-
-# 4. Create Windows Shortcuts (Desktop & Start Menu)
-Write-Host "[4/5] Creating Desktop and Start Menu shortcuts..." -ForegroundColor Yellow
-$wshShell = New-Object -ComObject WScript.Shell
-
-# Desktop Shortcut
-$desktopPath = [Environment]::GetFolderPath("Desktop")
-$desktopLnk = Join-Path $desktopPath "Klyro Secure Assessment Browser.lnk"
-Remove-Item $desktopLnk -Force -ErrorAction SilentlyContinue
-$desktopShortcut = $wshShell.CreateShortcut($desktopLnk)
-$desktopShortcut.TargetPath = $exePath
-$desktopShortcut.WorkingDirectory = $installDir
-$iconPath = Join-Path $installDir "Assets\AppIcon.ico"
-if (Test-Path $iconPath) {
-    $desktopShortcut.IconLocation = "$iconPath,0"
+# 3. Launch Setup Experience
+if ($Silent -or $NoGui) {
+    Write-Host "[3/3] Executing silent installation..." -ForegroundColor Yellow
+    $argsList = @("--silent", "--dir=$InstallDir")
+    if ($NoShortcuts) {
+        $argsList += "--no-shortcuts"
+    }
+    $proc = Start-Process -FilePath $installerExe -ArgumentList $argsList -Wait -PassThru
+    if ($proc.ExitCode -eq 0) {
+        Write-Host "Installation completed successfully in silent mode." -ForegroundColor Green
+    } else {
+        throw "Installer failed with exit code $($proc.ExitCode)"
+    }
+} else {
+    Write-Host "[3/3] Launching Klyro Setup Wizard GUI..." -ForegroundColor Green
+    Write-Host "Displaying installation screens:" -ForegroundColor Gray
+    Write-Host "  - Screen 1: Terms & Conditions (EULA acceptance radio buttons)" -ForegroundColor Gray
+    Write-Host "  - Screen 2: Destination directory & shortcut creation radial buttons" -ForegroundColor Gray
+    Write-Host "  - Screen 3: Ready to Install & live progress tracking" -ForegroundColor Gray
+    Write-Host "  - Screen 4: Installation complete & launch prompt" -ForegroundColor Gray
+    
+    $proc = Start-Process -FilePath $installerExe -PassThru
+    Write-Host "Setup Wizard is running (PID: $($proc.Id)). Complete the steps in the installer window." -ForegroundColor Cyan
 }
-$desktopShortcut.Description = "Klyro - Secure Assessment Browser"
-$desktopShortcut.Save()
-
-# Start Menu Shortcut
-$startMenuDir = [Environment]::GetFolderPath("StartMenu")
-$startPrograms = Join-Path $startMenuDir "Programs"
-$startLnk = Join-Path $startPrograms "Klyro Secure Assessment Browser.lnk"
-Remove-Item $startLnk -Force -ErrorAction SilentlyContinue
-$startShortcut = $wshShell.CreateShortcut($startLnk)
-$startShortcut.TargetPath = $exePath
-$startShortcut.WorkingDirectory = $installDir
-if (Test-Path $iconPath) {
-    $startShortcut.IconLocation = "$iconPath,0"
-}
-$startShortcut.Description = "Klyro - Secure Assessment Browser"
-$startShortcut.Save()
-
-# Notify Windows Explorer of icon and association changes
-try {
-    $sig = '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'
-    $type = Add-Type -MemberDefinition $sig -Name "ShellChangeNotifierInstall" -Namespace "Win32" -PassThru
-    $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
-} catch { }
-
-# 5. Launch Application
-Write-Host "[5/5] Launching Klyro..." -ForegroundColor Yellow
-Start-Process -FilePath $exePath -WorkingDirectory $installDir
-
-Write-Host ""
-Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "  INSTALLATION AND LAUNCH SUCCESSFUL!                     " -ForegroundColor Green
-Write-Host "  - Installed Path : $exePath" -ForegroundColor Gray
-Write-Host "  - Desktop Icon   : Created" -ForegroundColor Gray
-Write-Host "  - Start Menu     : Searchable as 'Klyro'" -ForegroundColor Gray
-Write-Host "==========================================================" -ForegroundColor Green

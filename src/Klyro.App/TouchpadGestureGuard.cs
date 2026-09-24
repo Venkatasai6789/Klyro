@@ -10,7 +10,8 @@ namespace Klyro_App;
 /// <summary>
 /// Intercepts and neutralizes Windows Precision Touchpad multi-finger gestures
 /// (3-finger swipe up/down/left/right, 4-finger gestures, edge swipes, and multi-finger taps)
-/// via WinRT TouchpadGesturesController, Win32 RegisterTouchpadCapableWindow, and Registry policies.
+/// via Win32 SetGestureConfig, RegisterTouchpadCapableWindow, RegisterTouchWindow, Window Subclassing,
+/// WinRT TouchpadGesturesController, and Registry policies.
 /// </summary>
 public sealed class TouchpadGestureGuard : IDisposable
 {
@@ -22,40 +23,167 @@ public sealed class TouchpadGestureGuard : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool RegisterTouchpadCapableThread(bool fEnable);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool RegisterTouchWindow(IntPtr hWnd, uint ulFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GESTURECONFIG
+    {
+        public uint dwID;
+        public uint dwWant;
+        public uint dwBlock;
+    }
+
+    private const uint GC_ALLGESTURES = 0x00000001;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetGestureConfig(
+        IntPtr hWnd,
+        uint dwReserved,
+        uint cIDs,
+        [In] GESTURECONFIG[] pGestureConfig,
+        uint cbSize);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd,
+        uint Msg,
+        UIntPtr wParam,
+        string? lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out UIntPtr lpdwResult);
+
+    private const int HWND_BROADCAST = 0xffff;
+    private const uint WM_SETTINGCHANGE = 0x001A;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
+
+    // Window Subclassing for WM_GESTURE & WM_GESTURENOTIFY suppression
+    private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData);
+
+    [DllImport("comctl32.dll", SetLastError = true)]
+    private static extern bool SetWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass, IntPtr dwRefData);
+
+    [DllImport("comctl32.dll", SetLastError = true)]
+    private static extern bool RemoveWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass);
+
+    [DllImport("comctl32.dll", SetLastError = true)]
+    private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+    private const uint WM_GESTURE = 0x0119;
+    private const uint WM_GESTURENOTIFY = 0x011A;
+    private const uint WM_SYSCOMMAND = 0x0112;
+    private const int SC_MINIMIZE = 0xF020;
+    private const int SC_TASKLIST = 0xF130;
+
+    private static readonly UIntPtr SubclassId = new(9876);
+    private readonly SubclassProc _subclassProc;
+    private IntPtr _hookedHwnd;
+    private bool _isSubclassed;
+
     private object? _controller;
     private readonly Dictionary<string, object?> _originalPtpSettings = new();
     private object? _originalEdgeUiUserSetting;
     private bool _isDisposed;
 
-    public bool IsActive => _controller != null;
+    public bool IsActive => _controller != null || _isSubclassed;
+
+    public TouchpadGestureGuard()
+    {
+        _subclassProc = WndProcSubclass;
+    }
 
     public void Enable(IntPtr hWnd = default)
     {
         try
         {
-            // 1. Opt window and thread into Precision Touchpad capability
+            // 1. Opt window and thread into Precision Touchpad capability and apply gesture configurations
             try
             {
                 RegisterTouchpadCapableThread(true);
                 if (hWnd != IntPtr.Zero)
                 {
+                    _hookedHwnd = hWnd;
                     RegisterTouchpadCapableWindow(hWnd, true);
+                    RegisterTouchWindow(hWnd, 0);
+                    ConfigureGestureSuppression(hWnd);
+
+                    // Subclass window to swallow WM_GESTURE and gesture-induced WM_SYSCOMMAND
+                    if (!_isSubclassed)
+                    {
+                        _isSubclassed = SetWindowSubclass(hWnd, _subclassProc, SubclassId, IntPtr.Zero);
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Log($"Win32 window gesture setup warning: {ex.Message}");
+            }
 
-            // 2. Activate WinRT TouchpadGesturesController via WindowsRuntime projection
+            // 2. Activate WinRT TouchpadGesturesController if available
             InitializeTouchpadGesturesController();
 
             // 3. Enforce registry policies to disable 3-finger, 4-finger, and edge swipes
             ApplyTouchpadRegistryPolicies();
 
-            Log("TouchpadGestureGuard successfully enabled across WinRT controller, Win32 PTP capability, and Registry policies.");
+            Log("TouchpadGestureGuard successfully enabled across WinRT controller, Win32 PTP capability, Window Subclassing, and Registry policies.");
         }
         catch (Exception ex)
         {
             Log($"Failed to fully enable TouchpadGestureGuard: {ex.Message}");
         }
+    }
+
+    private IntPtr WndProcSubclass(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData)
+    {
+        // 1. Swallow touch gestures (pinch-zoom, two-finger pan/rotate)
+        if (uMsg == WM_GESTURE)
+        {
+            return IntPtr.Zero; // Handled, suppress gesture
+        }
+
+        // 2. Intercept gesture notification to re-enforce gesture blocking
+        if (uMsg == WM_GESTURENOTIFY)
+        {
+            ConfigureGestureSuppression(hWnd);
+            return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+
+        // 3. Prevent minimize or tasklist triggered by trackpad gestures (e.g. 3-finger swipe down)
+        if (uMsg == WM_SYSCOMMAND)
+        {
+            int cmd = (int)((long)wParam & 0xFFF0);
+            if (cmd == SC_MINIMIZE || cmd == SC_TASKLIST)
+            {
+                return IntPtr.Zero; // Swallow minimize/tasklist attempt from gesture
+            }
+        }
+
+        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    private static void ConfigureGestureSuppression(IntPtr hWnd)
+    {
+        try
+        {
+            if (hWnd != IntPtr.Zero)
+            {
+                var configs = new GESTURECONFIG[]
+                {
+                    new()
+                    {
+                        dwID = 0, // Global configuration for all gestures
+                        dwWant = 0,
+                        dwBlock = GC_ALLGESTURES
+                    }
+                };
+
+                SetGestureConfig(hWnd, 0, (uint)configs.Length, configs, (uint)Marshal.SizeOf<GESTURECONFIG>());
+            }
+        }
+        catch { }
     }
 
     private void InitializeTouchpadGesturesController()
@@ -126,7 +254,12 @@ public sealed class TouchpadGestureGuard : IDisposable
                     "FourFingerSlideUp",
                     "FourFingerSlideDown",
                     "FourFingerSlideLeft",
-                    "FourFingerSlideRight"
+                    "FourFingerSlideRight",
+                    "ThreeFingerSlides",
+                    "FourFingerSlides",
+                    "ThreeFingerTaps",
+                    "FourFingerTaps",
+                    "ZoomEnabled"
                 };
 
                 foreach (var valName in ptpValues)
@@ -134,7 +267,10 @@ public sealed class TouchpadGestureGuard : IDisposable
                     try
                     {
                         var orig = Registry.GetValue(ptpKeyPath, valName, null);
-                        _originalPtpSettings[valName] = orig;
+                        if (!_originalPtpSettings.ContainsKey(valName))
+                        {
+                            _originalPtpSettings[valName] = orig;
+                        }
                         Registry.SetValue(ptpKeyPath, valName, 0, RegistryValueKind.DWord);
                     }
                     catch { }
@@ -156,12 +292,32 @@ public sealed class TouchpadGestureGuard : IDisposable
                     lmKey?.SetValue("AllowEdgeSwipe", 0, RegistryValueKind.DWord);
                 }
                 catch { }
+
+                // C. Broadcast WM_SETTINGCHANGE so system and input components reload settings immediately
+                BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Policy");
             }
         }
         catch (Exception ex)
         {
             Log($"ApplyTouchpadRegistryPolicies warning: {ex.Message}");
         }
+    }
+
+    private static void BroadcastSettingsChange(string? section)
+    {
+        try
+        {
+            SendMessageTimeout(
+                (IntPtr)HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                UIntPtr.Zero,
+                section,
+                SMTO_ABORTIFHUNG,
+                150,
+                out _);
+        }
+        catch { }
     }
 
     public void RestoreTouchpadRegistryPolicies()
@@ -214,6 +370,10 @@ public sealed class TouchpadGestureGuard : IDisposable
                         catch { }
                     }
                 }
+
+                // Broadcast restored settings
+                BroadcastSettingsChange("PrecisionTouchPad");
+                BroadcastSettingsChange("Policy");
             }
         }
         catch (Exception ex)
@@ -226,6 +386,12 @@ public sealed class TouchpadGestureGuard : IDisposable
     {
         try
         {
+            if (_isSubclassed && _hookedHwnd != IntPtr.Zero)
+            {
+                RemoveWindowSubclass(_hookedHwnd, _subclassProc, SubclassId);
+                _isSubclassed = false;
+            }
+
             if (_controller != null)
             {
                 var controllerType = _controller.GetType();

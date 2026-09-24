@@ -910,6 +910,7 @@ public sealed partial class MainPage : Page
                     settings.AreDevToolsEnabled = false;
                     settings.AreDefaultContextMenusEnabled = false;
                     settings.IsSwipeNavigationEnabled = false;
+                    settings.IsPinchZoomEnabled = false;
                 }
 
                 RecoveryWebView.PreviewKeyDown += (s, args) =>

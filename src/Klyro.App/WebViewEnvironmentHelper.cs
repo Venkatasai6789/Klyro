@@ -76,5 +76,6 @@ public static class WebViewEnvironmentHelper
         settings.AreBrowserAcceleratorKeysEnabled = false;
         settings.IsStatusBarEnabled = false;
         settings.IsSwipeNavigationEnabled = false;
+        settings.IsPinchZoomEnabled = false;
     }
 }
