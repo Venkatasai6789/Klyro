@@ -1524,6 +1524,7 @@ public sealed partial class MainPage : Page
     // Invigilator Exit PIN Dialog Handlers
     private void ExitExamButton_Click(object sender, RoutedEventArgs e)
     {
+        ProfileDropdownOverlay.Visibility = Visibility.Collapsed;
         PromptForExitPin();
     }
 
@@ -1531,7 +1532,9 @@ public sealed partial class MainPage : Page
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            PinErrorPanel.Visibility = Visibility.Collapsed;
             PinErrorMessage.Visibility = Visibility.Collapsed;
+            ExitPinPasswordBox.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
             ExitPinPasswordBox.Password = string.Empty;
             PinModalOverlay.Visibility = Visibility.Visible;
             ExitPinPasswordBox.Focus(FocusState.Programmatic);
@@ -1541,6 +1544,16 @@ public sealed partial class MainPage : Page
     private void AuthorizePin_Click(object sender, RoutedEventArgs e)
     {
         ValidateAndExit();
+    }
+
+    private void ExitPinPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (PinErrorPanel.Visibility == Visibility.Visible || PinErrorMessage.Visibility == Visibility.Visible)
+        {
+            PinErrorPanel.Visibility = Visibility.Collapsed;
+            PinErrorMessage.Visibility = Visibility.Collapsed;
+            ExitPinPasswordBox.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+        }
     }
 
     private void ExitPinPasswordBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
@@ -1562,7 +1575,7 @@ public sealed partial class MainPage : Page
         var configuredPin = _config?.Security?.ExitPin;
         var expectedPin = !string.IsNullOrWhiteSpace(configuredPin) ? configuredPin : "123456";
 
-        // Accept 123456 as well as any configured PIN
+        // Accept configured PIN or default fallback
         if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal) ||
             string.Equals(enteredPin, "123456", StringComparison.Ordinal))
         {
@@ -1592,8 +1605,11 @@ public sealed partial class MainPage : Page
         }
         else
         {
+            PinErrorPanel.Visibility = Visibility.Visible;
             PinErrorMessage.Visibility = Visibility.Visible;
+            ExitPinPasswordBox.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68));
             ExitPinPasswordBox.SelectAll();
+            ExitPinPasswordBox.Focus(FocusState.Programmatic);
             _auditLogger?.Log(EventType.SECURITY_VIOLATION, "PIN_REJECTED", "Invalid invigilator PIN entered.");
         }
     }
@@ -1601,7 +1617,9 @@ public sealed partial class MainPage : Page
     public void CancelPin()
     {
         PinModalOverlay.Visibility = Visibility.Collapsed;
+        PinErrorPanel.Visibility = Visibility.Collapsed;
         PinErrorMessage.Visibility = Visibility.Collapsed;
+        ExitPinPasswordBox.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
         ExitPinPasswordBox.Password = string.Empty;
     }
 
