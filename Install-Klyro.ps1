@@ -17,8 +17,8 @@ $exePath = Join-Path $installDir "Klyro.App.exe"
 
 # 1. Stop any running Klyro processes before building
 Write-Host "[1/5] Stopping any existing Klyro processes..." -ForegroundColor Yellow
-Get-Process -Name "Klyro*" -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Milliseconds 500
+Get-Process -Name "Klyro*", "msedgewebview2*" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 800
 
 # 2. Build and Publish Self-Contained Binaries
 Write-Host "[2/5] Publishing application binaries..." -ForegroundColor Yellow
@@ -36,8 +36,8 @@ if ($LASTEXITCODE -ne 0) {
 
 # 3. Deploy to Installation Directory
 Write-Host "[3/5] Deploying to $installDir..." -ForegroundColor Yellow
-Get-Process -Name "Klyro*" -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Milliseconds 500
+Get-Process -Name "Klyro*", "msedgewebview2*" -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Milliseconds 800
 
 Remove-Item -Path "$sourcePublish\*.log" -Force -ErrorAction SilentlyContinue
 
@@ -111,7 +111,7 @@ try {
 
 # 5. Launch Application
 Write-Host "[5/5] Launching Klyro..." -ForegroundColor Yellow
-Start-Process "explorer.exe" -ArgumentList "`"$exePath`""
+Start-Process -FilePath $exePath -WorkingDirectory $installDir
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green

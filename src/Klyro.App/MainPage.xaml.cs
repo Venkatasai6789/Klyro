@@ -405,10 +405,20 @@ public sealed partial class MainPage : Page
 
         _isExamWebViewInitialized = true;
 
-        var targetUrl = _examStateMachine?.CurrentSession?.LastKnownAssessmentUrl ?? _config?.Exam?.StartUrl ?? "https://www.codechef.com/";
-        ExamWebView.CoreWebView2.Navigate(targetUrl);
-
-        _examStateMachine?.TransitionTo(ExamState.ACTIVE);
+        if (_examStateMachine?.CurrentSession?.LastKnownAssessmentUrl != null)
+        {
+            var targetUrl = _examStateMachine.CurrentSession.LastKnownAssessmentUrl;
+            ExamHomePageOverlay.Visibility = Visibility.Collapsed;
+            ExamWebView.Visibility = Visibility.Visible;
+            TabAssessmentText.Text = "CodeChef Assessment";
+            CurrentUrlTextBox.Text = targetUrl;
+            ExamWebView.CoreWebView2.Navigate(targetUrl);
+            _examStateMachine.TransitionTo(ExamState.ACTIVE);
+        }
+        else
+        {
+            ShowAssessmentHome();
+        }
     }
 
     private void ExamWebView_NavigationStarting(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs e)
@@ -1501,7 +1511,17 @@ public sealed partial class MainPage : Page
     // Navigation Toolbar Event Handlers
     private void NavBack_Click(object sender, RoutedEventArgs e)
     {
-        if (ExamWebView.CanGoBack) ExamWebView.GoBack();
+        if (ExamWebView.Visibility == Visibility.Visible)
+        {
+            if (ExamWebView.CanGoBack)
+            {
+                ExamWebView.GoBack();
+            }
+            else
+            {
+                ShowAssessmentHome();
+            }
+        }
     }
 
     private void NavForward_Click(object sender, RoutedEventArgs e)
