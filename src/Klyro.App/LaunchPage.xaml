@@ -1314,277 +1314,280 @@
                 <!-- STATE 6: CHECKING YOUR ENVIRONMENT (Screen 06)               -->
                 <!-- ============================================================ -->
                 <Grid x:Name="PreflightCheckingStateGrid" Visibility="Collapsed" Opacity="0">
-                    <StackPanel VerticalAlignment="Top"
-                                HorizontalAlignment="Left"
-                                Margin="48,46,0,0"
-                                MaxWidth="440">
-
-                        <!-- 1. Header Sub-badge: Horizontal Blue Accent Bar + ENVIRONMENT CHECK -->
-                        <StackPanel Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    Spacing="10"
-                                    Margin="0,0,0,16">
-                            <Border Width="36"
-                                    Height="3"
-                                    CornerRadius="1.5"
-                                    Background="#0066FF"
-                                    VerticalAlignment="Center" />
-                            <TextBlock Text="ENVIRONMENT CHECK"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       CharacterSpacing="200"
-                                       Foreground="#94A3B8"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-
-                        <!-- 2. Main Heading: "Checking your \n environment" -->
-                        <StackPanel Margin="0,0,0,12">
-                            <TextBlock Text="Checking your"
-                                       FontSize="44"
-                                       FontWeight="Bold"
-                                       Foreground="#FFFFFF"
-                                       LineHeight="48" />
-                            <TextBlock Text="environment"
-                                       FontSize="44"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource KlyroTextGradientBrush}"
-                                       LineHeight="52" />
-                        </StackPanel>
-
-                        <!-- 3. Body Copy -->
-                        <TextBlock Text="Klyro is verifying your setup. This usually takes less than a minute."
-                                   FontSize="14"
-                                   Foreground="#94A3B8"
-                                   Margin="0,0,0,16" />
-
-                        <!-- 4. Dynamic Check Rows Container (380 DIP width) -->
-                        <StackPanel Spacing="7" Width="380" HorizontalAlignment="Left">
-
-                            <!-- Row 1: Account -->
-                            <Border x:Name="AccountCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14,9">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="38" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- Status Icon Container -->
-                                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Border x:Name="AccountPassedIcon" Width="26" Height="26" CornerRadius="13" Background="#10B981" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <ProgressRing x:Name="AccountProgressRing" Width="20" Height="20" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
-                                        <Border x:Name="AccountWaitingIcon" Width="22" Height="22" CornerRadius="11" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
-                                        <Border x:Name="AccountFailedIcon" Width="26" Height="26" CornerRadius="13" Background="#EF4444" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </Grid>
-
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <TextBlock Text="Account" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                        <TextBlock x:Name="AccountSubtitleText" Text="Waiting for verification..." FontSize="12" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-
-                                    <TextBlock x:Name="AccountStatusText" Grid.Column="2" Text="Waiting" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-
-                            <!-- Row 2: Network -->
-                            <Border x:Name="NetworkCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14,9">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="38" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Border x:Name="NetworkPassedIcon" Width="26" Height="26" CornerRadius="13" Background="#10B981" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <ProgressRing x:Name="NetworkProgressRing" Width="20" Height="20" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
-                                        <Border x:Name="NetworkWaitingIcon" Width="22" Height="22" CornerRadius="11" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
-                                        <Border x:Name="NetworkFailedIcon" Width="26" Height="26" CornerRadius="13" Background="#EF4444" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </Grid>
-
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <TextBlock Text="Network" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                        <TextBlock x:Name="NetworkSubtitleText" Text="Waiting for network check..." FontSize="12" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-
-                                    <TextBlock x:Name="NetworkStatusText" Grid.Column="2" Text="Waiting" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-
-                            <!-- Row 3: Internet -->
-                            <Border x:Name="InternetCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14,9">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="38" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Border x:Name="InternetPassedIcon" Width="26" Height="26" CornerRadius="13" Background="#10B981" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <ProgressRing x:Name="InternetProgressRing" Width="20" Height="20" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
-                                        <Border x:Name="InternetWaitingIcon" Width="22" Height="22" CornerRadius="11" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
-                                        <Border x:Name="InternetFailedIcon" Width="26" Height="26" CornerRadius="13" Background="#EF4444" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </Grid>
-
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <TextBlock Text="Internet" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                        <TextBlock x:Name="InternetSubtitleText" Text="Waiting for connection..." FontSize="12" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-
-                                    <TextBlock x:Name="InternetStatusText" Grid.Column="2" Text="Waiting" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-
-                            <!-- Row 4: Assessment service -->
-                            <Border x:Name="AssessmentCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14,9">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="38" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Border x:Name="AssessmentPassedIcon" Width="26" Height="26" CornerRadius="13" Background="#10B981" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <ProgressRing x:Name="AssessmentProgressRing" Width="20" Height="20" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
-                                        <Border x:Name="AssessmentWaitingIcon" Width="22" Height="22" CornerRadius="11" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
-                                        <Border x:Name="AssessmentFailedIcon" Width="26" Height="26" CornerRadius="13" Background="#EF4444" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </Grid>
-
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <TextBlock Text="Assessment service" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                        <TextBlock x:Name="AssessmentSubtitleText" Text="Waiting for response..." FontSize="12" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-
-                                    <TextBlock x:Name="AssessmentStatusText" Grid.Column="2" Text="Waiting" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-
-                            <!-- Row 5: Secure environment -->
-                            <Border x:Name="SecurityCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14,9">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="38" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <Border x:Name="SecurityPassedIcon" Width="26" Height="26" CornerRadius="13" Background="#10B981" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE73E;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                        <ProgressRing x:Name="SecurityProgressRing" Width="20" Height="20" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
-                                        <Border x:Name="SecurityWaitingIcon" Width="22" Height="22" CornerRadius="11" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
-                                        <Border x:Name="SecurityFailedIcon" Width="26" Height="26" CornerRadius="13" Background="#EF4444" Visibility="Collapsed">
-                                            <FontIcon Glyph="&#xE711;" FontSize="13" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </Grid>
-
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <TextBlock Text="Secure environment" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                        <TextBlock x:Name="SecuritySubtitleText" Text="Waiting for checks to complete..." FontSize="12" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-
-                                    <TextBlock x:Name="SecurityStatusText" Grid.Column="2" Text="Waiting" FontSize="13" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-                        </StackPanel>
-
-                        <!-- 5. Progress Indicator (Bar + Count) -->
-                        <Grid Width="380" Margin="0,14,0,14" HorizontalAlignment="Left">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar x:Name="PreflightProgressBar" Grid.Column="0" Height="6" CornerRadius="3"
-                                         Background="#1E293B" Foreground="#0066FF" Minimum="0" Maximum="5" Value="0"
-                                         VerticalAlignment="Center" Margin="0,0,16,0" />
-                            <TextBlock x:Name="PreflightProgressCounter" Grid.Column="1" Text="0 / 5"
-                                       FontSize="13" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
-                        </Grid>
-
-                        <!-- 6. Advisory Info Box -->
-                        <Border Width="380" Background="#101726" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Padding="14,11" HorizontalAlignment="Left">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <FontIcon Glyph="&#xE946;" FontSize="18" Foreground="#38BDF8" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="0,2,0,0" />
-                                <TextBlock Grid.Column="1" FontSize="12" Foreground="#94A3B8" LineHeight="17" TextWrapping="Wrap">
-                                    <Run Text="Please keep this window open during the checks." /><LineBreak />
-                                    <Run Text="Do not disconnect from your network or close the application." />
-                                </TextBlock>
-                            </Grid>
-                        </Border>
-
-                        <!-- 7. Failure Remediation / Retry Container (shown only upon genuine failure) -->
-                        <StackPanel x:Name="PreflightRetryContainer" Width="380" Visibility="Collapsed" Margin="0,12,0,0" Spacing="8">
-                            <Border Background="#201115" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="8" Padding="12,10">
-                                <TextBlock x:Name="PreflightErrorDetails" Text="" FontSize="12" Foreground="#FCA5A5" TextWrapping="Wrap" LineHeight="16" />
-                            </Border>
-                            <Button x:Name="PreflightRetryButton"
-                                    Style="{StaticResource GetStartedButtonStyle}"
-                                    Click="PreflightRetryButton_Click"
-                                    PointerEntered="PreflightRetryButton_PointerEntered"
-                                    PointerExited="PreflightRetryButton_PointerExited"
-                                    PointerPressed="PreflightRetryButton_PointerPressed"
-                                    PointerReleased="PreflightRetryButton_PointerReleased"
-                                    Width="380"
-                                    Height="48"
-                                    Padding="20,0"
-                                    Background="#0066FF"
-                                    BorderThickness="1"
-                                    BorderBrush="#2563EB"
-                                    CornerRadius="8"
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel VerticalAlignment="Center"
                                     HorizontalAlignment="Left"
-                                    HorizontalContentAlignment="Stretch"
-                                    AutomationProperties.Name="Retry Diagnostic Checks"
-                                    ToolTipService.ToolTip="Re-run environment verification checks"
-                                    TabIndex="0">
-                                <Grid HorizontalAlignment="Stretch">
-                                    <TextBlock Text="Retry Diagnostic Checks"
-                                               FontSize="15"
-                                               FontWeight="SemiBold"
-                                               Foreground="#FFFFFF"
-                                               VerticalAlignment="Center"
-                                               HorizontalAlignment="Left" />
+                                    Margin="48,16,48,16"
+                                    MaxWidth="440">
 
-                                    <Border x:Name="PreflightRetryArrowBadge"
-                                            Width="30"
-                                            Height="30"
-                                            CornerRadius="15"
-                                            Background="#1A75FF"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center">
-                                        <FontIcon x:Name="PreflightRetryArrowIcon"
-                                                  Glyph="&#xE72C;"
-                                                  FontSize="13"
-                                                  Foreground="#FFFFFF"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                                    </Border>
+                            <!-- 1. Header Sub-badge: Horizontal Blue Accent Bar + ENVIRONMENT CHECK -->
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Spacing="10"
+                                        Margin="0,0,0,10">
+                                <Border Width="36"
+                                        Height="3"
+                                        CornerRadius="1.5"
+                                        Background="#0066FF"
+                                        VerticalAlignment="Center" />
+                                <TextBlock Text="ENVIRONMENT CHECK"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           CharacterSpacing="200"
+                                           Foreground="#94A3B8"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- 2. Main Heading: "Checking your \n environment" -->
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="Checking your"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="#FFFFFF"
+                                           LineHeight="34" />
+                                <TextBlock Text="environment"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource KlyroTextGradientBrush}"
+                                           LineHeight="36" />
+                            </StackPanel>
+
+                            <!-- 3. Body Copy -->
+                            <TextBlock Text="Klyro is verifying your setup. This usually takes less than a minute."
+                                       FontSize="13"
+                                       Foreground="#94A3B8"
+                                       Margin="0,0,0,12" />
+
+                            <!-- 4. Dynamic Check Rows Container (380 DIP width) -->
+                            <StackPanel Spacing="5" Width="380" HorizontalAlignment="Left">
+
+                                <!-- Row 1: Account -->
+                                <Border x:Name="AccountCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="14,7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Status Icon Container -->
+                                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Border x:Name="AccountPassedIcon" Width="24" Height="24" CornerRadius="12" Background="#10B981" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <ProgressRing x:Name="AccountProgressRing" Width="18" Height="18" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
+                                            <Border x:Name="AccountWaitingIcon" Width="20" Height="20" CornerRadius="10" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
+                                            <Border x:Name="AccountFailedIcon" Width="24" Height="24" CornerRadius="12" Background="#EF4444" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="Account" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                            <TextBlock x:Name="AccountSubtitleText" Text="Waiting for verification..." FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="AccountStatusText" Grid.Column="2" Text="Waiting" FontSize="12" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Row 2: Network -->
+                                <Border x:Name="NetworkCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="14,7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Border x:Name="NetworkPassedIcon" Width="24" Height="24" CornerRadius="12" Background="#10B981" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <ProgressRing x:Name="NetworkProgressRing" Width="18" Height="18" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
+                                            <Border x:Name="NetworkWaitingIcon" Width="20" Height="20" CornerRadius="10" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
+                                            <Border x:Name="NetworkFailedIcon" Width="24" Height="24" CornerRadius="12" Background="#EF4444" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="Network" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                            <TextBlock x:Name="NetworkSubtitleText" Text="Waiting for network check..." FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="NetworkStatusText" Grid.Column="2" Text="Waiting" FontSize="12" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Row 3: Internet -->
+                                <Border x:Name="InternetCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="14,7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Border x:Name="InternetPassedIcon" Width="24" Height="24" CornerRadius="12" Background="#10B981" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <ProgressRing x:Name="InternetProgressRing" Width="18" Height="18" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
+                                            <Border x:Name="InternetWaitingIcon" Width="20" Height="20" CornerRadius="10" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
+                                            <Border x:Name="InternetFailedIcon" Width="24" Height="24" CornerRadius="12" Background="#EF4444" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="Internet" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                            <TextBlock x:Name="InternetSubtitleText" Text="Waiting for connection..." FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="InternetStatusText" Grid.Column="2" Text="Waiting" FontSize="12" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Row 4: Assessment service -->
+                                <Border x:Name="AssessmentCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="14,7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Border x:Name="AssessmentPassedIcon" Width="24" Height="24" CornerRadius="12" Background="#10B981" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <ProgressRing x:Name="AssessmentProgressRing" Width="18" Height="18" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
+                                            <Border x:Name="AssessmentWaitingIcon" Width="20" Height="20" CornerRadius="10" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
+                                            <Border x:Name="AssessmentFailedIcon" Width="24" Height="24" CornerRadius="12" Background="#EF4444" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="Assessment service" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                            <TextBlock x:Name="AssessmentSubtitleText" Text="Waiting for response..." FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="AssessmentStatusText" Grid.Column="2" Text="Waiting" FontSize="12" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Row 5: Secure environment -->
+                                <Border x:Name="SecurityCardBorder" Background="#141C2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="14,7">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Border x:Name="SecurityPassedIcon" Width="24" Height="24" CornerRadius="12" Background="#10B981" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE73E;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <ProgressRing x:Name="SecurityProgressRing" Width="18" Height="18" Foreground="#38BDF8" IsActive="False" Visibility="Collapsed" />
+                                            <Border x:Name="SecurityWaitingIcon" Width="20" Height="20" CornerRadius="10" BorderBrush="#334155" BorderThickness="2" Background="Transparent" Visibility="Visible" />
+                                            <Border x:Name="SecurityFailedIcon" Width="24" Height="24" CornerRadius="12" Background="#EF4444" Visibility="Collapsed">
+                                                <FontIcon Glyph="&#xE711;" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock Text="Secure environment" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                            <TextBlock x:Name="SecuritySubtitleText" Text="Waiting for checks to complete..." FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <TextBlock x:Name="SecurityStatusText" Grid.Column="2" Text="Waiting" FontSize="12" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- 5. Progress Indicator (Bar + Count) -->
+                            <Grid Width="380" Margin="0,9,0,9" HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar x:Name="PreflightProgressBar" Grid.Column="0" Height="5" CornerRadius="2.5"
+                                             Background="#1E293B" Foreground="#0066FF" Minimum="0" Maximum="5" Value="0"
+                                             VerticalAlignment="Center" Margin="0,0,14,0" />
+                                <TextBlock x:Name="PreflightProgressCounter" Grid.Column="1" Text="0 / 5"
+                                           FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 6. Advisory Info Box -->
+                            <Border Width="380" Background="#101726" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="12,8" HorizontalAlignment="Left">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE946;" FontSize="15" Foreground="#38BDF8" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                    <TextBlock Grid.Column="1" FontSize="11.5" Foreground="#94A3B8" LineHeight="16" TextWrapping="Wrap" VerticalAlignment="Center">
+                                        <Run Text="Please keep this window open during the checks." /><LineBreak />
+                                        <Run Text="Do not disconnect from your network or close the application." />
+                                    </TextBlock>
                                 </Grid>
-                            </Button>
+                            </Border>
+
+                            <!-- 7. Failure Remediation / Retry Container (shown only upon genuine failure) -->
+                            <StackPanel x:Name="PreflightRetryContainer" Width="380" Visibility="Collapsed" Margin="0,10,0,0" Spacing="8">
+                                <Border Background="#201115" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="8" Padding="12,8">
+                                    <TextBlock x:Name="PreflightErrorDetails" Text="" FontSize="11.5" Foreground="#FCA5A5" TextWrapping="Wrap" LineHeight="15" />
+                                </Border>
+                                <Button x:Name="PreflightRetryButton"
+                                        Style="{StaticResource GetStartedButtonStyle}"
+                                        Click="PreflightRetryButton_Click"
+                                        PointerEntered="PreflightRetryButton_PointerEntered"
+                                        PointerExited="PreflightRetryButton_PointerExited"
+                                        PointerPressed="PreflightRetryButton_PointerPressed"
+                                        PointerReleased="PreflightRetryButton_PointerReleased"
+                                        Width="380"
+                                        Height="48"
+                                        Padding="20,0"
+                                        Background="#0066FF"
+                                        BorderThickness="1"
+                                        BorderBrush="#2563EB"
+                                        CornerRadius="8"
+                                        HorizontalAlignment="Left"
+                                        HorizontalContentAlignment="Stretch"
+                                        AutomationProperties.Name="Retry Diagnostic Checks"
+                                        ToolTipService.ToolTip="Re-run environment verification checks"
+                                        TabIndex="0">
+                                    <Grid HorizontalAlignment="Stretch">
+                                        <TextBlock Text="Retry Diagnostic Checks"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#FFFFFF"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Left" />
+
+                                        <Border x:Name="PreflightRetryArrowBadge"
+                                                Width="30"
+                                                Height="30"
+                                                CornerRadius="15"
+                                                Background="#1A75FF"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center">
+                                            <FontIcon x:Name="PreflightRetryArrowIcon"
+                                                      Glyph="&#xE72C;"
+                                                      FontSize="13"
+                                                      Foreground="#FFFFFF"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
                 <!-- ============================================================ -->
