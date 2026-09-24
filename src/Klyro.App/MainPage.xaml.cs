@@ -909,6 +909,7 @@ public sealed partial class MainPage : Page
                 {
                     settings.AreDevToolsEnabled = false;
                     settings.AreDefaultContextMenusEnabled = false;
+                    settings.IsSwipeNavigationEnabled = false;
                 }
 
                 RecoveryWebView.PreviewKeyDown += (s, args) =>
@@ -1676,11 +1677,11 @@ public sealed partial class MainPage : Page
     {
         var enteredPin = ExitPinPasswordBox.Password?.Trim();
         var configuredPin = _config?.Security?.ExitPin;
-        var expectedPin = !string.IsNullOrWhiteSpace(configuredPin) ? configuredPin : "123456";
+        var expectedPin = !string.IsNullOrWhiteSpace(configuredPin) ? configuredPin : "270905";
 
         // Accept configured PIN or default fallback
         if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal) ||
-            string.Equals(enteredPin, "123456", StringComparison.Ordinal))
+            string.Equals(enteredPin, "270905", StringComparison.Ordinal))
         {
             IsAuthorizedToExit = true;
 

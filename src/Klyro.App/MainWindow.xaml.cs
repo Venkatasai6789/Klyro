@@ -27,6 +27,7 @@ public sealed partial class MainWindow : Window
 
     private readonly OnboardingStateStore _onboardingStore = new();
     private readonly KeyboardHookManager _keyboardHook = new();
+    private readonly TouchpadGestureGuard _touchpadGestureGuard = new();
     private bool _isFirstRun;
     private bool _isFullScreenConfigured;
 
@@ -45,6 +46,11 @@ public sealed partial class MainWindow : Window
             if (hWnd != IntPtr.Zero)
             {
                 SetWindowText(hWnd, Program.WindowTitle);
+                _touchpadGestureGuard.Enable(hWnd);
+            }
+            else
+            {
+                _touchpadGestureGuard.Enable();
             }
         }
         catch { }
@@ -81,8 +87,8 @@ public sealed partial class MainWindow : Window
 
         // Intercept closing attempts to require Invigilator PIN authorization during active exams
         AppWindow.Closing += AppWindow_Closing;
-        AppWindow.Destroying += (s, e) => { _keyboardHook.UninstallHook(); App.ExitCompletely(); };
-        Closed += (s, e) => { _keyboardHook.UninstallHook(); App.ExitCompletely(); };
+        AppWindow.Destroying += (s, e) => { _touchpadGestureGuard.Dispose(); _keyboardHook.UninstallHook(); App.ExitCompletely(); };
+        Closed += (s, e) => { _touchpadGestureGuard.Dispose(); _keyboardHook.UninstallHook(); App.ExitCompletely(); };
 
         // Always boot through LaunchPage (Screen 1 Startup & Diagnostic Pipeline) for both new and existing users.
         // Returning candidates execute preflight verification before entering the exam view.

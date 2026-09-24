@@ -19,6 +19,11 @@ public class KeyboardHookSecurityTests
     private const uint VK_F4 = KeyboardHookManager.VK_F4;
     private const uint VK_F11 = KeyboardHookManager.VK_F11;
     private const uint VK_F12 = KeyboardHookManager.VK_F12;
+    private const uint VK_APPS = KeyboardHookManager.VK_APPS;
+    private const uint VK_F21 = KeyboardHookManager.VK_F21;
+    private const uint VK_F24 = KeyboardHookManager.VK_F24;
+    private const uint VK_BROWSER_BACK = KeyboardHookManager.VK_BROWSER_BACK;
+    private const uint VK_BROWSER_FORWARD = KeyboardHookManager.VK_BROWSER_FORWARD;
     private const uint LLKHF_ALTDOWN = KeyboardHookManager.LLKHF_ALTDOWN;
 
     [Theory]
@@ -150,6 +155,46 @@ public class KeyboardHookSecurityTests
             WM_KEYDOWN, VK_F12, 0, isCtrlDown: false, isAltDown: false, isWinDown: false, out var isExit2);
         Assert.True(blockedF12, "F12 must be blocked.");
         Assert.False(isExit2);
+    }
+
+    [Theory]
+    [InlineData(VK_APPS)]
+    [InlineData(VK_F21)]
+    [InlineData(VK_F24)]
+    [InlineData(VK_BROWSER_BACK)]
+    [InlineData(VK_BROWSER_FORWARD)]
+    public void ShouldBlockKeystroke_BlocksSyntheticTrackpadAndGestureKeys(uint vkCode)
+    {
+        bool blocked = KeyboardHookManager.ShouldBlockKeystroke(
+            WM_KEYDOWN, vkCode, 0, isCtrlDown: false, isAltDown: false, isWinDown: false, out var isExit);
+        Assert.True(blocked, $"Synthetic gesture key 0x{vkCode:X2} must be blocked.");
+        Assert.False(isExit);
+    }
+
+    [Fact]
+    public void ApplyAndRestoreTouchpadRestrictions_ConfiguresAndRestoresPolicies()
+    {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+            return;
+
+        KeyboardHookManager.ApplyTouchpadRestrictions();
+
+        var ptpVal = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad", "ThreeFingerSlideEnabled", null);
+        Assert.Equal(0, ptpVal);
+
+        var edgyVal = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad", "EnableEdgy", null);
+        if (edgyVal != null)
+        {
+            Assert.Equal(0, edgyVal);
+        }
+
+        var edgeUiVal = Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\EdgeUI", "AllowEdgeSwipe", null);
+        if (edgeUiVal != null)
+        {
+            Assert.Equal(0, edgeUiVal);
+        }
+
+        KeyboardHookManager.RestoreTouchpadRestrictions();
     }
 
     [Fact]

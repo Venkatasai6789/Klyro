@@ -75,5 +75,6 @@ public static class WebViewEnvironmentHelper
         settings.AreDefaultContextMenusEnabled = false;
         settings.AreBrowserAcceleratorKeysEnabled = false;
         settings.IsStatusBarEnabled = false;
+        settings.IsSwipeNavigationEnabled = false;
     }
 }

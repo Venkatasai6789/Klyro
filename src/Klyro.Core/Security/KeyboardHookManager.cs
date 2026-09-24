@@ -31,6 +31,18 @@ public sealed class KeyboardHookManager : IDisposable
     public const uint VK_F4 = 0x73;
     public const uint VK_F11 = 0x7A;
     public const uint VK_F12 = 0x7B;
+    public const uint VK_APPS = 0x5D;
+    public const uint VK_F21 = 0x84;
+    public const uint VK_F22 = 0x85;
+    public const uint VK_F23 = 0x86;
+    public const uint VK_F24 = 0x87;
+    public const uint VK_BROWSER_BACK = 0xA6;
+    public const uint VK_BROWSER_FORWARD = 0xA7;
+    public const uint VK_BROWSER_REFRESH = 0xA8;
+    public const uint VK_BROWSER_STOP = 0xA9;
+    public const uint VK_BROWSER_SEARCH = 0xAA;
+    public const uint VK_BROWSER_FAVORITES = 0xAB;
+    public const uint VK_BROWSER_HOME = 0xAC;
 
     public const uint LLKHF_ALTDOWN = 0x20;
 
@@ -92,6 +104,7 @@ public sealed class KeyboardHookManager : IDisposable
         {
             // 1. Enforce GameDVR suppression in registry, protocol handlers, and terminate active Game Bar processes
             ApplyGameDVRRestrictions();
+            ApplyTouchpadRestrictions();
             TerminateGameBarProcesses();
             StartGameBarProcessKiller();
 
@@ -156,6 +169,7 @@ public sealed class KeyboardHookManager : IDisposable
             _isRWinDown = false;
 
             RestoreGameDVRRestrictions();
+            RestoreTouchpadRestrictions();
         }
         catch { }
     }
@@ -257,6 +271,14 @@ public sealed class KeyboardHookManager : IDisposable
 
         // 6. Block F11 (full screen toggle attempt) and F12 (DevTools)
         if (vkCode == VK_F11 || vkCode == VK_F12)
+        {
+            return true;
+        }
+
+        // 7. Block synthetic / hardware keys triggered by trackpad gestures (F21-F24, Browser navigation keys, Context Apps key)
+        if (vkCode is VK_APPS or VK_F21 or VK_F22 or VK_F23 or VK_F24 or
+            VK_BROWSER_BACK or VK_BROWSER_FORWARD or VK_BROWSER_REFRESH or
+            VK_BROWSER_STOP or VK_BROWSER_SEARCH or VK_BROWSER_FAVORITES or VK_BROWSER_HOME)
         {
             return true;
         }
@@ -461,6 +483,119 @@ public sealed class KeyboardHookManager : IDisposable
         {
             _processKillerCts?.Cancel();
             _processKillerThread = null;
+        }
+        catch { }
+    }
+
+    private static readonly System.Collections.Generic.Dictionary<string, object?> _originalPtpSettings = new();
+    private static object? _originalEdgeUiUserSetting;
+
+    public static void ApplyTouchpadRestrictions()
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // A. Suppress multi-finger swipe & tap gestures in Precision Touchpad settings
+                string ptpKeyPath = @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
+                string[] ptpValues = {
+                    "ThreeFingerSlideEnabled",
+                    "FourFingerSlideEnabled",
+                    "ThreeFingerTapEnabled",
+                    "FourFingerTapEnabled",
+                    "EnableEdgy",
+                    "ThreeFingerSlideUp",
+                    "ThreeFingerSlideDown",
+                    "ThreeFingerSlideLeft",
+                    "ThreeFingerSlideRight",
+                    "FourFingerSlideUp",
+                    "FourFingerSlideDown",
+                    "FourFingerSlideLeft",
+                    "FourFingerSlideRight"
+                };
+
+                foreach (var valName in ptpValues)
+                {
+                    try
+                    {
+                        var orig = Registry.GetValue(ptpKeyPath, valName, null);
+                        _originalPtpSettings[valName] = orig;
+                        Registry.SetValue(ptpKeyPath, valName, 0, RegistryValueKind.DWord);
+                    }
+                    catch { }
+                }
+
+                // B. Disable screen & trackpad edge swipes (Action Center, Notifications, Widgets)
+                string edgeUiSubPath = @"Software\Policies\Microsoft\Windows\EdgeUI";
+                try
+                {
+                    _originalEdgeUiUserSetting = Registry.GetValue(@"HKEY_CURRENT_USER\" + edgeUiSubPath, "AllowEdgeSwipe", null);
+                    using var edgeKey = Registry.CurrentUser.CreateSubKey(edgeUiSubPath);
+                    edgeKey?.SetValue("AllowEdgeSwipe", 0, RegistryValueKind.DWord);
+                }
+                catch { }
+
+                try
+                {
+                    using var lmKey = Registry.LocalMachine.CreateSubKey(edgeUiSubPath);
+                    lmKey?.SetValue("AllowEdgeSwipe", 0, RegistryValueKind.DWord);
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    public static void RestoreTouchpadRestrictions()
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                string ptpKeyPath = @"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
+                using (var ptpKey = Registry.CurrentUser.OpenSubKey(ptpKeyPath, writable: true))
+                {
+                    if (ptpKey != null)
+                    {
+                        foreach (var kvp in _originalPtpSettings)
+                        {
+                            try
+                            {
+                                if (kvp.Value == null)
+                                {
+                                    ptpKey.DeleteValue(kvp.Key, throwOnMissingValue: false);
+                                }
+                                else
+                                {
+                                    ptpKey.SetValue(kvp.Key, kvp.Value, RegistryValueKind.DWord);
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                _originalPtpSettings.Clear();
+
+                string edgeUiSubPath = @"Software\Policies\Microsoft\Windows\EdgeUI";
+                using (var edgeKey = Registry.CurrentUser.OpenSubKey(edgeUiSubPath, writable: true))
+                {
+                    if (edgeKey != null)
+                    {
+                        try
+                        {
+                            if (_originalEdgeUiUserSetting == null)
+                            {
+                                edgeKey.DeleteValue("AllowEdgeSwipe", throwOnMissingValue: false);
+                            }
+                            else
+                            {
+                                edgeKey.SetValue("AllowEdgeSwipe", _originalEdgeUiUserSetting, RegistryValueKind.DWord);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
         }
         catch { }
     }
