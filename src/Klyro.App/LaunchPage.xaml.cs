@@ -65,6 +65,16 @@ public sealed partial class LaunchPage : Page
         {
             _preflightService = new EnvironmentPreflightService(_config);
             InitializeComponent();
+            KeyDown += (s, e) =>
+            {
+                bool isWin = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.LeftWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0
+                    || (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.RightWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+
+                if (isWin || e.Key is Windows.System.VirtualKey.LeftWindows or Windows.System.VirtualKey.RightWindows)
+                {
+                    e.Handled = true;
+                }
+            };
             Unloaded += LaunchPage_Unloaded;
             _browserAuthService.AuthCompleted += BrowserAuthService_AuthCompleted;
             if (MainWindow.CurrentInstance != null)

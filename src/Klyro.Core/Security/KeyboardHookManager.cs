@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace Klyro.Core.Security;
@@ -71,6 +72,11 @@ public sealed class KeyboardHookManager : IDisposable
     private static volatile bool _isLWinDown;
     private static volatile bool _isRWinDown;
 
+    private static CancellationTokenSource? _processKillerCts;
+    private static Thread? _processKillerThread;
+
+    public bool IsHookInstalled => _hookId != IntPtr.Zero;
+
     public event EventHandler? ExitRequested;
 
     public KeyboardHookManager()
@@ -84,19 +90,52 @@ public sealed class KeyboardHookManager : IDisposable
 
         try
         {
-            // 1. Enforce GameDVR suppression in registry and terminate active Game Bar processes
+            // 1. Enforce GameDVR suppression in registry, protocol handlers, and terminate active Game Bar processes
             ApplyGameDVRRestrictions();
             TerminateGameBarProcesses();
+            StartGameBarProcessKiller();
 
             // 2. Install low-level keyboard hook
             _proc = HookCallback;
-            using var curProcess = Process.GetCurrentProcess();
-            using var curModule = curProcess.MainModule;
-            _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule?.ModuleName), 0);
+            IntPtr hModule = IntPtr.Zero;
+            try
+            {
+                using var curProcess = Process.GetCurrentProcess();
+                using var curModule = curProcess.MainModule;
+                if (curModule != null)
+                {
+                    hModule = GetModuleHandle(curModule.ModuleName);
+                }
+            }
+            catch { }
+
+            if (hModule == IntPtr.Zero)
+            {
+                hModule = GetModuleHandle(null);
+            }
+
+            _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, hModule, 0);
+            if (_hookId == IntPtr.Zero)
+            {
+                // Fallback to IntPtr.Zero if module handle failed
+                _hookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, IntPtr.Zero, 0);
+            }
+
+            try
+            {
+                var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "boot.log");
+                System.IO.File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [KeyboardHookManager] Hook installed. HookId={_hookId}, LastError={Marshal.GetLastWin32Error()}\n");
+            }
+            catch { }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fail safely without crashing the host process if permissions or platform restricts hooks
+            try
+            {
+                var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "boot.log");
+                System.IO.File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [KeyboardHookManager FATAL] {ex}\n");
+            }
+            catch { }
         }
     }
 
@@ -104,6 +143,8 @@ public sealed class KeyboardHookManager : IDisposable
     {
         try
         {
+            StopGameBarProcessKiller();
+
             if (_hookId != IntPtr.Zero)
             {
                 UnhookWindowsHookEx(_hookId);
@@ -126,7 +167,7 @@ public sealed class KeyboardHookManager : IDisposable
             var kbd = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
             int msg = wParam.ToInt32();
 
-            // Track Win key transitions
+            // Track Win key transitions directly from messages
             if (kbd.vkCode == VK_LWIN)
             {
                 if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
@@ -142,17 +183,19 @@ public sealed class KeyboardHookManager : IDisposable
                     _isRWinDown = false;
             }
 
-            // Sync with physical state to ensure flags do not remain stuck if an up event occurred outside the hook
-            bool isPhysicalWinDown = (GetAsyncKeyState((int)VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState((int)VK_RWIN) & 0x8000) != 0;
-            if (!isPhysicalWinDown)
-            {
-                _isLWinDown = false;
-                _isRWinDown = false;
-            }
+            bool isWinDown = _isLWinDown || _isRWinDown
+                || ((GetAsyncKeyState((int)VK_LWIN) & 0x8000) != 0)
+                || ((GetAsyncKeyState((int)VK_RWIN) & 0x8000) != 0);
 
-            bool isWinDown = _isLWinDown || _isRWinDown || isPhysicalWinDown;
-            bool isAltDown = (kbd.flags & LLKHF_ALTDOWN) != 0 || (GetAsyncKeyState((int)VK_MENU) & 0x8000) != 0;
-            bool isCtrlDown = (GetKeyState((int)VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState((int)VK_CONTROL) & 0x8000) != 0;
+            bool isAltDown = (kbd.flags & LLKHF_ALTDOWN) != 0 || ((GetAsyncKeyState((int)VK_MENU) & 0x8000) != 0);
+            bool isCtrlDown = ((GetKeyState((int)VK_CONTROL) & 0x8000) != 0) || ((GetAsyncKeyState((int)VK_CONTROL) & 0x8000) != 0);
+
+            // Special fast-path for 'G' key when Win is down: aggressively terminate any Game Bar process and swallow
+            if (kbd.vkCode == VK_G && isWinDown)
+            {
+                TerminateGameBarProcesses();
+                return (IntPtr)1;
+            }
 
             if (ShouldBlockKeystroke(msg, kbd.vkCode, kbd.flags, isCtrlDown, isAltDown, isWinDown, out bool isExitRequested))
             {
@@ -240,18 +283,43 @@ public sealed class KeyboardHookManager : IDisposable
                 Registry.SetValue(@"HKEY_CURRENT_USER\System\GameConfigStore", "GameDVR_EFSEFeatureFlags", 0, RegistryValueKind.DWord);
 
                 // Disable GameBar auto mode and nexus shortcut
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "AllowAutoGameMode", 0, RegistryValueKind.DWord);
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "AutoGameModeEnabled", 0, RegistryValueKind.DWord);
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0, RegistryValueKind.DWord);
-                Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "ShowStartupPanel", 0, RegistryValueKind.DWord);
+                try
+                {
+                    Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "AllowAutoGameMode", 0, RegistryValueKind.DWord);
+                    Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "AutoGameModeEnabled", 0, RegistryValueKind.DWord);
+                    Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "UseNexusForGameBarEnabled", 0, RegistryValueKind.DWord);
+                    Registry.SetValue(@"HKEY_CURRENT_USER\Software\Microsoft\GameBar", "ShowStartupPanel", 0, RegistryValueKind.DWord);
+                }
+                catch { }
 
-                // Disable GameDVR in Windows Policies (HKCU)
-                Registry.SetValue(@"HKEY_CURRENT_USER\SOFTWARE\Policies\Microsoft\Windows\GameDVR", "AllowGameDVR", 0, RegistryValueKind.DWord);
+                // Disable GameDVR in Windows Policies if permissions permit (HKCU)
+                try
+                {
+                    Registry.SetValue(@"HKEY_CURRENT_USER\SOFTWARE\Policies\Microsoft\Windows\GameDVR", "AllowGameDVR", 0, RegistryValueKind.DWord);
+                }
+                catch { }
 
                 // Disable GameDVR in Machine Policies if elevated (HKLM)
                 try
                 {
                     Registry.SetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\GameDVR", "AllowGameDVR", 0, RegistryValueKind.DWord);
+                }
+                catch { }
+
+                // Hijack ms-gamebar, ms-gamingoverlay, ms-gamebarservices protocols in HKCU to harmless rundll32.exe
+                try
+                {
+                    string[] protocols = { "ms-gamebar", "ms-gamingoverlay", "ms-gamebarservices" };
+                    foreach (var proto in protocols)
+                    {
+                        using var protoKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{proto}");
+                        protoKey?.SetValue("", $"URL:{proto}", RegistryValueKind.String);
+                        protoKey?.SetValue("URL Protocol", "", RegistryValueKind.String);
+                        protoKey?.SetValue("NoOpenWith", "", RegistryValueKind.String);
+
+                        using var cmdKey = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{proto}\shell\open\command");
+                        cmdKey?.SetValue("", "rundll32.exe", RegistryValueKind.String);
+                    }
                 }
                 catch { }
 
@@ -290,6 +358,15 @@ public sealed class KeyboardHookManager : IDisposable
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
+                // Remove protocol redirections
+                try
+                {
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\ms-gamebar", throwOnMissingSubKey: false);
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\ms-gamingoverlay", throwOnMissingSubKey: false);
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\ms-gamebarservices", throwOnMissingSubKey: false);
+                }
+                catch { }
+
                 // Remove NoWinKeys policy on teardown
                 try
                 {
@@ -326,7 +403,7 @@ public sealed class KeyboardHookManager : IDisposable
     {
         try
         {
-            string[] gameBarProcs = { "GameBar", "GameBarFT", "GameBarPresenceWriter", "XboxGamingOverlay", "XboxGamingOverlayHost" };
+            string[] gameBarProcs = { "GameBar", "GameBarFT", "GameBarFtServer", "GameBarPresenceWriter", "XboxGamingOverlay", "XboxGamingOverlayHost", "bchat" };
             foreach (var procName in gameBarProcs)
             {
                 foreach (var p in Process.GetProcessesByName(procName))
@@ -342,6 +419,48 @@ public sealed class KeyboardHookManager : IDisposable
                     }
                 }
             }
+        }
+        catch { }
+    }
+
+    private static void StartGameBarProcessKiller()
+    {
+        if (_processKillerThread != null) return;
+
+        _processKillerCts = new CancellationTokenSource();
+        _processKillerThread = new Thread(() =>
+        {
+            while (!_processKillerCts.IsCancellationRequested)
+            {
+                try
+                {
+                    TerminateGameBarProcesses();
+                    Thread.Sleep(500);
+                }
+                catch (ThreadAbortException)
+                {
+                    break;
+                }
+                catch
+                {
+                    Thread.Sleep(1000);
+                }
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Klyro_GameBar_Killer",
+            Priority = ThreadPriority.Lowest
+        };
+        _processKillerThread.Start();
+    }
+
+    private static void StopGameBarProcessKiller()
+    {
+        try
+        {
+            _processKillerCts?.Cancel();
+            _processKillerThread = null;
         }
         catch { }
     }

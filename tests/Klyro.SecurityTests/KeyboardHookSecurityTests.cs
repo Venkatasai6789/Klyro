@@ -164,4 +164,36 @@ public class KeyboardHookSecurityTests
         Assert.Contains("xboxgamingoverlay", prohibited);
         Assert.Contains("xboxgamingoverlayhost", prohibited);
     }
+
+    [Fact]
+    public void ApplyAndRestoreGameDVRRestrictions_ConfiguresAndCleansUpProtocolRedirections()
+    {
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+            return;
+
+        // Apply
+        KeyboardHookManager.ApplyGameDVRRestrictions();
+
+        using (var cmdKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Classes\ms-gamebar\shell\open\command"))
+        {
+            Assert.NotNull(cmdKey);
+            var val = cmdKey.GetValue("") as string;
+            Assert.Equal("rundll32.exe", val);
+        }
+
+        using (var overlayCmdKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Classes\ms-gamingoverlay\shell\open\command"))
+        {
+            Assert.NotNull(overlayCmdKey);
+            var val = overlayCmdKey.GetValue("") as string;
+            Assert.Equal("rundll32.exe", val);
+        }
+
+        // Clean up
+        KeyboardHookManager.RestoreGameDVRRestrictions();
+
+        using (var cleanKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Classes\ms-gamebar"))
+        {
+            Assert.Null(cleanKey);
+        }
+    }
 }
