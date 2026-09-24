@@ -134,6 +134,9 @@ public sealed class BrowserOptions
         "https://cdn.codechef.com",
         "https://campus.codechef.com",
         "https://discuss.codechef.com",
+        "https://docs.google.com",
+        "https://forms.gle",
+        "https://forms.google.com",
         "https://accounts.google.com",
         "https://accounts.google.co.in",
         "https://myaccount.google.com",
@@ -144,7 +147,11 @@ public sealed class BrowserOptions
         "https://www.gstatic.com",
         "https://apis.google.com",
         "https://accounts.youtube.com",
-        "https://oauth2.googleapis.com"
+        "https://oauth2.googleapis.com",
+        "https://lh3.googleusercontent.com",
+        "https://lh4.googleusercontent.com",
+        "https://lh5.googleusercontent.com",
+        "https://lh6.googleusercontent.com"
     };
 
     [JsonPropertyName("recoveryAllowedOrigins")]

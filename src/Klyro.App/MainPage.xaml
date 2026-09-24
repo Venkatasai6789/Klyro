@@ -328,7 +328,7 @@
                                     <TextBlock Text="Only approved websites can be opened during this assessment." FontSize="12" Foreground="#64748B" />
                                 </StackPanel>
                                 <Border Background="#162238" BorderBrush="#253554" BorderThickness="1" CornerRadius="8" Padding="10,3">
-                                    <TextBlock Text="1 website approved" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                    <TextBlock Text="2 websites approved" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" />
                                 </Border>
                             </StackPanel>
                         </Grid>
@@ -359,6 +359,35 @@
                                         <!-- Status Badge -->
                                         <Border Background="#062E16" BorderBrush="#10B981" BorderThickness="1" CornerRadius="6" Padding="6,2" HorizontalAlignment="Center">
                                             <TextBlock Text="Approved Platform" FontSize="9.5" FontWeight="Bold" Foreground="#10B981" />
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+
+                            <!-- Google Forms Approved Website Card -->
+                            <Button x:Name="GoogleFormCardButton"
+                                    Click="GoogleFormCard_Click"
+                                    ToolTipService.ToolTip="Launch Google Form Assessment"
+                                    Width="220" Height="150"
+                                    Padding="18,16"
+                                    CornerRadius="10"
+                                    Background="#131B2E"
+                                    BorderBrush="#253554"
+                                    BorderThickness="1.5">
+                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                    <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- Emblem -->
+                                        <Border Width="48" Height="48" CornerRadius="10" Background="#241838" HorizontalAlignment="Center">
+                                            <FontIcon Glyph="&#xE8A5;" FontSize="22" Foreground="#A855F7" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <!-- Title & Domain -->
+                                        <StackPanel Spacing="2" HorizontalAlignment="Center">
+                                            <TextBlock Text="Google Forms" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                                            <TextBlock Text="docs.google.com" FontSize="11.5" FontFamily="Consolas" Foreground="#64748B" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                        <!-- Status Badge -->
+                                        <Border Background="#062E16" BorderBrush="#10B981" BorderThickness="1" CornerRadius="6" Padding="6,2" HorizontalAlignment="Center">
+                                            <TextBlock Text="Approved Form" FontSize="9.5" FontWeight="Bold" Foreground="#10B981" />
                                         </Border>
                                     </StackPanel>
                                 </Grid>

@@ -128,7 +128,9 @@ public sealed class AllowlistManager
                lower.Equals("fonts.googleapis.com", StringComparison.Ordinal) ||
                lower.Equals("apis.google.com", StringComparison.Ordinal) ||
                lower.Equals("content.googleapis.com", StringComparison.Ordinal) ||
-               lower.Equals("accounts.youtube.com", StringComparison.Ordinal);
+               lower.Equals("accounts.youtube.com", StringComparison.Ordinal) ||
+               lower.Equals("recaptcha.net", StringComparison.Ordinal) ||
+               lower.Equals("www.recaptcha.net", StringComparison.Ordinal);
     }
 
     private static string DetectLookalikeThreat(string host, HashSet<UriOrigin> allowedOrigins)

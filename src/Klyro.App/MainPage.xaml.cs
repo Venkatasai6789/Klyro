@@ -489,7 +489,21 @@ public sealed partial class MainPage : Page
     {
         if (ExamWebView.Visibility == Visibility.Visible)
         {
-            CurrentUrlTextBox.Text = ExamWebView.Source?.ToString() ?? _config.Exam.StartUrl;
+            var currentUri = ExamWebView.Source?.ToString();
+            CurrentUrlTextBox.Text = currentUri ?? string.Empty;
+            if (!string.IsNullOrEmpty(currentUri))
+            {
+                if (currentUri.Contains("docs.google.com", StringComparison.OrdinalIgnoreCase) ||
+                    currentUri.Contains("forms.gle", StringComparison.OrdinalIgnoreCase) ||
+                    currentUri.Contains("forms.google.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    TabAssessmentText.Text = "Assessment Form";
+                }
+                else if (currentUri.Contains("codechef.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    TabAssessmentText.Text = "CodeChef Assessment";
+                }
+            }
         }
         NavBackButton.IsEnabled = ExamWebView.CanGoBack;
         NavForwardButton.IsEnabled = ExamWebView.CanGoForward;
@@ -1073,6 +1087,8 @@ public sealed partial class MainPage : Page
         CurrentUrlTextBox.Text = string.Empty;
     }
 
+    public const string GoogleFormAssessmentUrl = "https://docs.google.com/forms/d/e/1FAIpQLScohPmHT5nJWX7i2jLMTXnyaHg4c52OJTyfTkW1Ci3DJ9BrdQ/viewform?usp=dialog";
+
     public void LaunchCodeChefAssessment()
     {
         ExamHomePageOverlay.Visibility = Visibility.Collapsed;
@@ -1093,6 +1109,28 @@ public sealed partial class MainPage : Page
     private void CodeChefCard_Click(object sender, RoutedEventArgs e)
     {
         LaunchCodeChefAssessment();
+    }
+
+    public void LaunchGoogleFormAssessment()
+    {
+        ExamHomePageOverlay.Visibility = Visibility.Collapsed;
+        ExamWebView.Visibility = Visibility.Visible;
+        TabAssessmentText.Text = "Assessment Form";
+        CurrentUrlTextBox.Text = GoogleFormAssessmentUrl;
+        if (!_isExamWebViewInitialized)
+        {
+            _ = InitializeExamWebViewAsync();
+        }
+        else
+        {
+            ExamWebView.CoreWebView2?.Navigate(GoogleFormAssessmentUrl);
+        }
+        ExamWebView.Focus(FocusState.Programmatic);
+    }
+
+    private void GoogleFormCard_Click(object sender, RoutedEventArgs e)
+    {
+        LaunchGoogleFormAssessment();
     }
 
     private void HomeSearchGo_Click(object sender, RoutedEventArgs e)
@@ -1148,10 +1186,22 @@ public sealed partial class MainPage : Page
             {
                 isAllowed = true;
             }
+            else if (uri.Host.Contains("docs.google.com", StringComparison.OrdinalIgnoreCase) ||
+                     uri.Host.Contains("forms.gle", StringComparison.OrdinalIgnoreCase) ||
+                     uri.Host.Contains("forms.google.com", StringComparison.OrdinalIgnoreCase))
+            {
+                isAllowed = true;
+            }
         }
         else if (trimmed.Contains("codechef", StringComparison.OrdinalIgnoreCase))
         {
             targetUrl = _config.Exam.StartUrl;
+            isAllowed = true;
+        }
+        else if (trimmed.Contains("form", StringComparison.OrdinalIgnoreCase) ||
+                 trimmed.Contains("google", StringComparison.OrdinalIgnoreCase))
+        {
+            targetUrl = GoogleFormAssessmentUrl;
             isAllowed = true;
         }
 
@@ -1159,7 +1209,9 @@ public sealed partial class MainPage : Page
         {
             ExamHomePageOverlay.Visibility = Visibility.Collapsed;
             ExamWebView.Visibility = Visibility.Visible;
-            TabAssessmentText.Text = "CodeChef Assessment";
+            TabAssessmentText.Text = targetUrl.Contains("forms", StringComparison.OrdinalIgnoreCase) || targetUrl.Contains("google", StringComparison.OrdinalIgnoreCase)
+                ? "Assessment Form"
+                : "CodeChef Assessment";
             CurrentUrlTextBox.Text = targetUrl;
             if (_isExamWebViewInitialized)
             {

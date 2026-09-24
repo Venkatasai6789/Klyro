@@ -40,6 +40,9 @@
       "https://cdn.codechef.com",
       "https://campus.codechef.com",
       "https://discuss.codechef.com",
+      "https://docs.google.com",
+      "https://forms.gle",
+      "https://forms.google.com",
       "https://accounts.google.com",
       "https://accounts.google.co.in",
       "https://myaccount.google.com",
@@ -50,7 +53,11 @@
       "https://www.gstatic.com",
       "https://apis.google.com",
       "https://accounts.youtube.com",
-      "https://oauth2.googleapis.com"
+      "https://oauth2.googleapis.com",
+      "https://lh3.googleusercontent.com",
+      "https://lh4.googleusercontent.com",
+      "https://lh5.googleusercontent.com",
+      "https://lh6.googleusercontent.com"
     ],
     "recoveryAllowedOrigins": [
       "http://172.16.103.254:8090",
