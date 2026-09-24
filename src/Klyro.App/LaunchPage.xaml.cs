@@ -396,6 +396,16 @@ public sealed partial class LaunchPage : Page
                     await Task.Delay(400);
                     await CaptureScreenshotAsync(screenshotWelcomePath);
                 }
+                if (cmdArgs.Any(a => a.Equals("--test-click-get-started", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("Auto-triggering GetStarted_Click for testing...");
+                    GetStarted_Click(this, new RoutedEventArgs());
+                    if (!string.IsNullOrEmpty(screenshotWelcomePath))
+                    {
+                        await Task.Delay(1200);
+                        await CaptureScreenshotAsync(screenshotWelcomePath);
+                    }
+                }
                 return;
             }
 
