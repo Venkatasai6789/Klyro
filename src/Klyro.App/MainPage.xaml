@@ -51,17 +51,17 @@
                 <Border Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="3">
                     <StackPanel Orientation="Horizontal" Spacing="3">
                         <!-- Tab 1: Single Assessment Tab (Assessment Home / CodeChef) -->
-                        <Button x:Name="TabAssessmentButton" Click="TabAssessment_Click" ToolTipService.ToolTip="Switch to Assessment" Padding="12,6" CornerRadius="6" Background="#162238" BorderBrush="#253554" BorderThickness="1">
+                        <Button x:Name="TabAssessmentButton" Click="TabAssessment_Click" ToolTipService.ToolTip="Switch to Assessment" Padding="10,5" CornerRadius="6" Background="#162238" BorderBrush="#253554" BorderThickness="1">
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE7BE;" FontSize="12" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                <Image Source="ms-appx:///Assets/Klyro_Logo.png" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
                                 <TextBlock x:Name="TabAssessmentText" Text="Assessment Home" FontSize="11.5" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
                         <!-- Tab 2: Campus Wi-Fi Portal (Active in Background) -->
-                        <Button x:Name="TabWifiPortalButton" Click="TabWifiPortal_Click" ToolTipService.ToolTip="Switch to Campus Wi-Fi Portal (Kept active in background)" Padding="10,6" CornerRadius="6" Background="Transparent" BorderThickness="0">
+                        <Button x:Name="TabWifiPortalButton" Click="TabWifiPortal_Click" ToolTipService.ToolTip="Switch to Campus Wi-Fi Portal (Kept active in background)" Padding="10,5" CornerRadius="6" Background="Transparent" BorderThickness="0">
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon x:Name="TabWifiIcon" Glyph="&#xE701;" FontSize="12" Foreground="#10B981" VerticalAlignment="Center" />
+                                <FontIcon x:Name="TabWifiIcon" Glyph="&#xE701;" FontSize="11" Foreground="#10B981" VerticalAlignment="Center" />
                                 <TextBlock x:Name="TabWifiTitle" Text="Campus Wi-Fi" FontSize="11.5" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
                                 <Border x:Name="WifiTabBadge" Background="#062E16" BorderBrush="#10B981" BorderThickness="1" CornerRadius="10" Padding="6,2" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -87,27 +87,24 @@
                             <FontIcon Glyph="&#xE72C;" FontSize="11" Foreground="#94A3B8" />
                         </Button>
                         <Border Width="1" Height="14" Background="#253554" Margin="3,0" VerticalAlignment="Center" />
-                        <Button x:Name="NavHomeButton" ToolTipService.ToolTip="Return to Assessment Home" Click="NavHome_Click" Padding="8,4" Background="Transparent" BorderThickness="0" CornerRadius="6">
-                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE80F;" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
-                                <TextBlock Text="Home" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" VerticalAlignment="Center" />
-                            </StackPanel>
+                        <Button x:Name="NavHomeButton" ToolTipService.ToolTip="Return to Assessment Home" Click="NavHome_Click" Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
+                            <FontIcon Glyph="&#xE80F;" FontSize="12" Foreground="#38BDF8" />
                         </Button>
                     </StackPanel>
                 </Border>
 
                 <!-- Interactive Top Address & Search Bar -->
-                <Border Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="8,3" Width="360">
+                <Border Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="8,3" Width="340">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE721;" FontSize="11" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <FontIcon Glyph="&#xE72E;" FontSize="10.5" Foreground="#10B981" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox x:Name="CurrentUrlTextBox"
                                  Grid.Column="1"
                                  PlaceholderText="Search or enter an allowed URL"
-                                 Text="https://www.codechef.com"
+                                 Text=""
                                  FontSize="11.5"
                                  FontFamily="Consolas"
                                  Foreground="#CBD5E1"
@@ -130,7 +127,7 @@
                     </StackPanel>
                 </Button>
 
-                <!-- Wi-Fi Quality & Latency Badge (No Wi-Fi name, just strength and ping!) -->
+                <!-- Wi-Fi Quality & Latency Badge (No Wi-Fi name in top bar! Only strength and ping) -->
                 <Button x:Name="NetworkQualityButton" Click="NetworkQualityButton_Click" ToolTipService.ToolTip="Wi-Fi Signal &amp; Latency • Click to choose Wi-Fi network" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
                     <Border x:Name="NetworkQualityBadge" Background="#0A1628" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="6" Padding="10,6" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -174,37 +171,37 @@
         <!-- PRIMARY ASSESSMENT VIEW AREA & HOME PAGE                       -->
         <!-- ═══════════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
-            <!-- Primary Assessment WebView2 (CodeChef runs here) -->
-            <WebView2 x:Name="ExamWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+            <!-- Primary Assessment WebView2 (CodeChef runs here, Collapsed by default until launched) -->
+            <WebView2 x:Name="ExamWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" />
 
             <!-- ═══════════════════════════════════════════════════════════ -->
             <!-- BROWSER HOME PAGE (Assessment Home Screen Overlay)          -->
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <Grid x:Name="ExamHomePageOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible" Canvas.ZIndex="5">
+            <Grid x:Name="ExamHomePageOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible" Canvas.ZIndex="10">
                 <!-- Ambient Glow Decoration -->
                 <Ellipse Width="680" Height="680" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-60,0,0" IsHitTestVisible="False">
                     <Ellipse.Fill>
                         <RadialGradientBrush>
-                            <GradientStop Color="#201075FE" Offset="0.0" />
-                            <GradientStop Color="#0A38BDF8" Offset="0.5" />
+                            <GradientStop Color="#1E1075FE" Offset="0.0" />
+                            <GradientStop Color="#0938BDF8" Offset="0.5" />
                             <GradientStop Color="#00000000" Offset="1.0" />
                         </RadialGradientBrush>
                     </Ellipse.Fill>
                 </Ellipse>
 
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="28" MaxWidth="800">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="26" MaxWidth="800">
                     <!-- Brand Emblem -->
                     <Border Width="88" Height="88" CornerRadius="44" Background="#131B2E" BorderBrush="#253554" BorderThickness="1.5" HorizontalAlignment="Center">
-                        <Image Source="ms-appx:///Assets/Klyro_Logo.png" Width="60" Height="60" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Image Source="ms-appx:///Assets/Klyro_Logo.png" Width="58" Height="58" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
 
                     <!-- Hero Title & Subtitle -->
                     <StackPanel Spacing="8" HorizontalAlignment="Center">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                            <TextBlock Text="Ready for your" FontSize="32" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
-                            <TextBlock Text="assessment" FontSize="32" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" />
+                            <TextBlock Text="Ready for your" FontSize="30" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                            <TextBlock Text="assessment" FontSize="30" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="Access only the websites approved for this assessment." FontSize="14" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                        <TextBlock Text="Access only the websites approved for this assessment." FontSize="13.5" Foreground="#94A3B8" HorizontalAlignment="Center" />
                     </StackPanel>
 
                     <!-- Hero Search / Address Bar -->
@@ -250,8 +247,8 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Border Width="3" Height="16" Background="#0066FF" CornerRadius="1.5" />
-                                <TextBlock Text="Allowed websites" FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                <Border Width="3" Height="16" Background="#38BDF8" CornerRadius="1.5" />
+                                <TextBlock Text="Allowed websites" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
@@ -271,7 +268,7 @@
                             <Button x:Name="CodeChefCardButton"
                                     Click="CodeChefCard_Click"
                                     ToolTipService.ToolTip="Launch CodeChef Assessment"
-                                    Width="210" Height="150"
+                                    Width="210" Height="145"
                                     Padding="18"
                                     CornerRadius="12"
                                     Background="#131B2E"
@@ -300,7 +297,7 @@
             <!-- BLOCKED URL OVERLAY — Clean Text, No Button                -->
             <!-- ═══════════════════════════════════════════════════════════ -->
             <Grid x:Name="BlockedUrlOverlay" Background="#E60B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="30" Tapped="BlockedUrlOverlay_Tapped">
-                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Width="440" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="14" Width="440" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
                     <StackPanel Spacing="16" HorizontalAlignment="Center">
                         <Border Width="56" Height="56" CornerRadius="28" Background="#26181A" BorderBrush="#7F1D1D" BorderThickness="1" HorizontalAlignment="Center">
                             <FontIcon Glyph="&#xE72E;" FontSize="24" Foreground="#EF4444" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -315,7 +312,7 @@
 
             <!-- Fallback / Error Card (Shown when navigation fails) -->
             <Grid x:Name="ExamErrorOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="15">
-                <Border Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Width="520" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="12" Width="520" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <StackPanel Spacing="16" HorizontalAlignment="Center">
                         <FontIcon Glyph="&#xEB55;" FontSize="40" Foreground="#EF4444" HorizontalAlignment="Center" />
                         <TextBlock Text="Assessment Service Unreachable" FontSize="18" FontWeight="Bold" Foreground="#E6EDF3" HorizontalAlignment="Center" />
@@ -358,7 +355,7 @@
 
             <!-- Captive Portal Recovery Modal Overlay (Kept active in background) -->
             <Grid x:Name="RecoveryModalOverlay" Background="#D9000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible" Opacity="0" IsHitTestVisible="False" Canvas.ZIndex="0">
-                <Border Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Width="860" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="14" Width="860" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -404,7 +401,7 @@
                         </StackPanel>
 
                         <!-- Isolated Captive Portal WebView2 Control -->
-                        <Border Grid.Row="2" BorderBrush="#253554" BorderThickness="1" CornerRadius="6" Margin="0,8">
+                        <Border Grid.Row="2" BorderBrush="#253554" BorderThickness="1" CornerRadius="8" Margin="0,8">
                             <WebView2 x:Name="RecoveryWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                         </Border>
 
@@ -424,7 +421,7 @@
             <!-- GNOME-STYLE EXPANDABLE WI-FI DROPDOWN                      -->
             <!-- ═══════════════════════════════════════════════════════════ -->
             <Grid x:Name="WifiDropdownOverlay" Background="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="45" Tapped="WifiDropdownOverlay_Tapped">
-                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Width="380" MaxHeight="540" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,70,0" Padding="18" Tapped="DialogContent_Tapped">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="14" Width="380" MaxHeight="540" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,70,0" Padding="18" Tapped="DialogContent_Tapped">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -507,7 +504,7 @@
             <!-- GNOME-STYLE EXPANDABLE PROFILE DROPDOWN                    -->
             <!-- ═══════════════════════════════════════════════════════════ -->
             <Grid x:Name="ProfileDropdownOverlay" Background="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="46" Tapped="ProfileDropdownOverlay_Tapped">
-                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Width="290" Padding="16" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,16,0" Tapped="DialogContent_Tapped">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="14" Width="290" Padding="16" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,16,0" Tapped="DialogContent_Tapped">
                     <StackPanel Spacing="12">
                         <!-- User Card -->
                         <StackPanel Orientation="Horizontal" Spacing="12">
@@ -569,7 +566,7 @@
             <!-- INVIGILATOR EXIT PIN MODAL (Reusing LaunchPage PIN UI)     -->
             <!-- ═══════════════════════════════════════════════════════════ -->
             <Grid x:Name="PinModalOverlay" Background="#D9000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="50" Tapped="PinModalOverlay_Tapped" KeyDown="PinModalOverlay_KeyDown">
-                <Border Width="400" Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
+                <Border Width="400" Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="14" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
                     <StackPanel Spacing="16">
                         <!-- Icon + Title -->
                         <StackPanel Orientation="Horizontal" Spacing="12">

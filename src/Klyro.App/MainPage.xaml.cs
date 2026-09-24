@@ -235,6 +235,7 @@ public sealed partial class MainPage : Page
 
             await Task.Delay(400);
             PreflightOverlay.Visibility = Visibility.Collapsed;
+            ShowAssessmentHome();
 
             try
             {
@@ -487,7 +488,10 @@ public sealed partial class MainPage : Page
 
     private void ExamWebView_SourceChanged(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2SourceChangedEventArgs e)
     {
-        CurrentUrlTextBox.Text = ExamWebView.Source?.ToString() ?? _config.Exam.StartUrl;
+        if (ExamWebView.Visibility == Visibility.Visible)
+        {
+            CurrentUrlTextBox.Text = ExamWebView.Source?.ToString() ?? _config.Exam.StartUrl;
+        }
         NavBackButton.IsEnabled = ExamWebView.CanGoBack;
         NavForwardButton.IsEnabled = ExamWebView.CanGoForward;
     }
@@ -1065,13 +1069,15 @@ public sealed partial class MainPage : Page
     public void ShowAssessmentHome()
     {
         ExamHomePageOverlay.Visibility = Visibility.Visible;
+        ExamWebView.Visibility = Visibility.Collapsed;
         TabAssessmentText.Text = "Assessment Home";
-        CurrentUrlTextBox.Text = "https://www.codechef.com";
+        CurrentUrlTextBox.Text = string.Empty;
     }
 
     public void LaunchCodeChefAssessment()
     {
         ExamHomePageOverlay.Visibility = Visibility.Collapsed;
+        ExamWebView.Visibility = Visibility.Visible;
         TabAssessmentText.Text = "CodeChef Assessment";
         CurrentUrlTextBox.Text = _config.Exam.StartUrl;
         if (!_isExamWebViewInitialized)
@@ -1148,6 +1154,7 @@ public sealed partial class MainPage : Page
         if (isAllowed)
         {
             ExamHomePageOverlay.Visibility = Visibility.Collapsed;
+            ExamWebView.Visibility = Visibility.Visible;
             TabAssessmentText.Text = "CodeChef Assessment";
             CurrentUrlTextBox.Text = targetUrl;
             if (_isExamWebViewInitialized)
