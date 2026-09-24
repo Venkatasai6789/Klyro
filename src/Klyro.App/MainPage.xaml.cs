@@ -47,6 +47,7 @@ public sealed partial class MainPage : Page
     private bool _isExamWebViewInitialized;
     private bool _isRecoveryWebViewInitialized;
     private CancellationTokenSource? _modalRecoveryPollCts;
+    private DispatcherTimer? _istClockTimer;
 
     public bool IsAuthorizedToExit { get; set; }
 
@@ -80,6 +81,7 @@ public sealed partial class MainPage : Page
 
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
+        StartIstClock();
         try
         {
             await InitializeSystemAsync();
@@ -404,21 +406,8 @@ public sealed partial class MainPage : Page
         };
 
         _isExamWebViewInitialized = true;
-
-        if (_examStateMachine?.CurrentSession?.LastKnownAssessmentUrl != null)
-        {
-            var targetUrl = _examStateMachine.CurrentSession.LastKnownAssessmentUrl;
-            ExamHomePageOverlay.Visibility = Visibility.Collapsed;
-            ExamWebView.Visibility = Visibility.Visible;
-            TabAssessmentText.Text = "CodeChef Assessment";
-            CurrentUrlTextBox.Text = targetUrl;
-            ExamWebView.CoreWebView2.Navigate(targetUrl);
-            _examStateMachine.TransitionTo(ExamState.ACTIVE);
-        }
-        else
-        {
-            ShowAssessmentHome();
-        }
+        // Strictly land on Assessment Home screen on startup (avoid auto-navigating to CodeChef)
+        ShowAssessmentHome();
     }
 
     private void ExamWebView_NavigationStarting(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationStartingEventArgs e)
@@ -1129,6 +1118,11 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private void ToolbarGo_Click(object sender, RoutedEventArgs e)
+    {
+        HandleUrlOrSearchSubmission(CurrentUrlTextBox.Text);
+    }
+
     private void HandleUrlOrSearchSubmission(string? input)
     {
         if (string.IsNullOrWhiteSpace(input)) return;
@@ -1186,6 +1180,43 @@ public sealed partial class MainPage : Page
     private void BlockedUrlOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
         BlockedUrlOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Indian Standard Time (IST) Live Clock
+    // ═══════════════════════════════════════════════════════════
+    private void StartIstClock()
+    {
+        UpdateIstClock();
+        _istClockTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _istClockTimer.Tick += (s, e) => UpdateIstClock();
+        _istClockTimer.Start();
+    }
+
+    private void UpdateIstClock()
+    {
+        try
+        {
+            DateTime istTime;
+            try
+            {
+                var istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+                istTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, istZone);
+            }
+            catch
+            {
+                istTime = DateTime.UtcNow.AddHours(5).AddMinutes(30);
+            }
+
+            if (FooterIstTimeText != null)
+            {
+                FooterIstTimeText.Text = istTime.ToString("hh:mm:ss tt IST");
+            }
+        }
+        catch { }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1612,6 +1643,7 @@ public sealed partial class MainPage : Page
             try { _keyboardHook?.UninstallHook(); } catch { }
 
             // 4. Dispose background network engine, tab workers, security watchdog & audit logger
+            try { _istClockTimer?.Stop(); } catch { }
             try { _tabWorkerManager?.StopAll(); } catch { }
             try { _tabWorkerManager?.Dispose(); } catch { }
             try { _securityWatchdog?.Stop(); } catch { }
@@ -1769,6 +1801,7 @@ public sealed partial class MainPage : Page
             _auditLogger?.Log(EventType.EXAM_COMPLETED, "LOGOUT", "Candidate logged out. Google session cleared.");
 
             // Uninstall security hooks before navigating away
+            try { _istClockTimer?.Stop(); } catch { }
             try { _keyboardHook?.UninstallHook(); } catch { }
             try { _tabWorkerManager?.StopAll(); } catch { }
             try { _tabWorkerManager?.Dispose(); } catch { }
