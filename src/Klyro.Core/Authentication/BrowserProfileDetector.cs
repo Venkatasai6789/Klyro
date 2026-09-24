@@ -91,6 +91,9 @@ public static class BrowserProfileDetector
             }
         }
 
+        // Scan Mozilla Firefox profiles (logins.json)
+        ScanFirefoxProfiles(candidates);
+
         // Sort descending by last modified time (most recent browser activity first)
         candidates.Sort((a, b) => b.LastModifiedUtc.CompareTo(a.LastModifiedUtc));
         return candidates;
@@ -202,6 +205,88 @@ public static class BrowserProfileDetector
         catch
         {
             // Silently ignore corrupted or unreadable JSON files
+        }
+
+        return candidates;
+    }
+
+    private static void ScanFirefoxProfiles(List<DetectedAccountCandidate> candidates)
+    {
+        try
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (string.IsNullOrWhiteSpace(appData)) return;
+
+            var firefoxProfilesDir = Path.Combine(appData, "Mozilla", "Firefox", "Profiles");
+            if (!Directory.Exists(firefoxProfilesDir)) return;
+
+            var profileDirs = Directory.GetDirectories(firefoxProfilesDir, "*", SearchOption.TopDirectoryOnly);
+            foreach (var pDir in profileDirs)
+            {
+                var loginsFile = Path.Combine(pDir, "logins.json");
+                if (!File.Exists(loginsFile)) continue;
+
+                var parsed = ParseFirefoxLoginsFileInternal(loginsFile);
+                candidates.AddRange(parsed);
+            }
+        }
+        catch
+        {
+            // Silently ignore
+        }
+    }
+
+    public static AuthenticatedUser? ParseFirefoxLoginsFile(string loginsFilePath)
+    {
+        var results = ParseFirefoxLoginsFileInternal(loginsFilePath);
+        return results.Count > 0 ? results[0].User : null;
+    }
+
+    private static List<DetectedAccountCandidate> ParseFirefoxLoginsFileInternal(string loginsFilePath)
+    {
+        var candidates = new List<DetectedAccountCandidate>();
+        if (!File.Exists(loginsFilePath)) return candidates;
+
+        try
+        {
+            using var stream = new FileStream(loginsFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var doc = JsonDocument.Parse(stream);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("logins", out var loginsProp) && loginsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in loginsProp.EnumerateArray())
+                {
+                    string hostname = item.TryGetProperty("hostname", out var h) ? h.GetString() ?? "" : "";
+                    if (!hostname.Contains("google.com", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    string username = item.TryGetProperty("username", out var u) ? u.GetString() ?? "" : "";
+                    if (string.IsNullOrWhiteSpace(username) || !username.Contains('@')) continue;
+
+                    long timeLastUsed = item.TryGetProperty("timeLastUsed", out var tlu) && tlu.TryGetInt64(out var t) ? t : 0;
+                    DateTime lastUsedUtc = timeLastUsed > 0
+                        ? DateTimeOffset.FromUnixTimeMilliseconds(timeLastUsed).UtcDateTime
+                        : File.GetLastWriteTimeUtc(loginsFilePath);
+
+                    var user = new AuthenticatedUser
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Email = username.Trim(),
+                        DisplayName = FormatCleanDisplayName(null, username.Trim()),
+                        AuthenticatedAt = lastUsedUtc
+                    };
+
+                    candidates.Add(new DetectedAccountCandidate
+                    {
+                        User = user,
+                        LastModifiedUtc = lastUsedUtc,
+                        SourcePath = loginsFilePath
+                    });
+                }
+            }
+        }
+        catch
+        {
         }
 
         return candidates;

@@ -132,11 +132,34 @@ public sealed partial class LaunchPage : Page
                 PreflightPrepareStateGrid.Opacity = 1.0;
 
                 string? screenshotScreen5Path = null;
+                string? testEmail = null;
+                string? testName = null;
                 for (int i = 0; i < cmdArgs.Length; i++)
                 {
                     if (cmdArgs[i].Equals("--screenshot-screen5", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
                         screenshotScreen5Path = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--test-user-email", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        testEmail = cmdArgs[i + 1];
+                    else if (cmdArgs[i].Equals("--test-user-name", StringComparison.OrdinalIgnoreCase) && i + 1 < cmdArgs.Length)
+                        testName = cmdArgs[i + 1];
                 }
+
+                if (_currentUser == null)
+                {
+                    var saved = _onboardingStore.GetAuthenticatedUser();
+                    var detected = BrowserProfileDetector.DetectLatestGoogleAccount();
+                    _currentUser = new AuthenticatedUser
+                    {
+                        DisplayName = testName ?? saved?.DisplayName ?? detected?.DisplayName ?? string.Empty,
+                        Email = testEmail ?? saved?.Email ?? detected?.Email ?? string.Empty,
+                        PhotoUrl = saved?.PhotoUrl ?? detected?.PhotoUrl,
+                        GoogleSub = saved?.GoogleSub ?? detected?.GoogleSub ?? string.Empty,
+                        GivenName = saved?.GivenName ?? detected?.GivenName,
+                        FamilyName = saved?.FamilyName ?? detected?.FamilyName
+                    };
+                }
+
+                UpdatePreflightCandidatePill(_currentUser);
 
                 if (!string.IsNullOrEmpty(screenshotScreen5Path))
                 {
@@ -488,8 +511,26 @@ public sealed partial class LaunchPage : Page
                 // 200–400ms pause as per specification
                 await Task.Delay(350);
 
-                // Polished transition from Screen 1 (Startup) to Screen 2 (Welcome)
-                await TransitionToWelcomeAsync(screenshotWelcomePath);
+                if (stayOnLaunch)
+                {
+                    PageLog("Staying on launch screen as requested by CLI options.");
+                    return;
+                }
+
+                // UX Routing Decision:
+                // Returning Candidate -> Skip Screen 2 & 3, go directly to Screen 05 (Prepare your environment)
+                // New Candidate       -> Transition to Screen 02 (Welcome)
+                if (IsExistingUser(out var existingCandidate))
+                {
+                    PageLog($"Existing candidate detected: {existingCandidate?.Email} ({existingCandidate?.DisplayName}). Navigating directly to Screen 05 (Prepare your environment)...");
+                    _currentUser = existingCandidate;
+                    await TransitionStartupToPreflightPrepareAsync(screenshotWelcomePath);
+                }
+                else
+                {
+                    PageLog("New / first-time candidate detected. Navigating to Screen 02 (Welcome)...");
+                    await TransitionToWelcomeAsync(screenshotWelcomePath);
+                }
             }
             else
             {
@@ -544,6 +585,113 @@ public sealed partial class LaunchPage : Page
             StartupStateGrid.Visibility = Visibility.Collapsed;
             WelcomeStateGrid.Visibility = Visibility.Visible;
             WelcomeStateGrid.Opacity = 1.0;
+        }
+    }
+
+    private bool IsExistingUser(out AuthenticatedUser? user)
+    {
+        user = null;
+        var cmdArgs = Environment.GetCommandLineArgs();
+
+        // 1. Explicit CLI overrides for automated QA and testing
+        if (cmdArgs.Any(a => a.Equals("--first-run", StringComparison.OrdinalIgnoreCase) ||
+                             a.Equals("--new-user", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageLog("IsExistingUser: Forced new user via CLI argument (--first-run / --new-user).");
+            return false;
+        }
+
+        if (cmdArgs.Any(a => a.Equals("--existing-user", StringComparison.OrdinalIgnoreCase)))
+        {
+            PageLog("IsExistingUser: Forced existing user via CLI argument (--existing-user).");
+            user = _onboardingStore.GetAuthenticatedUser() ?? BrowserProfileDetector.DetectLatestGoogleAccount();
+            return user != null && !string.IsNullOrWhiteSpace(user.Email);
+        }
+
+        // 2. Check persistent onboarding state store
+        var saved = _onboardingStore.GetAuthenticatedUser();
+        if (saved != null && !string.IsNullOrWhiteSpace(saved.Email))
+        {
+            PageLog($"IsExistingUser: Returning candidate detected from state store: {saved.Email}");
+            user = saved;
+            return true;
+        }
+
+        // 3. Fallback: Check if onboarding was completed previously and browser profile has a Google account
+        if (_onboardingStore.IsFirstRunCompleted())
+        {
+            var detected = BrowserProfileDetector.DetectLatestGoogleAccount();
+            if (detected != null && !string.IsNullOrWhiteSpace(detected.Email))
+            {
+                PageLog($"IsExistingUser: Completed onboarding previously, detected user: {detected.Email}");
+                user = detected;
+                try { _onboardingStore.SaveAuthenticatedUser(detected); } catch { }
+                return true;
+            }
+        }
+
+        PageLog("IsExistingUser: No existing authenticated session found. Candidate treated as first-time user.");
+        return false;
+    }
+
+    private async Task TransitionStartupToPreflightPrepareAsync(string? screenshotPath = null)
+    {
+        PageLog("Transitioning directly from Screen 01 (Startup) to Screen 05 (Prepare Environment) for returning candidate...");
+        try
+        {
+            UpdatePreflightCandidatePill(_currentUser);
+
+            // Prepare Screen 05 elements
+            PreflightPrepareStateGrid.Visibility = Visibility.Visible;
+            PreflightPrepareStateGrid.Opacity = 0.0;
+            PreflightPrepareStateGrid.Translation = new System.Numerics.Vector3(0, 12, 0);
+
+            // Smooth cross-fade:
+            // Left artwork: StartupScreenBg & KlyroBrandLogo fade out -> PreflightScreenBg fades in
+            // Right content: StartupStateGrid fades out -> PreflightPrepareStateGrid fades in
+            const int steps = 12;
+            for (int i = 1; i <= steps; i++)
+            {
+                double progress = i / (double)steps;
+
+                StartupStateGrid.Opacity = 1.0 - progress;
+                StartupScreenBg.Opacity = 1.0 - progress;
+                KlyroBrandLogo.Opacity = 1.0 - progress;
+
+                PreflightScreenBg.Opacity = progress;
+                PreflightPrepareStateGrid.Opacity = progress;
+                PreflightPrepareStateGrid.Translation = new System.Numerics.Vector3(0, (float)(12 * (1.0 - progress)), 0);
+
+                await Task.Delay(25);
+            }
+
+            StartupStateGrid.Visibility = Visibility.Collapsed;
+            StartupStateGrid.Opacity = 0.0;
+            StartupScreenBg.Opacity = 0.0;
+            KlyroBrandLogo.Opacity = 0.0;
+
+            PreflightScreenBg.Opacity = 1.0;
+            PreflightPrepareStateGrid.Opacity = 1.0;
+            PreflightPrepareStateGrid.Translation = new System.Numerics.Vector3(0, 0, 0);
+
+            PageLog("Screen 05 (Prepare Environment) transition complete for returning candidate.");
+
+            if (!string.IsNullOrEmpty(screenshotPath))
+            {
+                await Task.Delay(300);
+                await CaptureScreenshotAsync(screenshotPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            PageLog($"TransitionStartupToPreflightPrepareAsync error: {ex}");
+            StartupStateGrid.Visibility = Visibility.Collapsed;
+            StartupScreenBg.Opacity = 0.0;
+            KlyroBrandLogo.Opacity = 0.0;
+            PreflightScreenBg.Opacity = 1.0;
+            PreflightPrepareStateGrid.Visibility = Visibility.Visible;
+            PreflightPrepareStateGrid.Opacity = 1.0;
+            UpdatePreflightCandidatePill(_currentUser);
         }
     }
 
@@ -1314,27 +1462,23 @@ public sealed partial class LaunchPage : Page
             : (!string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@') ? BrowserProfileDetector.FormatCleanDisplayName(null, user.Email) : "Candidate");
         ConnectedUserEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : string.Empty;
         ConnectedUserInitials.Text = user.GetInitials();
+        ConnectedUserInitials.Visibility = Visibility.Visible;
+        ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
 
         if (!string.IsNullOrWhiteSpace(user.PhotoUrl) && Uri.TryCreate(user.PhotoUrl, UriKind.Absolute, out var photoUri))
         {
             try
             {
                 ConnectedUserPhotoBrush.ImageSource = new BitmapImage(photoUri);
-                ConnectedUserPhotoBorder.Visibility = Visibility.Visible;
-                ConnectedUserInitials.Visibility = Visibility.Collapsed;
             }
             catch
             {
                 ConnectedUserPhotoBrush.ImageSource = null;
-                ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
-                ConnectedUserInitials.Visibility = Visibility.Visible;
             }
         }
         else
         {
             ConnectedUserPhotoBrush.ImageSource = null;
-            ConnectedUserPhotoBorder.Visibility = Visibility.Collapsed;
-            ConnectedUserInitials.Visibility = Visibility.Visible;
         }
     }
 
@@ -1385,6 +1529,9 @@ public sealed partial class LaunchPage : Page
     private async Task TransitionToPreflightPrepareAsync()
     {
         PageLog("Starting transition from Screen 4 to Screen 5 (Prepare Environment)...");
+
+        // Update candidate identity pill
+        UpdatePreflightCandidatePill(_currentUser);
 
         // Prepare Screen 5 elements
         PreflightPrepareStateGrid.Visibility = Visibility.Visible;
@@ -1720,6 +1867,77 @@ public sealed partial class LaunchPage : Page
         _ = RunPreflightChecksAsync();
     }
 
+    private void UpdatePreflightCandidatePill(AuthenticatedUser? user)
+    {
+        if (user != null && (!string.IsNullOrWhiteSpace(user.Email) || !string.IsNullOrWhiteSpace(user.DisplayName)))
+        {
+            string displayName = !string.IsNullOrWhiteSpace(user.DisplayName)
+                ? user.DisplayName
+                : (!string.IsNullOrWhiteSpace(user.Email) && user.Email.Contains('@') ? BrowserProfileDetector.FormatCleanDisplayName(null, user.Email) : "Candidate");
+
+            PreflightCandidateName.Text = displayName;
+            PreflightCandidateEmail.Text = !string.IsNullOrWhiteSpace(user.Email) ? user.Email : string.Empty;
+            PreflightCandidateInitials.Text = user.GetInitials();
+            PreflightCandidatePill.Visibility = Visibility.Visible;
+            PageLog($"PreflightCandidatePill updated: {displayName} ({user.Email}) [{user.GetInitials()}]");
+        }
+        else
+        {
+            PreflightCandidatePill.Visibility = Visibility.Collapsed;
+            PageLog("PreflightCandidatePill collapsed (no user).");
+        }
+    }
+
+    private async void PreflightSwitchAccount_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Preflight switch account clicked. Transitioning to Screen 3 (Account Setup)...");
+        _isAccountSwitching = true;
+        _previousUser = _currentUser;
+        _isAuthCompleted = false;
+
+        try
+        {
+            int steps = 10;
+            for (int i = steps - 1; i >= 0; i--)
+            {
+                double progress = i / (double)steps;
+                PreflightPrepareStateGrid.Opacity = progress;
+                PreflightScreenBg.Opacity = progress;
+                GoogleSigninBg.Opacity = 1.0 - progress;
+                await Task.Delay(20);
+            }
+
+            PreflightPrepareStateGrid.Visibility = Visibility.Collapsed;
+            PreflightPrepareStateGrid.Opacity = 0.0;
+            PreflightScreenBg.Opacity = 0.0;
+
+            GoogleSigninBg.Opacity = 1.0;
+            AccountSetupStateGrid.Visibility = Visibility.Visible;
+            AccountSetupStateGrid.Opacity = 1.0;
+
+            // Reset Google sign in button
+            GoogleSignInButton.IsEnabled = true;
+            GoogleButtonText.Text = "Continue with Google";
+            GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
+            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 59, 130, 246));
+            GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            GoogleArrowIcon.Visibility = Visibility.Visible;
+            GoogleArrowIcon.Glyph = "\uE76C";
+            GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
+            GoogleAuthProgressRing.IsActive = false;
+        }
+        catch (Exception ex)
+        {
+            PageLog($"PreflightSwitchAccount_Click error: {ex}");
+            PreflightPrepareStateGrid.Visibility = Visibility.Collapsed;
+            PreflightScreenBg.Opacity = 0.0;
+            GoogleSigninBg.Opacity = 1.0;
+            AccountSetupStateGrid.Visibility = Visibility.Visible;
+            AccountSetupStateGrid.Opacity = 1.0;
+        }
+    }
+
     private void ContinueButton_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
@@ -1810,9 +2028,9 @@ public sealed partial class LaunchPage : Page
 
         try
         {
-            string authUrl = "https://accounts.google.com/ServiceLogin";
-            PageLog($"Launching system browser for Google sign-in at {authUrl}");
-            await _browserAuthService.StartSystemBrowserAuthAsync(authUrl, TimeSpan.FromMinutes(5));
+            var config = GoogleOAuthConfiguration.LoadFromEnvironmentOrConfig();
+            PageLog($"Launching system browser for Google OAuth PKCE flow (Client: {(!string.IsNullOrEmpty(config.ClientId) ? config.ClientId : "Default Public")})");
+            await _browserAuthService.StartGoogleOAuthAsync(config, TimeSpan.FromMinutes(5));
         }
         catch (Exception ex)
         {

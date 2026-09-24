@@ -31,7 +31,12 @@ public sealed class SecurityWatchdog : IDisposable
         "x64dbg",
         "vmware",
         "vboxservice",
-        "vboxtray"
+        "vboxtray",
+        "gamebar",
+        "gamebarft",
+        "gamebarpresencewriter",
+        "xboxgamingoverlay",
+        "xboxgamingoverlayhost"
     };
 
     private readonly IAuditLogger? _auditLogger;
@@ -46,6 +51,7 @@ public sealed class SecurityWatchdog : IDisposable
 
     public bool IsRunning => _isRunning;
     public Thread? WorkerThread => _watchdogThread;
+    public IReadOnlySet<string> ProhibitedProcesses => _prohibitedProcesses;
 
     public event EventHandler<SecurityViolation>? ViolationDetected;
 

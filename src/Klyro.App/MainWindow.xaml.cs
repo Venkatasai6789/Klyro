@@ -79,18 +79,12 @@ public sealed partial class MainWindow : Window
         AppWindow.Destroying += (s, e) => App.ExitCompletely();
         Closed += (s, e) => App.ExitCompletely();
 
-        // Navigate appropriately based on first-run status
+        // Always boot through LaunchPage (Screen 1 Startup & Diagnostic Pipeline) for both new and existing users.
+        // Returning candidates execute preflight verification before entering the exam view.
         try
         {
-            if (_isFirstRun)
-            {
-                ConfigureStartupWindowLayout();
-                RootFrame.Navigate(typeof(LaunchPage));
-            }
-            else
-            {
-                RootFrame.Navigate(typeof(MainPage));
-            }
+            ConfigureStartupWindowLayout();
+            RootFrame.Navigate(typeof(LaunchPage));
         }
         catch (Exception ex)
         {
@@ -219,7 +213,7 @@ public sealed partial class MainWindow : Window
         }
         catch { }
 
-        if (!_isFirstRun && !_isFullScreenConfigured && args.WindowActivationState != WindowActivationState.Deactivated)
+        if (RootFrame.Content is MainPage && !_isFullScreenConfigured && args.WindowActivationState != WindowActivationState.Deactivated)
         {
             _isFullScreenConfigured = true;
 

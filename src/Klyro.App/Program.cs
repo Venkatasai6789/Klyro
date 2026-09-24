@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Klyro.Core.Security;
 
 namespace Klyro_App;
 
@@ -74,6 +75,14 @@ public static class Program
         SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
 
         Log($"Main entered. PID: {Environment.ProcessId}. Args: {string.Join(" ", args)}");
+
+        // Enforce GameDVR suppression and terminate background Game Bar processes
+        try
+        {
+            KeyboardHookManager.ApplyGameDVRRestrictions();
+            KeyboardHookManager.TerminateGameBarProcesses();
+        }
+        catch { }
 
         if (args.Any(a => a.Equals("--reset", StringComparison.OrdinalIgnoreCase) ||
                           a.Equals("--reset-browser", StringComparison.OrdinalIgnoreCase) ||

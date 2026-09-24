@@ -58,6 +58,15 @@ public sealed partial class MainPage : Page
 
     private void MainPage_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
+        bool isWin = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.LeftWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0
+            || (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.RightWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+
+        if (isWin || e.Key is Windows.System.VirtualKey.LeftWindows or Windows.System.VirtualKey.RightWindows)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
             if (WifiPickerOverlay.Visibility == Visibility.Visible)
@@ -290,10 +299,19 @@ public sealed partial class MainPage : Page
             settings.AreDefaultScriptDialogsEnabled = false;
         }
 
-        // Block shortcut keys: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+P, Ctrl+S, Ctrl+U, F12
+        // Block shortcut keys: Win keys, Win+G, Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+P, Ctrl+S, Ctrl+U, F12
         ExamWebView.PreviewKeyDown += (s, args) =>
         {
             var key = args.Key;
+            bool isWin = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.LeftWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0
+                || (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.RightWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+
+            if (isWin || key is Windows.System.VirtualKey.LeftWindows or Windows.System.VirtualKey.RightWindows)
+            {
+                args.Handled = true;
+                return;
+            }
+
             bool isCtrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
             if (isCtrl)
             {
@@ -874,6 +892,18 @@ public sealed partial class MainPage : Page
                     settings.AreDevToolsEnabled = false;
                     settings.AreDefaultContextMenusEnabled = false;
                 }
+
+                RecoveryWebView.PreviewKeyDown += (s, args) =>
+                {
+                    var key = args.Key;
+                    bool isWin = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.LeftWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0
+                        || (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.RightWindows) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+
+                    if (isWin || key is Windows.System.VirtualKey.LeftWindows or Windows.System.VirtualKey.RightWindows)
+                    {
+                        args.Handled = true;
+                    }
+                };
 
                 // Strict recovery allowlist guard
                 RecoveryWebView.CoreWebView2.NavigationStarting += (s, e) =>
