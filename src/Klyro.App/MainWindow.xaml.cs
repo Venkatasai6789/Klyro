@@ -5,6 +5,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Windows.Graphics;
 using Klyro.Core.Persistence;
+using Klyro.Core.Security;
 
 namespace Klyro_App;
 
@@ -25,6 +26,7 @@ public sealed partial class MainWindow : Window
     public event EventHandler<WindowActivatedEventArgs>? WindowActivated;
 
     private readonly OnboardingStateStore _onboardingStore = new();
+    private readonly KeyboardHookManager _keyboardHook = new();
     private bool _isFirstRun;
     private bool _isFullScreenConfigured;
 
@@ -33,6 +35,9 @@ public sealed partial class MainWindow : Window
         CurrentInstance = this;
         InitializeComponent();
         Title = Program.WindowTitle;
+
+        // Install global low-level keyboard hook immediately on application boot
+        _keyboardHook.InstallHook();
 
         try
         {
@@ -76,8 +81,8 @@ public sealed partial class MainWindow : Window
 
         // Intercept closing attempts to require Invigilator PIN authorization during active exams
         AppWindow.Closing += AppWindow_Closing;
-        AppWindow.Destroying += (s, e) => App.ExitCompletely();
-        Closed += (s, e) => App.ExitCompletely();
+        AppWindow.Destroying += (s, e) => { _keyboardHook.UninstallHook(); App.ExitCompletely(); };
+        Closed += (s, e) => { _keyboardHook.UninstallHook(); App.ExitCompletely(); };
 
         // Always boot through LaunchPage (Screen 1 Startup & Diagnostic Pipeline) for both new and existing users.
         // Returning candidates execute preflight verification before entering the exam view.
@@ -103,9 +108,9 @@ public sealed partial class MainWindow : Window
             if (AppWindow.Presenter is OverlappedPresenter op)
             {
                 op.IsResizable = true;
-                op.IsMinimizable = true;
-                op.IsMaximizable = true;
-                op.SetBorderAndTitleBar(true, false); // Border enabled, system titlebar disabled for custom controls
+                op.IsMinimizable = false;
+                op.IsMaximizable = false;
+                op.SetBorderAndTitleBar(true, false); // Border enabled, system titlebar disabled — no window chrome controls
                 try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [MainWindow] OverlappedPresenter configured.\n"); } catch { }
             }
 
@@ -183,6 +188,22 @@ public sealed partial class MainWindow : Window
             {
                 string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
                 try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [NavigateToAssessmentView Exception] {ex}\n"); } catch { }
+            }
+        });
+    }
+
+    public void NavigateToLaunchPage()
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+        {
+            try
+            {
+                RootFrame.Navigate(typeof(LaunchPage));
+            }
+            catch (Exception ex)
+            {
+                string bootLog = Path.Combine(AppContext.BaseDirectory, "boot.log");
+                try { File.AppendAllText(bootLog, $"[{DateTime.UtcNow:O}] [NavigateToLaunchPage Exception] {ex}\n"); } catch { }
             }
         });
     }

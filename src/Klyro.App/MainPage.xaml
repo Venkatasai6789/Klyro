@@ -7,20 +7,23 @@
     xmlns:local="using:Klyro_App"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Loaded="Page_Loaded"
-    RequestedTheme="Light"
+    RequestedTheme="Dark"
     mc:Ignorable="d">
 
-    <Grid Background="#F8FAFC">
+    <Grid Background="#0B0F17">
         <Grid.RowDefinitions>
-            <!-- Minimal institutional header bar (52px) -->
-            <!-- Institutional Top Header (56px) -->
-            <RowDefinition Height="56" />
+            <!-- Institutional header bar (52px) -->
+            <RowDefinition Height="52" />
             <!-- Assessment / Content area -->
             <RowDefinition Height="*" />
+            <!-- Status bar (32px) -->
+            <RowDefinition Height="32" />
         </Grid.RowDefinitions>
 
-        <!-- Institutional Header & Navigation Bar (56px) -->
-        <Grid Grid.Row="0" Height="56" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="16,0">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- HEADER BAR (52px) — Dark theme, strictly no window controls     -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="0" Height="52" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="16,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -34,36 +37,36 @@
                     <Border Width="28" Height="28" CornerRadius="6" Background="Transparent">
                         <Image Source="ms-appx:///Assets/Klyro_Logo.png" Width="28" Height="28" Stretch="Uniform" />
                     </Border>
-                    <TextBlock Text="KLYRO" FontWeight="ExtraBold" FontSize="16" Foreground="#1E40AF" VerticalAlignment="Center" CharacterSpacing="30" />
+                    <TextBlock Text="KLYRO" FontWeight="ExtraBold" FontSize="15" Foreground="#FFFFFF" VerticalAlignment="Center" CharacterSpacing="30" />
                 </StackPanel>
-                <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                    <TextBlock Text="SECURE BROWSER" FontSize="9" FontWeight="Bold" Foreground="#2563EB" CharacterSpacing="20" />
+                <Border Background="#162238" BorderBrush="#253554" BorderThickness="1" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                    <TextBlock Text="SECURE BROWSER" FontSize="9" FontWeight="Bold" Foreground="#38BDF8" CharacterSpacing="20" />
                 </Border>
-                <Border Width="1" Height="22" Background="#E2E8F0" Margin="4,0" VerticalAlignment="Center" />
+                <Border Width="1" Height="20" Background="#1E293B" Margin="4,0" VerticalAlignment="Center" />
             </StackPanel>
 
             <!-- Browser Navigation & Dual Tabs Controls -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="12,0,0,0" Spacing="10">
-                <!-- Segmented Dual Tab Container -->
-                <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="3">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="12,0,0,0" Spacing="8">
+                <!-- Segmented Dual Tab Container (Single Assessment Tab + Background Campus Wi-Fi) -->
+                <Border Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="3">
                     <StackPanel Orientation="Horizontal" Spacing="3">
-                        <!-- Tab 1: CodeChef Assessment -->
-                        <Button x:Name="TabAssessmentButton" Click="TabAssessment_Click" ToolTipService.ToolTip="Switch to CodeChef Assessment" Padding="12,6" CornerRadius="6" Background="#FFFFFF" BorderBrush="#93C5FD" BorderThickness="1">
+                        <!-- Tab 1: Single Assessment Tab (Assessment Home / CodeChef) -->
+                        <Button x:Name="TabAssessmentButton" Click="TabAssessment_Click" ToolTipService.ToolTip="Switch to Assessment" Padding="12,6" CornerRadius="6" Background="#162238" BorderBrush="#253554" BorderThickness="1">
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE7BE;" FontSize="13" Foreground="#2563EB" VerticalAlignment="Center" />
-                                <TextBlock x:Name="TabAssessmentText" Text="CodeChef Assessment" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8" VerticalAlignment="Center" />
+                                <FontIcon Glyph="&#xE7BE;" FontSize="12" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                <TextBlock x:Name="TabAssessmentText" Text="Assessment Home" FontSize="11.5" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
                         <!-- Tab 2: Campus Wi-Fi Portal (Active in Background) -->
                         <Button x:Name="TabWifiPortalButton" Click="TabWifiPortal_Click" ToolTipService.ToolTip="Switch to Campus Wi-Fi Portal (Kept active in background)" Padding="10,6" CornerRadius="6" Background="Transparent" BorderThickness="0">
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon x:Name="TabWifiIcon" Glyph="&#xE701;" FontSize="12" Foreground="#16A34A" VerticalAlignment="Center" />
-                                <TextBlock x:Name="TabWifiTitle" Text="Campus Wi-Fi" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" />
-                                <Border x:Name="WifiTabBadge" Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="10" Padding="6,2" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                        <Ellipse x:Name="WifiTabDot" Width="6" Height="6" Fill="#16A34A" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="WifiTabBadgeText" Text="Active in BG" FontSize="10" FontWeight="Bold" Foreground="#15803D" VerticalAlignment="Center" />
+                                <FontIcon x:Name="TabWifiIcon" Glyph="&#xE701;" FontSize="12" Foreground="#10B981" VerticalAlignment="Center" />
+                                <TextBlock x:Name="TabWifiTitle" Text="Campus Wi-Fi" FontSize="11.5" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                <Border x:Name="WifiTabBadge" Background="#062E16" BorderBrush="#10B981" BorderThickness="1" CornerRadius="10" Padding="6,2" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <Ellipse x:Name="WifiTabDot" Width="5" Height="5" Fill="#10B981" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="WifiTabBadgeText" Text="Active in BG" FontSize="9.5" FontWeight="Bold" Foreground="#10B981" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -72,70 +75,91 @@
                 </Border>
 
                 <!-- Navigation Pill Container (Back, Forward, Refresh, Home) -->
-                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="4,2">
+                <Border Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="4,2">
                     <StackPanel Orientation="Horizontal" Spacing="2">
-                        <Button x:Name="NavBackButton" ToolTipService.ToolTip="Back" Click="NavBack_Click" IsEnabled="False" Width="30" Height="30" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
-                            <FontIcon Glyph="&#xE72B;" FontSize="12" Foreground="#475569" />
+                        <Button x:Name="NavBackButton" ToolTipService.ToolTip="Back" Click="NavBack_Click" IsEnabled="False" Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
+                            <FontIcon Glyph="&#xE72B;" FontSize="11" Foreground="#64748B" />
                         </Button>
-                        <Button x:Name="NavForwardButton" ToolTipService.ToolTip="Forward" Click="NavForward_Click" IsEnabled="False" Width="30" Height="30" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
-                            <FontIcon Glyph="&#xE72A;" FontSize="12" Foreground="#475569" />
+                        <Button x:Name="NavForwardButton" ToolTipService.ToolTip="Forward" Click="NavForward_Click" IsEnabled="False" Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
+                            <FontIcon Glyph="&#xE72A;" FontSize="11" Foreground="#64748B" />
                         </Button>
-                        <Button x:Name="NavRefreshButton" ToolTipService.ToolTip="Reload Current View" Click="NavRefresh_Click" Width="30" Height="30" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
-                            <FontIcon Glyph="&#xE72C;" FontSize="12" Foreground="#475569" />
+                        <Button x:Name="NavRefreshButton" ToolTipService.ToolTip="Reload Current View" Click="NavRefresh_Click" Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
+                            <FontIcon Glyph="&#xE72C;" FontSize="11" Foreground="#94A3B8" />
                         </Button>
-                        <Border Width="1" Height="16" Background="#CBD5E1" Margin="3,0" VerticalAlignment="Center" />
-                        <Button x:Name="NavHomeButton" ToolTipService.ToolTip="Return to CodeChef Assessment" Click="NavHome_Click" Padding="8,4" Background="Transparent" BorderThickness="0" CornerRadius="6">
-                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE80F;" FontSize="12" Foreground="#D97706" VerticalAlignment="Center" />
-                                <TextBlock Text="CodeChef" FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
+                        <Border Width="1" Height="14" Background="#253554" Margin="3,0" VerticalAlignment="Center" />
+                        <Button x:Name="NavHomeButton" ToolTipService.ToolTip="Return to Assessment Home" Click="NavHome_Click" Padding="8,4" Background="Transparent" BorderThickness="0" CornerRadius="6">
+                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE80F;" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                <TextBlock Text="Home" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
                 </Border>
 
-                <!-- Current Safe Domain Badge -->
-                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="10,5">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE72E;" FontSize="11" Foreground="#16A34A" VerticalAlignment="Center" />
-                        <TextBlock x:Name="CurrentUrlTextBlock" Text="https://www.codechef.com" FontSize="12" Foreground="#334155" FontFamily="Consolas" VerticalAlignment="Center" />
-                    </StackPanel>
+                <!-- Interactive Top Address & Search Bar -->
+                <Border Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="8" Padding="8,3" Width="360">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="&#xE721;" FontSize="11" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox x:Name="CurrentUrlTextBox"
+                                 Grid.Column="1"
+                                 PlaceholderText="Search or enter an allowed URL"
+                                 Text="https://www.codechef.com"
+                                 FontSize="11.5"
+                                 FontFamily="Consolas"
+                                 Foreground="#CBD5E1"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="0"
+                                 VerticalAlignment="Center"
+                                 KeyDown="CurrentUrlTextBox_KeyDown" />
+                    </Grid>
                 </Border>
             </StackPanel>
 
-            <!-- Header Action Controls & Network Quality Widget -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="10">
+            <!-- Header Action Controls — Wi-Fi Badge + Profile Icon -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                 <!-- Campus Wi-Fi Login Trigger Button (Visible only when recovery portal needed) -->
-                <Button x:Name="WifiPortalButton" Click="WifiPortalButton_Click" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Padding="10,6" CornerRadius="6" VerticalAlignment="Center" Visibility="Collapsed">
+                <Button x:Name="WifiPortalButton" Click="WifiPortalButton_Click" Background="#162238" BorderBrush="#253554" BorderThickness="1" Padding="10,5" CornerRadius="6" VerticalAlignment="Center" Visibility="Collapsed">
                     <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE701;" FontSize="12" Foreground="#2563EB" VerticalAlignment="Center" />
-                        <TextBlock Text="Campus Wi-Fi Login" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8" VerticalAlignment="Center" />
+                        <FontIcon Glyph="&#xE701;" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
+                        <TextBlock Text="Campus Wi-Fi Login" FontSize="11.5" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
 
-                <!-- Wi-Fi Quality & Latency Badge (Click to open Wi-Fi picker) -->
+                <!-- Wi-Fi Quality & Latency Badge (No Wi-Fi name, just strength and ping!) -->
                 <Button x:Name="NetworkQualityButton" Click="NetworkQualityButton_Click" ToolTipService.ToolTip="Wi-Fi Signal &amp; Latency • Click to choose Wi-Fi network" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="6">
-                    <Border x:Name="NetworkQualityBadge" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="6" Padding="10,6" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <FontIcon x:Name="WifiSignalIcon" Glyph="&#xE701;" FontSize="13" Foreground="#16A34A" VerticalAlignment="Center" />
-                            <TextBlock x:Name="WifiSignalTextBlock" Text="--%" FontSize="12" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
-                            <TextBlock Text="&#x2022;" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
-                            <TextBlock x:Name="PingTextBlock" Text="-- ms" FontFamily="Consolas" FontSize="12" FontWeight="Bold" Foreground="#16A34A" VerticalAlignment="Center" />
-                            <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="#64748B" VerticalAlignment="Center" Margin="2,0,0,0" />
+                    <Border x:Name="NetworkQualityBadge" Background="#0A1628" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="6" Padding="10,6" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <FontIcon x:Name="WifiSignalIcon" Glyph="&#xE701;" FontSize="12" Foreground="#10B981" VerticalAlignment="Center" />
+                            <TextBlock x:Name="WifiSignalTextBlock" Text="--%" FontSize="11.5" FontWeight="Bold" Foreground="#E6EDF3" VerticalAlignment="Center" />
+                            <TextBlock Text="•" FontSize="10" Foreground="#475569" VerticalAlignment="Center" />
+                            <TextBlock x:Name="PingTextBlock" Text="-- ms" FontFamily="Consolas" FontSize="11.5" FontWeight="Bold" Foreground="#10B981" VerticalAlignment="Center" />
+                            <FontIcon Glyph="&#xE70D;" FontSize="8" Foreground="#64748B" VerticalAlignment="Center" Margin="2,0,0,0" />
                         </StackPanel>
                     </Border>
                 </Button>
 
-                <!-- Exit Assessment Button (Requires Invigilator PIN) -->
-                <Button x:Name="ExitExamButton" Click="ExitExamButton_Click" Background="#FEF2F2" BorderBrush="#FECACA" Foreground="#DC2626" FontSize="12" FontWeight="Bold" Padding="12,6" CornerRadius="6" VerticalAlignment="Center" ToolTipService.ToolTip="Exit Examination (Requires PIN)">
-                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE7E8;" FontSize="12" Foreground="#DC2626" VerticalAlignment="Center" />
-                        <TextBlock Text="Exit Exam" Foreground="#DC2626" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-
-                <!-- Quick Close Button in Header -->
-                <Button x:Name="HeaderCloseButton" Click="ExitExamButton_Click" ToolTipService.ToolTip="Close Examination (Requires PIN)" Width="34" Height="34" Padding="0" Background="#FEF2F2" BorderBrush="#FECACA" BorderThickness="1" CornerRadius="6" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="#DC2626" />
+                <!-- Candidate Profile Avatar Icon -->
+                <Button x:Name="ProfileButton" Click="ProfileButton_Click" ToolTipService.ToolTip="Profile &amp; Session Options" Padding="0" Background="Transparent" BorderThickness="0" CornerRadius="20" Width="36" Height="36" VerticalAlignment="Center">
+                    <Grid Width="32" Height="32">
+                        <!-- Initials fallback circle -->
+                        <Ellipse x:Name="ProfileInitialsCircle" Width="32" Height="32" Fill="#162238" Stroke="#253554" StrokeThickness="1.5" />
+                        <TextBlock x:Name="ProfileInitialsText" Text="GU" FontSize="11.5" FontWeight="Bold" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <!-- Profile photo (hidden until loaded) -->
+                        <Ellipse x:Name="ProfilePhotoCircle" Width="32" Height="32" Visibility="Collapsed">
+                            <Ellipse.Fill>
+                                <ImageBrush x:Name="ProfilePhotoBrush" Stretch="UniformToFill" />
+                            </Ellipse.Fill>
+                            <Ellipse.Stroke>
+                                <SolidColorBrush Color="#253554" />
+                            </Ellipse.Stroke>
+                            <Ellipse.StrokeThickness>1.5</Ellipse.StrokeThickness>
+                        </Ellipse>
+                    </Grid>
                 </Button>
             </StackPanel>
 
@@ -143,22 +167,159 @@
             <Button x:Name="SimulatorToggleButton" Grid.Column="3" Content="Simulator" FontSize="11" Click="SimulatorToggle_Click" Visibility="Collapsed" VerticalAlignment="Center" Margin="8,0,0,0" />
 
             <!-- Page Loading Bar (Underneath Header) -->
-            <ProgressBar x:Name="PageLoadingProgressBar" Grid.ColumnSpan="4" VerticalAlignment="Bottom" Height="2.5" IsIndeterminate="True" Visibility="Collapsed" Foreground="#2563EB" />
+            <ProgressBar x:Name="PageLoadingProgressBar" Grid.ColumnSpan="4" VerticalAlignment="Bottom" Height="2" IsIndeterminate="True" Visibility="Collapsed" Foreground="#0066FF" />
         </Grid>
 
-        <!-- Primary Assessment View Area -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- PRIMARY ASSESSMENT VIEW AREA & HOME PAGE                       -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
         <Grid Grid.Row="1">
-            <!-- CodeChef Primary WebView2 -->
+            <!-- Primary Assessment WebView2 (CodeChef runs here) -->
             <WebView2 x:Name="ExamWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
 
-            <!-- Fallback / Error Card (Shown when navigation fails) -->
-            <Grid x:Name="ExamErrorOverlay" Background="#F8FAFC" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="15">
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Width="520" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <StackPanel Spacing="16" HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xEB55;" FontSize="40" Foreground="#DC2626" HorizontalAlignment="Center" />
-                        <TextBlock Text="Assessment Service Unreachable" FontSize="18" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Center" />
-                        <TextBlock x:Name="ExamErrorMessage" Text="Unable to establish a secure connection to CodeChef. Please authenticate with campus Wi-Fi or check your internet connection." FontSize="13" Foreground="#64748B" TextWrapping="Wrap" TextAlignment="Center" />
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- BROWSER HOME PAGE (Assessment Home Screen Overlay)          -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Grid x:Name="ExamHomePageOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible" Canvas.ZIndex="5">
+                <!-- Ambient Glow Decoration -->
+                <Ellipse Width="680" Height="680" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-60,0,0" IsHitTestVisible="False">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#201075FE" Offset="0.0" />
+                            <GradientStop Color="#0A38BDF8" Offset="0.5" />
+                            <GradientStop Color="#00000000" Offset="1.0" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                </Ellipse>
 
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="28" MaxWidth="800">
+                    <!-- Brand Emblem -->
+                    <Border Width="88" Height="88" CornerRadius="44" Background="#131B2E" BorderBrush="#253554" BorderThickness="1.5" HorizontalAlignment="Center">
+                        <Image Source="ms-appx:///Assets/Klyro_Logo.png" Width="60" Height="60" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <!-- Hero Title & Subtitle -->
+                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                            <TextBlock Text="Ready for your" FontSize="32" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                            <TextBlock Text="assessment" FontSize="32" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="Access only the websites approved for this assessment." FontSize="14" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Hero Search / Address Bar -->
+                    <Border Width="600" Height="50" CornerRadius="25" Background="#131B2E" BorderBrush="#253554" BorderThickness="1" Padding="18,0,8,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE721;" FontSize="14" Foreground="#64748B" VerticalAlignment="Center" />
+                            <TextBox x:Name="HomeSearchTextBox"
+                                     Grid.Column="1"
+                                     PlaceholderText="Search or enter an allowed URL"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Foreground="#FFFFFF"
+                                     FontSize="13.5"
+                                     Padding="12,0"
+                                     VerticalAlignment="Center"
+                                     KeyDown="HomeSearchTextBox_KeyDown" />
+                            <Button x:Name="HomeSearchGoButton"
+                                    Grid.Column="2"
+                                    Click="HomeSearchGo_Click"
+                                    ToolTipService.ToolTip="Go to website"
+                                    Width="36" Height="36"
+                                    CornerRadius="18"
+                                    Background="#0066FF"
+                                    BorderThickness="0"
+                                    VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE72A;" FontSize="13" Foreground="#FFFFFF" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- Allowed Websites Section Header -->
+                    <StackPanel Spacing="16" Width="680" HorizontalAlignment="Center">
+                        <Grid Width="680">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Border Width="3" Height="16" Background="#0066FF" CornerRadius="1.5" />
+                                <TextBlock Text="Allowed websites" FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE946;" FontSize="11" Foreground="#64748B" />
+                                    <TextBlock Text="Only approved websites can be opened during this assessment." FontSize="11.5" Foreground="#64748B" />
+                                </StackPanel>
+                                <Border Background="#162238" BorderBrush="#253554" BorderThickness="1" CornerRadius="10" Padding="8,2">
+                                    <TextBlock Text="1 website approved" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Allowed Websites Cards Container -->
+                        <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Left">
+                            <!-- CodeChef Approved Website Card -->
+                            <Button x:Name="CodeChefCardButton"
+                                    Click="CodeChefCard_Click"
+                                    ToolTipService.ToolTip="Launch CodeChef Assessment"
+                                    Width="210" Height="150"
+                                    Padding="18"
+                                    CornerRadius="12"
+                                    Background="#131B2E"
+                                    BorderBrush="#253554"
+                                    BorderThickness="1">
+                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                    <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- Emblem -->
+                                        <Border Width="48" Height="48" CornerRadius="10" Background="#1E2A47" HorizontalAlignment="Center">
+                                            <FontIcon Glyph="&#xE7BE;" FontSize="22" Foreground="#F59E0B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <!-- Title & Domain -->
+                                        <StackPanel Spacing="3" HorizontalAlignment="Center">
+                                            <TextBlock Text="CodeChef" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" />
+                                            <TextBlock Text="codechef.com" FontSize="11.5" FontFamily="Consolas" Foreground="#64748B" HorizontalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- BLOCKED URL OVERLAY — Clean Text, No Button                -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Grid x:Name="BlockedUrlOverlay" Background="#E60B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="30" Tapped="BlockedUrlOverlay_Tapped">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Width="440" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
+                    <StackPanel Spacing="16" HorizontalAlignment="Center">
+                        <Border Width="56" Height="56" CornerRadius="28" Background="#26181A" BorderBrush="#7F1D1D" BorderThickness="1" HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xE72E;" FontSize="24" Foreground="#EF4444" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Spacing="6" HorizontalAlignment="Center">
+                            <TextBlock Text="You don't have access to this website" FontSize="17" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Text="Contact admin" FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Center" TextAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Fallback / Error Card (Shown when navigation fails) -->
+            <Grid x:Name="ExamErrorOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="15">
+                <Border Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Width="520" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel Spacing="16" HorizontalAlignment="Center">
+                        <FontIcon Glyph="&#xEB55;" FontSize="40" Foreground="#EF4444" HorizontalAlignment="Center" />
+                        <TextBlock Text="Assessment Service Unreachable" FontSize="18" FontWeight="Bold" Foreground="#E6EDF3" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="ExamErrorMessage" Text="Unable to establish a secure connection to CodeChef. Please authenticate with campus Wi-Fi or check your internet connection." FontSize="13" Foreground="#94A3B8" TextWrapping="Wrap" TextAlignment="Center" />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,8,0,0">
                             <Button Content="Open Campus Wi-Fi Login" Click="WifiPortalButton_Click" Style="{StaticResource AccentButtonStyle}" />
                             <Button Content="Retry Connection" Click="NavRefresh_Click" />
@@ -167,24 +328,21 @@
                 </Border>
             </Grid>
 
-            <!-- Non-intrusive notification banner (for submission retry or CodeChef outage) -->
+            <!-- Non-intrusive notification banner -->
             <InfoBar x:Name="NoticeBar" Severity="Warning" IsOpen="False" IsClosable="True" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,16,0,0" Canvas.ZIndex="10" />
 
             <!-- Pre-flight Environmental Verification Screen -->
-            <Grid x:Name="PreflightOverlay" Background="#F8FAFC" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="20">
+            <Grid x:Name="PreflightOverlay" Background="#0B0F17" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Canvas.ZIndex="20">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16" Width="440">
-                    <TextBlock Text="Preparing Your Assessment Environment" FontSize="20" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Center" />
-                    <TextBlock Text="Please wait while Klyro verifies device and network security policies." FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" />
-
+                    <TextBlock Text="Preparing Your Assessment Environment" FontSize="20" FontWeight="Bold" Foreground="#E6EDF3" HorizontalAlignment="Center" />
+                    <TextBlock Text="Please wait while Klyro verifies device and network security policies." FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Center" />
                     <ProgressBar x:Name="PreflightProgressBar" IsIndeterminate="True" Margin="0,8" />
-
                     <StackPanel x:Name="PreflightCheckList" Spacing="8" Margin="0,8">
-                        <TextBlock x:Name="PfCheckSystem" Text="○ System security and operating system policy" FontSize="13" Foreground="#64748B" />
-                        <TextBlock x:Name="PfCheckConfig" Text="○ Examination configuration integrity" FontSize="13" Foreground="#64748B" />
-                        <TextBlock x:Name="PfCheckNetwork" Text="○ Network adapter and campus gateway reachability" FontSize="13" Foreground="#64748B" />
-                        <TextBlock x:Name="PfCheckAssessment" Text="○ Assessment platform connectivity" FontSize="13" Foreground="#64748B" />
+                        <TextBlock x:Name="PfCheckSystem" Text="○ System security and operating system policy" FontSize="13" Foreground="#94A3B8" />
+                        <TextBlock x:Name="PfCheckConfig" Text="○ Examination configuration integrity" FontSize="13" Foreground="#94A3B8" />
+                        <TextBlock x:Name="PfCheckNetwork" Text="○ Network adapter and campus gateway reachability" FontSize="13" Foreground="#94A3B8" />
+                        <TextBlock x:Name="PfCheckAssessment" Text="○ Assessment platform connectivity" FontSize="13" Foreground="#94A3B8" />
                     </StackPanel>
-
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
                         <Button x:Name="PreflightRetryButton" Content="Retry Pre-flight Checks" Click="PreflightRetry_Click" Visibility="Collapsed" />
                         <Button x:Name="PreflightWifiButton" Click="WifiPickerOpen_Click" Visibility="Collapsed" Style="{StaticResource AccentButtonStyle}">
@@ -194,13 +352,13 @@
                             </StackPanel>
                         </Button>
                     </StackPanel>
-                    <TextBlock x:Name="PreflightErrorMessage" Foreground="#DC2626" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" Visibility="Collapsed" />
+                    <TextBlock x:Name="PreflightErrorMessage" Foreground="#EF4444" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" Visibility="Collapsed" />
                 </StackPanel>
             </Grid>
 
-            <!-- Captive Portal Recovery Modal Overlay (Popups automatically when internet drops mid-exam; zero tab sifting) -->
-            <Grid x:Name="RecoveryModalOverlay" Background="#800F172A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible" Opacity="0" IsHitTestVisible="False" Canvas.ZIndex="0">
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Width="860" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20">
+            <!-- Captive Portal Recovery Modal Overlay (Kept active in background) -->
+            <Grid x:Name="RecoveryModalOverlay" Background="#D9000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible" Opacity="0" IsHitTestVisible="False" Canvas.ZIndex="0">
+                <Border Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Width="860" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -217,44 +375,44 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Spacing="4">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xE701;" FontSize="16" Foreground="#2563EB" VerticalAlignment="Center" />
-                                    <TextBlock x:Name="RecoveryModalTitle" Text="RECONNECT INTERNET OR LOGIN TO CAMPUS WI-FI (KLU_WIFI)" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                                    <FontIcon Glyph="&#xE701;" FontSize="16" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="RecoveryModalTitle" Text="RECONNECT INTERNET OR LOGIN TO CAMPUS WI-FI (KLU_WIFI)" FontSize="14" FontWeight="Bold" Foreground="#E6EDF3" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock x:Name="RecoveryModalSubtitle" Text="No internet connection detected. Please sign in below to restore access. Your exam progress and code are safely preserved." FontSize="12" Foreground="#64748B" />
+                                <TextBlock x:Name="RecoveryModalSubtitle" Text="No internet connection detected. Please sign in below to restore access. Your exam progress and code are safely preserved." FontSize="12" Foreground="#94A3B8" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Button Click="WifiPickerOpen_Click" FontSize="12">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <FontIcon Glyph="&#xE701;" FontSize="11" Foreground="#2563EB" />
-                                        <TextBlock Text="Switch Wi-Fi" Foreground="#0F172A" />
+                                        <FontIcon Glyph="&#xE701;" FontSize="11" Foreground="#38BDF8" />
+                                        <TextBlock Text="Switch Wi-Fi" Foreground="#E6EDF3" />
                                     </StackPanel>
                                 </Button>
                                 <Button Content="Reload Portal" Click="RecoveryReload_Click" FontSize="12" />
-                                <Button x:Name="ModalKeepInBgButton" Click="RecoveryDismiss_Click" Background="#EFF6FF" BorderBrush="#BFDBFE" FontSize="12">
+                                <Button x:Name="ModalKeepInBgButton" Click="RecoveryDismiss_Click" Background="#162238" BorderBrush="#253554" FontSize="12">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <FontIcon Glyph="&#xE80F;" FontSize="11" Foreground="#2563EB" />
-                                        <TextBlock Text="Return to Exam (Active in BG)" Foreground="#1D4ED8" FontWeight="SemiBold" />
+                                        <FontIcon Glyph="&#xE80F;" FontSize="11" Foreground="#38BDF8" />
+                                        <TextBlock Text="Return to Exam (Active in BG)" Foreground="#38BDF8" FontWeight="SemiBold" />
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
                         </Grid>
 
-                        <!-- Status Message / Verification spinner -->
+                        <!-- Status Message -->
                         <StackPanel x:Name="RecoveryStatusPanel" Grid.Row="1" Margin="0,10" Spacing="6" Visibility="Collapsed">
                             <ProgressBar x:Name="RecoveryProgressBar" IsIndeterminate="True" />
-                            <TextBlock x:Name="RecoveryStatusText" Text="Authenticating... verifying Internet connection" FontSize="12" Foreground="#2563EB" HorizontalAlignment="Center" />
+                            <TextBlock x:Name="RecoveryStatusText" Text="Authenticating... verifying Internet connection" FontSize="12" Foreground="#38BDF8" HorizontalAlignment="Center" />
                         </StackPanel>
 
                         <!-- Isolated Captive Portal WebView2 Control -->
-                        <Border Grid.Row="2" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Margin="0,8">
+                        <Border Grid.Row="2" BorderBrush="#253554" BorderThickness="1" CornerRadius="6" Margin="0,8">
                             <WebView2 x:Name="RecoveryWebView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                         </Border>
 
                         <!-- Modal Footer Notice -->
                         <Grid Grid.Row="3" Margin="0,8,0,0">
                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                <FontIcon Glyph="&#xE946;" FontSize="12" Foreground="#16A34A" />
-                                <TextBlock Text="This portal stays active in the background without closing to prevent campus Wi-Fi disconnection." FontSize="12" Foreground="#166534" FontWeight="Medium" VerticalAlignment="Center" />
+                                <FontIcon Glyph="&#xE946;" FontSize="12" Foreground="#10B981" />
+                                <TextBlock Text="This portal stays active in the background without closing to prevent campus Wi-Fi disconnection." FontSize="12" Foreground="#10B981" FontWeight="Medium" VerticalAlignment="Center" />
                             </StackPanel>
                             <Button x:Name="RecoveryRetryButton" Content="Check Connection Now" Click="RecoveryRetry_Click" HorizontalAlignment="Right" Style="{StaticResource AccentButtonStyle}" />
                         </Grid>
@@ -262,205 +420,234 @@
                 </Border>
             </Grid>
 
-            <!-- Wi-Fi Network Picker Modal Overlay -->
-            <Grid x:Name="WifiPickerOverlay" Background="#990F172A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="45" Tapped="WifiPickerOverlay_Tapped">
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Width="520" MaxHeight="600" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- GNOME-STYLE EXPANDABLE WI-FI DROPDOWN                      -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Grid x:Name="WifiDropdownOverlay" Background="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="45" Tapped="WifiDropdownOverlay_Tapped">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Width="380" MaxHeight="540" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,70,0" Padding="18" Tapped="DialogContent_Tapped">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <!-- Header -->
-                        <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <!-- Header with Rescan -->
+                        <Grid Grid.Row="0" Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Spacing="3">
-                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <FontIcon Glyph="&#xE701;" FontSize="18" Foreground="#2563EB" VerticalAlignment="Center" />
-                                    <TextBlock Text="AVAILABLE WI-FI NETWORKS" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE701;" FontSize="15" Foreground="#38BDF8" />
+                                <TextBlock Text="WI-FI NETWORKS" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" />
+                            </StackPanel>
+                            <Button x:Name="WifiRefreshButton" Grid.Column="1" Click="WifiRefresh_Click" ToolTipService.ToolTip="Rescan Networks" Height="30" Padding="10,0" CornerRadius="6" Background="#162238" BorderBrush="#253554" BorderThickness="1">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="11" Foreground="#38BDF8" />
+                                    <TextBlock Text="Scan" FontSize="11" FontWeight="SemiBold" Foreground="#CBD5E1" />
                                 </StackPanel>
-                                <TextBlock Text="Connect to campus Wi-Fi or lab APs. University portal validates automatically." FontSize="12" Foreground="#64748B" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                                <Button x:Name="WifiRefreshButton" Click="WifiRefresh_Click" ToolTipService.ToolTip="Rescan Networks" Width="34" Height="34" Padding="0" CornerRadius="6" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1">
-                                    <FontIcon Glyph="&#xE72C;" FontSize="13" Foreground="#475569" />
-                                </Button>
-                                <Button x:Name="WifiPickerCloseButton" Click="WifiPickerClose_Click" ToolTipService.ToolTip="Close Wi-Fi Menu" Height="34" Padding="12,0" CornerRadius="6" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                        <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="#475569" />
-                                        <TextBlock Text="Close" FontSize="12" FontWeight="SemiBold" Foreground="#334155" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            </Button>
                         </Grid>
 
-                        <!-- Connecting Status Banner -->
-                        <Border x:Name="WifiConnectingBanner" Grid.Row="1" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,12" Visibility="Collapsed">
-                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                <ProgressRing Width="18" Height="18" IsActive="True" />
-                                <TextBlock x:Name="WifiConnectingText" Text="Connecting to campus Wi-Fi..." FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8" VerticalAlignment="Center" />
+                        <!-- Connected Network Card -->
+                        <Border x:Name="WifiCurrentConnectedCard" Grid.Row="1" Background="#162238" BorderBrush="#253554" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE701;" FontSize="16" Foreground="#10B981" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock x:Name="WifiCurrentSsidText" Text="Connected Wi-Fi" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock x:Name="WifiCurrentSignalText" Text="Signal: --%" FontSize="11" Foreground="#94A3B8" />
+                                        <TextBlock Text="•" FontSize="10" Foreground="#64748B" />
+                                        <TextBlock x:Name="WifiCurrentPingText" Text="Ping: -- ms" FontSize="11" Foreground="#10B981" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <Border Grid.Column="2" Background="#062E16" BorderBrush="#10B981" BorderThickness="1" CornerRadius="6" Padding="6,2" VerticalAlignment="Center">
+                                    <TextBlock Text="Connected" FontSize="10" FontWeight="Bold" Foreground="#10B981" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Connecting status banner -->
+                        <Border x:Name="WifiConnectingBanner" Grid.Row="2" Background="#162238" BorderBrush="#253554" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,10" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <ProgressRing Width="16" Height="16" IsActive="True" />
+                                <TextBlock x:Name="WifiConnectingText" Text="Connecting..." FontSize="11.5" Foreground="#38BDF8" />
                             </StackPanel>
                         </Border>
 
-                        <!-- Network List -->
-                        <ScrollViewer Grid.Row="2" MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                        <!-- Scrollable Networks List -->
+                        <ScrollViewer Grid.Row="3" MaxHeight="240" VerticalScrollBarVisibility="Auto">
                             <StackPanel x:Name="WifiNetworksListPanel" Spacing="6">
-                                <!-- Dynamic Wi-Fi cards added programmatically -->
+                                <!-- Cards added dynamically -->
                             </StackPanel>
                         </ScrollViewer>
 
-                        <!-- Password Card (Appears if user selects secured network without saved profile) -->
-                        <StackPanel x:Name="WifiPasswordCard" Grid.Row="3" Margin="0,14,0,0" Spacing="8" Visibility="Collapsed">
-                            <TextBlock x:Name="WifiPasswordPromptText" Text="Enter Wi-Fi Password:" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" />
-                            <PasswordBox x:Name="WifiPasswordInput" PlaceholderText="Password" KeyDown="WifiPasswordInput_KeyDown" />
+                        <!-- Inline Password Card -->
+                        <StackPanel x:Name="WifiPasswordCard" Grid.Row="4" Margin="0,12,0,0" Spacing="8" Visibility="Collapsed">
+                            <TextBlock x:Name="WifiPasswordPromptText" Text="Enter Wi-Fi Password:" FontSize="12" FontWeight="SemiBold" Foreground="#E6EDF3" />
+                            <PasswordBox x:Name="WifiPasswordInput" PlaceholderText="Password" KeyDown="WifiPasswordInput_KeyDown" Background="#0F1219" Foreground="#FFFFFF" BorderBrush="#253554" CornerRadius="6" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                                <Button Content="Cancel" Click="WifiPasswordCancel_Click" FontSize="12" />
-                                <Button Content="Connect" Click="WifiPasswordSubmit_Click" Style="{StaticResource AccentButtonStyle}" FontSize="12" />
+                                <Button Content="Cancel" Click="WifiPasswordCancel_Click" FontSize="11.5" Background="#162238" Foreground="#94A3B8" CornerRadius="6" BorderThickness="0" />
+                                <Button Content="Connect" Click="WifiPasswordSubmit_Click" Style="{StaticResource AccentButtonStyle}" FontSize="11.5" Background="#0066FF" CornerRadius="6" BorderThickness="0" />
                             </StackPanel>
                         </StackPanel>
-
-                        <!-- Modal Footer / Action Bar with Close Button -->
-                        <Grid Grid.Row="4" Margin="0,16,0,0" Padding="0,12,0,0" BorderBrush="#F1F5F9" BorderThickness="0,1,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE946;" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" />
-                                <TextBlock Text="Click any network to connect" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <Button Content="↻ Rescan" Click="WifiRefresh_Click" FontSize="12" Padding="12,5" CornerRadius="6" />
-                                <Button Content="✕ Close Menu" Click="WifiPickerClose_Click" Style="{StaticResource AccentButtonStyle}" Background="#334155" BorderBrush="#334155" FontSize="12" FontWeight="SemiBold" Padding="16,5" CornerRadius="6" />
-                            </StackPanel>
-                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- Invigilator Exit PIN Dialog Modal Overlay -->
-            <Grid x:Name="PinModalOverlay" Background="#990F172A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="50" Tapped="PinModalOverlay_Tapped" KeyDown="PinModalOverlay_KeyDown">
-                <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="12" Width="460" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
-                    <StackPanel Spacing="16">
-                        <!-- Header with Close Arrow and Title -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Close / Back Arrow Button -->
-                            <Button x:Name="PinCloseArrowButton"
-                                    Grid.Column="0"
-                                    Click="CancelPin_Click"
-                                    ToolTipService.ToolTip="Close PIN dialog and return to exam"
-                                    Width="36" Height="36"
-                                    Padding="0"
-                                    CornerRadius="8"
-                                    Background="#F1F5F9"
-                                    BorderBrush="#E2E8F0"
-                                    BorderThickness="1"
-                                    Margin="0,0,12,0"
-                                    VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE72B;" FontSize="14" Foreground="#1E293B" />
-                            </Button>
-
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="INVIGILATOR AUTHORIZATION" FontSize="16" FontWeight="Bold" Foreground="#0F172A" />
-                                <TextBlock Text="Enter invigilator PIN to close or exit the exam." FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- GNOME-STYLE EXPANDABLE PROFILE DROPDOWN                    -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Grid x:Name="ProfileDropdownOverlay" Background="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="46" Tapped="ProfileDropdownOverlay_Tapped">
+                <Border Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Width="290" Padding="16" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,16,0" Tapped="DialogContent_Tapped">
+                    <StackPanel Spacing="12">
+                        <!-- User Card -->
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Grid Width="42" Height="42" VerticalAlignment="Center">
+                                <Ellipse Width="42" Height="42" Fill="#162238" Stroke="#253554" StrokeThickness="1.5" />
+                                <TextBlock x:Name="DropdownInitialsText" Text="GU" FontSize="14" FontWeight="Bold" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Ellipse x:Name="DropdownPhotoCircle" Width="42" Height="42" Visibility="Collapsed">
+                                    <Ellipse.Fill>
+                                        <ImageBrush x:Name="DropdownPhotoBrush" Stretch="UniformToFill" />
+                                    </Ellipse.Fill>
+                                    <Ellipse.Stroke>
+                                        <SolidColorBrush Color="#253554" />
+                                    </Ellipse.Stroke>
+                                    <Ellipse.StrokeThickness>1.5</Ellipse.StrokeThickness>
+                                </Ellipse>
+                            </Grid>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock x:Name="DropdownDisplayName" Text="Candidate" FontSize="13.5" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock x:Name="DropdownEmail" Text="email@example.com" FontSize="11.5" Foreground="#94A3B8" TextTrimming="CharacterEllipsis" MaxWidth="190" />
                             </StackPanel>
-
-                            <!-- Close 'X' Button -->
-                            <Button x:Name="PinCloseXButton"
-                                    Grid.Column="2"
-                                    Click="CancelPin_Click"
-                                    ToolTipService.ToolTip="Close"
-                                    Width="36" Height="36"
-                                    Padding="0"
-                                    CornerRadius="8"
-                                    Background="#F1F5F9"
-                                    BorderBrush="#E2E8F0"
-                                    BorderThickness="1"
-                                    VerticalAlignment="Center">
-                                <FontIcon Glyph="&#xE711;" FontSize="11" Foreground="#475569" />
-                            </Button>
-                        </Grid>
-
-                        <Border Height="1" Background="#F1F5F9" Margin="-4,0" />
-
-                        <!-- PIN Input Field -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Invigilator PIN:" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" />
-                            <PasswordBox x:Name="ExitPinPasswordBox"
-                                         PlaceholderText="Enter PIN (123456)"
-                                         MaxLength="12"
-                                         FontSize="16"
-                                         Height="42"
-                                         Background="#F8FAFC"
-                                         Foreground="#0F172A"
-                                         BorderBrush="#94A3B8"
-                                         BorderThickness="1"
-                                         CornerRadius="6"
-                                         Padding="12,8"
-                                         HorizontalAlignment="Stretch"
-                                         KeyDown="ExitPinPasswordBox_KeyDown" />
-                            <TextBlock Text="Default invigilator PIN: 123456" FontSize="11" Foreground="#64748B" Margin="2,0,0,0" />
                         </StackPanel>
 
-                        <!-- Error Message -->
-                        <TextBlock x:Name="PinErrorMessage" Text="Invalid Invigilator PIN. Examination remains locked." Foreground="#DC2626" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" />
+                        <Border Height="1" Background="#1E293B" Margin="-4,0" />
 
-                        <!-- Action Buttons -->
+                        <!-- Logout Action -->
+                        <Button x:Name="LogoutButton" Click="LogoutButton_Click" HorizontalAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="8,8" CornerRadius="6">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE8AB;" FontSize="14" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Text="Logout" FontSize="13" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                                    <TextBlock Text="Clear Google session &amp; sign in again" FontSize="10.5" Foreground="#64748B" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+
+                        <!-- Exit Action (Requires PIN) -->
+                        <Button x:Name="ExitButton" Click="ExitExamButton_Click" HorizontalAlignment="Stretch" Background="Transparent" BorderThickness="0" Padding="8,8" CornerRadius="6">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE7E8;" FontSize="14" Foreground="#EF4444" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Text="Exit Assessment" FontSize="13" FontWeight="Bold" Foreground="#EF4444" />
+                                    <TextBlock Text="Requires Invigilator PIN" FontSize="10.5" Foreground="#94A3B8" />
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- INVIGILATOR EXIT PIN MODAL (Reusing LaunchPage PIN UI)     -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Grid x:Name="PinModalOverlay" Background="#D9000000" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="50" Tapped="PinModalOverlay_Tapped" KeyDown="PinModalOverlay_KeyDown">
+                <Border Width="400" Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="12" Padding="28" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="DialogContent_Tapped">
+                    <StackPanel Spacing="16">
+                        <!-- Icon + Title -->
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Border Width="40" Height="40" CornerRadius="10" Background="#1E2A47" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE72E;" FontSize="18" Foreground="#60A5FA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Invigilator Authorization" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock Text="Exit Examination Authorization" FontSize="12" Foreground="#64748B" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <TextBlock Text="Enter the invigilator PIN to unlock and exit the secure examination browser."
+                                   FontSize="13"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"
+                                   LineHeight="18" />
+
+                        <!-- PIN Input -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Invigilator PIN" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                            <PasswordBox x:Name="ExitPinPasswordBox"
+                                         PlaceholderText="Enter 6-digit invigilator PIN"
+                                         MaxLength="12"
+                                         Height="42"
+                                         CornerRadius="8"
+                                         Background="#0F1422"
+                                         BorderBrush="#1E293B"
+                                         Foreground="#FFFFFF"
+                                         KeyDown="ExitPinPasswordBox_KeyDown" />
+                            <TextBlock x:Name="PinErrorMessage"
+                                       Text="Incorrect PIN. Please re-enter or contact chief superintendent."
+                                       FontSize="12"
+                                       Foreground="#EF4444"
+                                       Visibility="Collapsed" />
+                        </StackPanel>
+
+                        <!-- Buttons -->
                         <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <Button x:Name="CancelPinButton"
-                                    Grid.Column="1"
-                                    Content="Cancel &amp; Return"
+                            <Button Grid.Column="0"
+                                    x:Name="CancelPinButton"
+                                    Content="Cancel"
                                     Click="CancelPin_Click"
-                                    FontSize="13"
-                                    FontWeight="SemiBold"
-                                    Foreground="#334155"
-                                    Background="#F1F5F9"
-                                    BorderBrush="#CBD5E1"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="16,8"
-                                    Margin="0,0,10,0" />
+                                    Height="42"
+                                    HorizontalAlignment="Stretch"
+                                    Background="#1E293B"
+                                    Foreground="#94A3B8"
+                                    CornerRadius="8"
+                                    BorderThickness="0"
+                                    FontSize="13" />
 
-                            <Button x:Name="AuthorizePinButton"
-                                    Grid.Column="2"
+                            <Button Grid.Column="2"
+                                    x:Name="AuthorizePinButton"
+                                    Content="Authorize &amp; Exit"
                                     Click="AuthorizePin_Click"
-                                    Style="{StaticResource AccentButtonStyle}"
+                                    Height="42"
+                                    HorizontalAlignment="Stretch"
                                     Background="#DC2626"
-                                    BorderBrush="#DC2626"
-                                    CornerRadius="6"
-                                    Padding="18,8">
-                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                    <FontIcon Glyph="&#xE7E8;" FontSize="12" Foreground="#FFFFFF" />
-                                    <TextBlock Text="Authorize &amp; Exit" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" />
-                                </StackPanel>
-                            </Button>
+                                    Foreground="#FFFFFF"
+                                    FontWeight="SemiBold"
+                                    CornerRadius="8"
+                                    BorderThickness="0"
+                                    FontSize="13" />
                         </Grid>
                     </StackPanel>
                 </Border>
             </Grid>
 
             <!-- Developer Network Simulator Drawer (Debug / Dev only) -->
-            <Border x:Name="SimulatorDrawer" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Width="260" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,16,0" Padding="12" Visibility="Collapsed" Canvas.ZIndex="40">
+            <Border x:Name="SimulatorDrawer" Background="#131B2E" BorderBrush="#253554" BorderThickness="1" CornerRadius="8" Width="260" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,16,0" Padding="12" Visibility="Collapsed" Canvas.ZIndex="40">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Network Simulator (Dev)" FontWeight="Bold" FontSize="13" Foreground="#0F172A" />
+                    <TextBlock Text="Network Simulator (Dev)" FontWeight="Bold" FontSize="13" Foreground="#E6EDF3" />
                     <Button Content="Simulate Normal" Click="SimNormal_Click" HorizontalAlignment="Stretch" />
                     <Button Content="Simulate Portal Required" Click="SimPortalReq_Click" HorizontalAlignment="Stretch" />
                     <Button Content="Simulate Degraded" Click="SimDegraded_Click" HorizontalAlignment="Stretch" />
@@ -469,5 +656,21 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- STATUS BAR (32px)                                              -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="2" Height="32" Background="#0A0E17" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE72E;" FontSize="12" Foreground="#10B981" VerticalAlignment="Center" />
+                <TextBlock Text="Secure assessment mode active" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="Klyro Secure Assessment Browser" FontSize="11" Foreground="#475569" VerticalAlignment="Center" />
+        </Grid>
     </Grid>
+
 </Page>

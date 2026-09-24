@@ -69,9 +69,9 @@ public sealed partial class MainPage : Page
 
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
-            if (WifiPickerOverlay.Visibility == Visibility.Visible)
+            if (WifiDropdownOverlay.Visibility == Visibility.Visible)
             {
-                WifiPickerOverlay.Visibility = Visibility.Collapsed;
+                WifiDropdownOverlay.Visibility = Visibility.Collapsed;
                 WifiPasswordCard.Visibility = Visibility.Collapsed;
                 e.Handled = true;
             }
@@ -335,6 +335,7 @@ public sealed partial class MainPage : Page
 
         // Automatically propagate authenticated Google user identity to Google Sign-in on assessment platform
         _authenticatedCandidate = _onboardingStore.GetAuthenticatedUser();
+        LoadProfileAvatar();
         if (_authenticatedCandidate != null && !string.IsNullOrWhiteSpace(_authenticatedCandidate.Email))
         {
             var safeCandidateEmail = _authenticatedCandidate.Email.Replace("\"", "\\\"");
@@ -419,7 +420,7 @@ public sealed partial class MainPage : Page
             e.Cancel = true;
             PageLoadingProgressBar.Visibility = Visibility.Collapsed;
             _auditLogger?.Log(EventType.NAVIGATION_BLOCKED, "ACTIVE", decision.Reason, e.Uri);
-            ShowNotice($"Navigation blocked: {decision.Reason}", InfoBarSeverity.Error);
+            ShowBlockedUrlOverlay();
             return;
         }
 
@@ -486,7 +487,7 @@ public sealed partial class MainPage : Page
 
     private void ExamWebView_SourceChanged(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2SourceChangedEventArgs e)
     {
-        CurrentUrlTextBlock.Text = ExamWebView.Source?.ToString() ?? _config.Exam.StartUrl;
+        CurrentUrlTextBox.Text = ExamWebView.Source?.ToString() ?? _config.Exam.StartUrl;
         NavBackButton.IsEnabled = ExamWebView.CanGoBack;
         NavForwardButton.IsEnabled = ExamWebView.CanGoForward;
     }
@@ -647,22 +648,22 @@ public sealed partial class MainPage : Page
             if (_networkMonitor?.CurrentState == NetworkState.PORTAL_REQUIRED)
             {
                 PingTextBlock.Text = "Login Needed";
-                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235)); // #2563EB
-                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
-                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254)); // #BFDBFE
-                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)); // #EFF6FF
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248)); // #38BDF8
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 53, 84)); // #253554
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 22, 34, 56)); // #162238
 
                 // Tab Badge
-                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
                 if (WifiTabBadgeText != null)
                 {
                     WifiTabBadgeText.Text = "Login Needed";
-                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
                 }
                 if (WifiTabBadge != null)
                 {
-                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255));
-                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 191, 219, 254));
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 22, 34, 56));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 53, 84));
                 }
                 return;
             }
@@ -670,22 +671,22 @@ public sealed partial class MainPage : Page
             if (_networkMonitor?.CurrentState == NetworkState.OFFLINE)
             {
                 PingTextBlock.Text = "No Internet";
-                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38)); // #DC2626
-                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
-                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202)); // #FECACA
-                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242)); // #FEF2F2
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68)); // #EF4444
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 127, 29, 29)); // #7F1D1D
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 42, 18, 21)); // #2A1215
 
                 // Tab Badge
-                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68));
                 if (WifiTabBadgeText != null)
                 {
                     WifiTabBadgeText.Text = "No Internet";
-                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 239, 68, 68));
                 }
                 if (WifiTabBadge != null)
                 {
-                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 254, 242, 242));
-                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 202, 202));
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 42, 18, 21));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 127, 29, 29));
                 }
                 return;
             }
@@ -698,60 +699,60 @@ public sealed partial class MainPage : Page
                 PingTextBlock.Text = $"{latency} ms • {tier}";
                 if (latency < 80)
                 {
-                    // Optimal (Green #16A34A)
-                    PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-                    WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
-                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
+                    // Optimal (Green #10B981)
+                    PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+                    WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59)); // #1E293B
+                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 10, 22, 40)); // #0A1628
                 }
                 else if (latency < 250)
                 {
                     // Moderate (Amber #D97706)
                     PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
                     WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 217, 119, 6));
-                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 253, 230, 138));
-                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 251, 235));
+                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 66, 48, 10)); // #42300A
+                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 26, 21, 4)); // #1A1504
                 }
                 else
                 {
                     // High latency (Orange #EA580C)
                     PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
                     WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 234, 88, 12));
-                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 254, 215, 170));
-                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 255, 247, 237));
+                    NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 66, 30, 8)); // #421E08
+                    NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 26, 15, 4)); // #1A0F04
                 }
 
                 // Tab Badge: Active in BG
-                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
                 if (WifiTabBadgeText != null)
                 {
                     WifiTabBadgeText.Text = $"Active in BG ({latency}ms)";
-                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
                 }
                 if (WifiTabBadge != null)
                 {
-                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
-                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 6, 46, 22)); // #062E16
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)); // #10B981
                 }
             }
             else
             {
                 PingTextBlock.Text = "Online";
-                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
-                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
-                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
+                PingTextBlock.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+                WifiSignalIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
+                NetworkQualityBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+                NetworkQualityBadge.Background = new SolidColorBrush(Color.FromArgb(255, 10, 22, 40));
 
-                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 22, 163, 74));
+                if (WifiTabDot != null) WifiTabDot.Fill = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
                 if (WifiTabBadgeText != null)
                 {
                     WifiTabBadgeText.Text = "Active in BG";
-                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61));
+                    WifiTabBadgeText.Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
                 }
                 if (WifiTabBadge != null)
                 {
-                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231));
-                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172));
+                    WifiTabBadge.Background = new SolidColorBrush(Color.FromArgb(255, 6, 46, 22));
+                    WifiTabBadge.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
                 }
             }
         }
@@ -834,27 +835,27 @@ public sealed partial class MainPage : Page
     {
         if (isWifiTabActive)
         {
-            TabWifiPortalButton.Background = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
-            TabWifiPortalButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253));
+            TabWifiPortalButton.Background = new SolidColorBrush(Color.FromArgb(255, 22, 34, 56)); // #162238
+            TabWifiPortalButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 53, 84)); // #253554
             TabWifiPortalButton.BorderThickness = new Thickness(1);
-            TabWifiTitle.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+            TabWifiTitle.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248)); // #38BDF8
 
             TabAssessmentButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             TabAssessmentButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             TabAssessmentButton.BorderThickness = new Thickness(0);
-            TabAssessmentText.Foreground = new SolidColorBrush(Color.FromArgb(255, 71, 85, 105));
+            TabAssessmentText.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184)); // #94A3B8
         }
         else
         {
-            TabAssessmentButton.Background = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
-            TabAssessmentButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253));
+            TabAssessmentButton.Background = new SolidColorBrush(Color.FromArgb(255, 22, 34, 56));
+            TabAssessmentButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 53, 84));
             TabAssessmentButton.BorderThickness = new Thickness(1);
-            TabAssessmentText.Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216));
+            TabAssessmentText.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
 
             TabWifiPortalButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             TabWifiPortalButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             TabWifiPortalButton.BorderThickness = new Thickness(0);
-            TabWifiTitle.Foreground = new SolidColorBrush(Color.FromArgb(255, 71, 85, 105));
+            TabWifiTitle.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
         }
     }
 
@@ -1037,7 +1038,14 @@ public sealed partial class MainPage : Page
     private void TabAssessment_Click(object sender, RoutedEventArgs e)
     {
         KeepRecoveryActiveInBackground();
-        ExamWebView.Focus(FocusState.Programmatic);
+        if (ExamHomePageOverlay.Visibility == Visibility.Visible)
+        {
+            HomeSearchTextBox.Focus(FocusState.Programmatic);
+        }
+        else
+        {
+            ExamWebView.Focus(FocusState.Programmatic);
+        }
     }
 
     private void TabWifiPortal_Click(object sender, RoutedEventArgs e)
@@ -1050,12 +1058,140 @@ public sealed partial class MainPage : Page
         ShowRecoveryModal(forceNavigate: false);
     }
 
-    // Wi-Fi Network Picker Handlers
+    // ═══════════════════════════════════════════════════════════
+    // Browser Home Page & Navigation Handlers
+    // ═══════════════════════════════════════════════════════════
+
+    public void ShowAssessmentHome()
+    {
+        ExamHomePageOverlay.Visibility = Visibility.Visible;
+        TabAssessmentText.Text = "Assessment Home";
+        CurrentUrlTextBox.Text = "https://www.codechef.com";
+    }
+
+    public void LaunchCodeChefAssessment()
+    {
+        ExamHomePageOverlay.Visibility = Visibility.Collapsed;
+        TabAssessmentText.Text = "CodeChef Assessment";
+        CurrentUrlTextBox.Text = _config.Exam.StartUrl;
+        if (!_isExamWebViewInitialized)
+        {
+            _ = InitializeExamWebViewAsync();
+        }
+        else
+        {
+            ExamWebView.CoreWebView2?.Navigate(_config.Exam.StartUrl);
+        }
+        ExamWebView.Focus(FocusState.Programmatic);
+    }
+
+    private void CodeChefCard_Click(object sender, RoutedEventArgs e)
+    {
+        LaunchCodeChefAssessment();
+    }
+
+    private void HomeSearchGo_Click(object sender, RoutedEventArgs e)
+    {
+        HandleUrlOrSearchSubmission(HomeSearchTextBox.Text);
+    }
+
+    private void HomeSearchTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            HandleUrlOrSearchSubmission(HomeSearchTextBox.Text);
+            e.Handled = true;
+        }
+    }
+
+    private void CurrentUrlTextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            HandleUrlOrSearchSubmission(CurrentUrlTextBox.Text);
+            e.Handled = true;
+        }
+    }
+
+    private void HandleUrlOrSearchSubmission(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return;
+
+        var trimmed = input.Trim();
+        string targetUrl = trimmed;
+
+        if (!targetUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !targetUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            targetUrl = "https://" + targetUrl;
+        }
+
+        bool isAllowed = false;
+        if (Uri.TryCreate(targetUrl, UriKind.Absolute, out var uri))
+        {
+            var decision = _navigationGuard?.EvaluateExamNavigation(uri.ToString());
+            if (decision is { IsAllowed: true })
+            {
+                isAllowed = true;
+            }
+            else if (uri.Host.Contains("codechef.com", StringComparison.OrdinalIgnoreCase))
+            {
+                isAllowed = true;
+            }
+        }
+        else if (trimmed.Contains("codechef", StringComparison.OrdinalIgnoreCase))
+        {
+            targetUrl = _config.Exam.StartUrl;
+            isAllowed = true;
+        }
+
+        if (isAllowed)
+        {
+            ExamHomePageOverlay.Visibility = Visibility.Collapsed;
+            TabAssessmentText.Text = "CodeChef Assessment";
+            CurrentUrlTextBox.Text = targetUrl;
+            if (_isExamWebViewInitialized)
+            {
+                ExamWebView.CoreWebView2?.Navigate(targetUrl);
+                ExamWebView.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                _ = InitializeExamWebViewAsync();
+            }
+        }
+        else
+        {
+            ShowBlockedUrlOverlay();
+        }
+    }
+
+    private void BlockedUrlOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        BlockedUrlOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // GNOME-Style Wi-Fi Network Picker Handlers
+    // ═══════════════════════════════════════════════════════════
     private WifiNetworkItem? _selectedNetworkForPassword;
 
     private void NetworkQualityButton_Click(object sender, RoutedEventArgs e)
     {
-        OpenWifiPicker();
+        if (ProfileDropdownOverlay.Visibility == Visibility.Visible)
+        {
+            ProfileDropdownOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        if (WifiDropdownOverlay.Visibility == Visibility.Visible)
+        {
+            WifiDropdownOverlay.Visibility = Visibility.Collapsed;
+            WifiPasswordCard.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            OpenWifiPicker();
+        }
     }
 
     private void WifiPickerOpen_Click(object sender, RoutedEventArgs e)
@@ -1063,21 +1199,15 @@ public sealed partial class MainPage : Page
         OpenWifiPicker();
     }
 
-    private void WifiPickerClose_Click(object sender, RoutedEventArgs e)
+    private void WifiDropdownOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        WifiPickerOverlay.Visibility = Visibility.Collapsed;
-        WifiPasswordCard.Visibility = Visibility.Collapsed;
-    }
-
-    private void WifiPickerOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
-    {
-        WifiPickerOverlay.Visibility = Visibility.Collapsed;
+        WifiDropdownOverlay.Visibility = Visibility.Collapsed;
         WifiPasswordCard.Visibility = Visibility.Collapsed;
     }
 
     private void DialogContent_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        e.Handled = true; // Prevent click inside dialog card from dismissing modal
+        e.Handled = true; // Prevent click inside dropdown card from dismissing modal
     }
 
     private async void WifiRefresh_Click(object sender, RoutedEventArgs e)
@@ -1085,11 +1215,25 @@ public sealed partial class MainPage : Page
         await RefreshWifiListAsync();
     }
 
+    private void UpdateConnectedNetworkCard()
+    {
+        try
+        {
+            var wifiInfo = _tabWorkerManager?.WifiPortalWorker.LatestWifiInfo ?? WifiSignalService.GetCurrentWifiSignal();
+            var ssid = !string.IsNullOrWhiteSpace(wifiInfo.ssid) ? wifiInfo.ssid : "Campus Wi-Fi";
+            if (WifiCurrentSsidText != null) WifiCurrentSsidText.Text = ssid;
+            if (WifiCurrentSignalText != null) WifiCurrentSignalText.Text = wifiInfo.signalPercentage > 0 ? $"Signal: {wifiInfo.signalPercentage}%" : "Signal: --%";
+            if (WifiCurrentPingText != null) WifiCurrentPingText.Text = PingTextBlock?.Text != null ? $"Ping: {PingTextBlock.Text}" : "Connected";
+        }
+        catch { }
+    }
+
     private void OpenWifiPicker()
     {
-        WifiPickerOverlay.Visibility = Visibility.Visible;
+        WifiDropdownOverlay.Visibility = Visibility.Visible;
         WifiPasswordCard.Visibility = Visibility.Collapsed;
         WifiConnectingBanner.Visibility = Visibility.Collapsed;
+        UpdateConnectedNetworkCard();
         _ = RefreshWifiListAsync();
     }
 
@@ -1136,8 +1280,8 @@ public sealed partial class MainPage : Page
     {
         var card = new Border
         {
-            Background = net.IsConnected ? new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)) : new SolidColorBrush(Color.FromArgb(255, 248, 250, 252)),
-            BorderBrush = net.IsConnected ? new SolidColorBrush(Color.FromArgb(255, 147, 197, 253)) : new SolidColorBrush(Color.FromArgb(255, 226, 232, 240)),
+            Background = net.IsConnected ? new SolidColorBrush(Color.FromArgb(255, 22, 34, 56)) : new SolidColorBrush(Color.FromArgb(255, 15, 18, 25)), // #162238 : #0F1219
+            BorderBrush = net.IsConnected ? new SolidColorBrush(Color.FromArgb(255, 37, 53, 84)) : new SolidColorBrush(Color.FromArgb(255, 30, 41, 59)), // #253554 : #1E293B
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12, 8, 12, 8)
@@ -1165,15 +1309,15 @@ public sealed partial class MainPage : Page
             Text = net.Ssid,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             FontSize = 13,
-            Foreground = new SolidColorBrush(Color.FromArgb(255, 15, 23, 42))
+            Foreground = new SolidColorBrush(Color.FromArgb(255, 230, 237, 243)) // #E6EDF3
         });
 
         if (net.IsCampusNetwork)
         {
             var campusBadge = new Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(255, 220, 252, 231)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 134, 239, 172)),
+                Background = new SolidColorBrush(Color.FromArgb(255, 6, 46, 22)), // #062E16
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)), // #10B981
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(6, 1, 6, 1)
@@ -1183,7 +1327,7 @@ public sealed partial class MainPage : Page
                 Text = "Campus Wi-Fi",
                 FontSize = 10,
                 FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromArgb(255, 21, 128, 61))
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 16, 185, 129)) // #10B981
             };
             topRow.Children.Add(campusBadge);
         }
@@ -1192,8 +1336,8 @@ public sealed partial class MainPage : Page
         {
             var connectedBadge = new Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(255, 219, 234, 254)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253)),
+                Background = new SolidColorBrush(Color.FromArgb(255, 22, 34, 56)), // #162238
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 53, 84)), // #253554
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(6, 1, 6, 1)
@@ -1203,7 +1347,7 @@ public sealed partial class MainPage : Page
                 Text = "Connected",
                 FontSize = 10,
                 FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                Foreground = new SolidColorBrush(Color.FromArgb(255, 29, 78, 216))
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248)) // #38BDF8
             };
             topRow.Children.Add(connectedBadge);
         }
@@ -1329,7 +1473,7 @@ public sealed partial class MainPage : Page
             WifiConnectingText.Text = $"\u2713 Associated with {ssid}. Verifying connection...";
             await Task.Delay(800);
             WifiConnectingBanner.Visibility = Visibility.Collapsed;
-            WifiPickerOverlay.Visibility = Visibility.Collapsed;
+            WifiDropdownOverlay.Visibility = Visibility.Collapsed;
 
             ShowNotice($"Connected to {ssid}.", InfoBarSeverity.Success);
             _ = RefreshWifiListAsync();
@@ -1367,7 +1511,7 @@ public sealed partial class MainPage : Page
     private void NavHome_Click(object sender, RoutedEventArgs e)
     {
         ExamErrorOverlay.Visibility = Visibility.Collapsed;
-        ExamWebView.CoreWebView2?.Navigate(_config.Exam.StartUrl);
+        ShowAssessmentHome();
     }
 
     // Invigilator Exit PIN Dialog Handlers
@@ -1478,6 +1622,136 @@ public sealed partial class MainPage : Page
         NoticeBar.Message = message;
         NoticeBar.Severity = severity;
         NoticeBar.IsOpen = true;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Profile Avatar & Dropdown Handlers
+    // ═══════════════════════════════════════════════════════════
+
+    private void LoadProfileAvatar()
+    {
+        try
+        {
+            if (_authenticatedCandidate == null)
+            {
+                ProfileInitialsText.Text = "GU";
+                DropdownInitialsText.Text = "GU";
+                DropdownDisplayName.Text = "Candidate";
+                DropdownEmail.Text = "Not signed in";
+                return;
+            }
+
+            // Set initials
+            var initials = _authenticatedCandidate.GetInitials();
+            ProfileInitialsText.Text = initials;
+            DropdownInitialsText.Text = initials;
+            DropdownDisplayName.Text = !string.IsNullOrWhiteSpace(_authenticatedCandidate.DisplayName)
+                ? _authenticatedCandidate.DisplayName
+                : "Candidate";
+            DropdownEmail.Text = _authenticatedCandidate.Email ?? "Not signed in";
+
+            // Try to load profile photo
+            if (!string.IsNullOrWhiteSpace(_authenticatedCandidate.PhotoUrl))
+            {
+                try
+                {
+                    var photoUri = new Uri(_authenticatedCandidate.PhotoUrl);
+                    var bitmapImage = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(photoUri);
+                    bitmapImage.ImageOpened += (s, e) =>
+                    {
+                        ProfilePhotoCircle.Visibility = Visibility.Visible;
+                        ProfileInitialsCircle.Visibility = Visibility.Collapsed;
+                        ProfileInitialsText.Visibility = Visibility.Collapsed;
+                        DropdownPhotoCircle.Visibility = Visibility.Visible;
+                    };
+                    bitmapImage.ImageFailed += (s, e) =>
+                    {
+                        // Keep initials visible on photo load failure
+                        ProfilePhotoCircle.Visibility = Visibility.Collapsed;
+                        DropdownPhotoCircle.Visibility = Visibility.Collapsed;
+                    };
+                    ProfilePhotoBrush.ImageSource = bitmapImage;
+                    DropdownPhotoBrush.ImageSource = bitmapImage;
+                }
+                catch
+                {
+                    // Fallback to initials on any error
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void ProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (WifiDropdownOverlay.Visibility == Visibility.Visible)
+        {
+            WifiDropdownOverlay.Visibility = Visibility.Collapsed;
+            WifiPasswordCard.Visibility = Visibility.Collapsed;
+        }
+
+        if (ProfileDropdownOverlay.Visibility == Visibility.Visible)
+        {
+            ProfileDropdownOverlay.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ProfileDropdownOverlay.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ProfileDropdownOverlay_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        ProfileDropdownOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void LogoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ProfileDropdownOverlay.Visibility = Visibility.Collapsed;
+
+            // Clear Google session cookies from WebView2
+            if (_isExamWebViewInitialized && ExamWebView.CoreWebView2?.CookieManager != null)
+            {
+                ExamWebView.CoreWebView2.CookieManager.DeleteAllCookies();
+            }
+
+            // Reset onboarding state (clears stored Google credentials)
+            _onboardingStore.Reset();
+            _authenticatedCandidate = null;
+
+            _auditLogger?.Log(EventType.EXAM_COMPLETED, "LOGOUT", "Candidate logged out. Google session cleared.");
+
+            // Uninstall security hooks before navigating away
+            try { _keyboardHook?.UninstallHook(); } catch { }
+            try { _tabWorkerManager?.StopAll(); } catch { }
+            try { _tabWorkerManager?.Dispose(); } catch { }
+            try { _securityWatchdog?.Stop(); } catch { }
+            try { _securityWatchdog?.Dispose(); } catch { }
+            try { _networkMonitor?.Stop(); } catch { }
+            try { _networkMonitor?.Dispose(); } catch { }
+            try { _auditLogger?.Dispose(); } catch { }
+
+            // Navigate back to LaunchPage (sign-in screen)
+            MainWindow.CurrentInstance?.NavigateToLaunchPage();
+        }
+        catch (Exception ex)
+        {
+            try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "boot.log"), $"[{DateTime.UtcNow:O}] [Logout Error] {ex}\n"); } catch { }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Blocked URL Overlay
+    // ═══════════════════════════════════════════════════════════
+
+    private async void ShowBlockedUrlOverlay()
+    {
+        BlockedUrlOverlay.Visibility = Visibility.Visible;
+        // Auto-dismiss after 3 seconds
+        await Task.Delay(3000);
+        BlockedUrlOverlay.Visibility = Visibility.Collapsed;
     }
 
     // Developer Simulator Actions
