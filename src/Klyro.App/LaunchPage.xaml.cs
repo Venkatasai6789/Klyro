@@ -972,8 +972,9 @@ public sealed partial class LaunchPage : Page
         if (GoogleSignInButton.IsEnabled)
         {
             GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252)); // Slate-50
-            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184)); // Slate-400
-            GoogleArrowIcon.Margin = new Thickness(4, 0, 0, 0); // Slide right 4px
+            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248)); // Sky-400 accent glow
+            GoogleArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 219, 234, 254)); // #DBEAFE
+            GoogleArrowBadge.Margin = new Thickness(0, 0, -3, 0); // Kinetic glide
         }
     }
 
@@ -983,7 +984,8 @@ public sealed partial class LaunchPage : Page
         {
             GoogleSignInButton.Background = new SolidColorBrush(Colors.White);
             GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240)); // Slate-200
-            GoogleArrowIcon.Margin = new Thickness(0);
+            GoogleArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255)); // #EFF6FF
+            GoogleArrowBadge.Margin = new Thickness(0);
         }
     }
 
@@ -992,6 +994,7 @@ public sealed partial class LaunchPage : Page
         if (GoogleSignInButton.IsEnabled)
         {
             GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249)); // Slate-100
+            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
         }
     }
 
@@ -1000,6 +1003,7 @@ public sealed partial class LaunchPage : Page
         if (GoogleSignInButton.IsEnabled)
         {
             GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 248, 250, 252));
+            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
         }
     }
 
@@ -1040,6 +1044,7 @@ public sealed partial class LaunchPage : Page
         // Set button to loading state
         GoogleSignInButton.IsEnabled = false;
         GoogleButtonText.Text = "Connecting to Google...";
+        GoogleArrowBadge.Visibility = Visibility.Collapsed;
         GoogleArrowIcon.Visibility = Visibility.Collapsed;
         GoogleAuthProgressRing.Visibility = Visibility.Visible;
         GoogleAuthProgressRing.IsActive = true;
@@ -2007,23 +2012,29 @@ public sealed partial class LaunchPage : Page
     private void StartCheckButton_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
-        StartCheckArrowIcon.Margin = new Thickness(4, 0, 0, 0);
+        StartCheckButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+        StartCheckArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        StartCheckArrowBadge.Margin = new Thickness(0, 0, -3, 0);
     }
 
     private void StartCheckButton_PointerExited(object sender, PointerRoutedEventArgs e)
     {
         StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
-        StartCheckArrowIcon.Margin = new Thickness(0, 0, 0, 0);
+        StartCheckButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        StartCheckArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        StartCheckArrowBadge.Margin = new Thickness(0);
     }
 
     private void StartCheckButton_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 82, 204));
+        StartCheckButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 64, 175));
     }
 
     private void StartCheckButton_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
         StartCheckButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        StartCheckButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
     }
 
     private async Task TransitionToPreflightCheckingAsync()
@@ -2300,6 +2311,100 @@ public sealed partial class LaunchPage : Page
         _ = RunPreflightChecksAsync();
     }
 
+    private void PreflightRetryButton_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        PreflightRetryButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        PreflightRetryButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+        PreflightRetryArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        PreflightRetryArrowBadge.Margin = new Thickness(0, 0, -3, 0);
+    }
+
+    private void PreflightRetryButton_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        PreflightRetryButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
+        PreflightRetryButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        PreflightRetryArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        PreflightRetryArrowBadge.Margin = new Thickness(0);
+    }
+
+    private void PreflightRetryButton_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        PreflightRetryButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 82, 204));
+        PreflightRetryButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 64, 175));
+    }
+
+    private void PreflightRetryButton_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        PreflightRetryButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        PreflightRetryButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+    }
+
+    private void PreflightSwitchAccount_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        PreflightSwitchAccountButton.Foreground = new SolidColorBrush(Color.FromArgb(255, 147, 197, 253));
+    }
+
+    private void PreflightSwitchAccount_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        PreflightSwitchAccountButton.Foreground = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+    }
+
+    private void CapCard_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, CapCard1))
+        {
+            CapIconBorder1.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            CapIconBorder1.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            CapText1.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+        else if (ReferenceEquals(sender, CapCard2))
+        {
+            CapIconBorder2.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            CapIconBorder2.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            CapText2.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+        else if (ReferenceEquals(sender, CapCard3))
+        {
+            CapIconBorder3.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            CapIconBorder3.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            CapText3.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+        else if (ReferenceEquals(sender, CapCard4))
+        {
+            CapIconBorder4.Background = new SolidColorBrush(Color.FromArgb(255, 26, 38, 64));
+            CapIconBorder4.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+            CapText4.Foreground = new SolidColorBrush(Color.FromArgb(255, 241, 245, 249));
+        }
+    }
+
+    private void CapCard_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, CapCard1))
+        {
+            CapIconBorder1.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            CapIconBorder1.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+            CapText1.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+        else if (ReferenceEquals(sender, CapCard2))
+        {
+            CapIconBorder2.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            CapIconBorder2.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+            CapText2.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+        else if (ReferenceEquals(sender, CapCard3))
+        {
+            CapIconBorder3.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            CapIconBorder3.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+            CapText3.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+        else if (ReferenceEquals(sender, CapCard4))
+        {
+            CapIconBorder4.Background = new SolidColorBrush(Color.FromArgb(255, 19, 27, 46));
+            CapIconBorder4.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 41, 59));
+            CapText4.Foreground = new SolidColorBrush(Color.FromArgb(255, 148, 163, 184));
+        }
+    }
+
     private void UpdatePreflightCandidatePill(AuthenticatedUser? user)
     {
         if (user != null && (!string.IsNullOrWhiteSpace(user.Email) || !string.IsNullOrWhiteSpace(user.DisplayName)))
@@ -2368,12 +2473,15 @@ public sealed partial class LaunchPage : Page
             // Reset Google sign in button
             GoogleSignInButton.IsEnabled = true;
             GoogleButtonText.Text = "Continue with Google";
-            GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
-            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 59, 130, 246));
-            GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            GoogleSignInButton.Background = new SolidColorBrush(Colors.White);
+            GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
+            GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 15, 23, 42));
+            GoogleArrowBadge.Visibility = Visibility.Visible;
+            GoogleArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255));
+            GoogleArrowBadge.Margin = new Thickness(0);
             GoogleArrowIcon.Visibility = Visibility.Visible;
-            GoogleArrowIcon.Glyph = "\uE76C";
-            GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            GoogleArrowIcon.Glyph = "\uE72A";
+            GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
             GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
             GoogleAuthProgressRing.IsActive = false;
         }
@@ -2391,23 +2499,29 @@ public sealed partial class LaunchPage : Page
     private void ContinueButton_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
-        ContinueArrowIcon.Margin = new Thickness(4, 0, 0, 0);
+        ContinueButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
+        ContinueArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        ContinueArrowBadge.Margin = new Thickness(0, 0, -3, 0);
     }
 
     private void ContinueButton_PointerExited(object sender, PointerRoutedEventArgs e)
     {
         ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
-        ContinueArrowIcon.Margin = new Thickness(0, 0, 0, 0);
+        ContinueButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 37, 99, 235));
+        ContinueArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        ContinueArrowBadge.Margin = new Thickness(0);
     }
 
     private void ContinueButton_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 82, 204));
+        ContinueButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 30, 64, 175));
     }
 
     private void ContinueButton_PointerReleased(object sender, PointerRoutedEventArgs e)
     {
         ContinueButton.Background = new SolidColorBrush(Color.FromArgb(255, 26, 117, 255));
+        ContinueButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 56, 189, 248));
     }
 
     private async void UseDifferentAccount_Click(object sender, RoutedEventArgs e)
@@ -2442,12 +2556,15 @@ public sealed partial class LaunchPage : Page
         // Reset button state
         GoogleSignInButton.IsEnabled = true;
         GoogleButtonText.Text = "Continue with Google";
-        GoogleSignInButton.Background = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
-        GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 59, 130, 246));
-        GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+        GoogleSignInButton.Background = new SolidColorBrush(Colors.White);
+        GoogleSignInButton.BorderBrush = new SolidColorBrush(Color.FromArgb(255, 226, 232, 240));
+        GoogleButtonText.Foreground = new SolidColorBrush(Color.FromArgb(255, 15, 23, 42));
+        GoogleArrowBadge.Visibility = Visibility.Visible;
+        GoogleArrowBadge.Background = new SolidColorBrush(Color.FromArgb(255, 239, 246, 255));
+        GoogleArrowBadge.Margin = new Thickness(0);
         GoogleArrowIcon.Visibility = Visibility.Visible;
-        GoogleArrowIcon.Glyph = "\uE76C";
-        GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+        GoogleArrowIcon.Glyph = "\uE72A";
+        GoogleArrowIcon.Foreground = new SolidColorBrush(Color.FromArgb(255, 0, 102, 255));
         GoogleAuthProgressRing.Visibility = Visibility.Collapsed;
         GoogleAuthProgressRing.IsActive = false;
     }

@@ -688,20 +688,28 @@
                                            VerticalAlignment="Center"
                                            Margin="14,0,0,0" />
 
-                                <!-- Right Arrow Glyph (Blue) with smooth glide on hover -->
-                                <FontIcon x:Name="GoogleArrowIcon"
-                                          Grid.Column="2"
-                                          Glyph="&#xE72A;"
-                                          FontSize="14"
-                                          Foreground="#0066FF"
-                                          VerticalAlignment="Center"
-                                          HorizontalAlignment="Right" />
+                                <!-- Right Arrow Glyph (Blue) inside consistent circular badge -->
+                                <Border x:Name="GoogleArrowBadge"
+                                        Grid.Column="2"
+                                        Width="30"
+                                        Height="30"
+                                        CornerRadius="15"
+                                        Background="#EFF6FF"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                    <FontIcon x:Name="GoogleArrowIcon"
+                                              Glyph="&#xE72A;"
+                                              FontSize="13"
+                                              Foreground="#0066FF"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                                </Border>
 
                                 <!-- Loading Progress Ring -->
                                 <ProgressRing x:Name="GoogleAuthProgressRing"
                                               Grid.Column="2"
-                                              Width="18"
-                                              Height="18"
+                                              Width="20"
+                                              Height="20"
                                               Foreground="#0066FF"
                                               IsActive="False"
                                               Visibility="Collapsed"
@@ -1027,12 +1035,12 @@
                                         Width="30"
                                         Height="30"
                                         CornerRadius="15"
-                                        Background="Transparent"
+                                        Background="#1A75FF"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
                                     <FontIcon x:Name="ContinueArrowIcon"
                                               Glyph="&#xE72A;"
-                                              FontSize="15"
+                                              FontSize="13"
                                               Foreground="#FFFFFF"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
@@ -1103,20 +1111,29 @@
                                 BorderBrush="#1E293B"
                                 BorderThickness="1"
                                 CornerRadius="20"
-                                Padding="8,4,12,4"
+                                Padding="8,4,14,4"
                                 HorizontalAlignment="Left"
                                 Margin="0,0,0,16"
                                 Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Border Width="22" Height="22" CornerRadius="11" Background="#0066FF">
-                                    <TextBlock x:Name="PreflightCandidateInitials"
-                                               Text=""
-                                               FontSize="10"
-                                               FontWeight="Bold"
-                                               Foreground="#FFFFFF"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
+                                <Grid Width="22" Height="22">
+                                    <Border Width="22" Height="22" CornerRadius="11" Background="#0066FF">
+                                        <TextBlock x:Name="PreflightCandidateInitials"
+                                                   Text=""
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <Border Width="7" Height="7" CornerRadius="3.5"
+                                            Background="#10B981"
+                                            BorderBrush="#141C2E"
+                                            BorderThickness="1"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Bottom"
+                                            Margin="0,0,-1,-1" />
+                                </Grid>
                                 <TextBlock x:Name="PreflightCandidateName"
                                            Text=""
                                            FontSize="12"
@@ -1132,6 +1149,8 @@
                                 <Button x:Name="PreflightSwitchAccountButton"
                                         Content="Switch"
                                         Click="PreflightSwitchAccount_Click"
+                                        PointerEntered="PreflightSwitchAccount_PointerEntered"
+                                        PointerExited="PreflightSwitchAccount_PointerExited"
                                         FontSize="11"
                                         FontWeight="SemiBold"
                                         Foreground="#38BDF8"
@@ -1157,7 +1176,7 @@
                                    Foreground="#94A3B8"
                                    Margin="0,0,0,28" />
 
-                        <!-- 4. Primary Action: Start Check Button -->
+                        <!-- 4. Primary Action: Start Check Button (Canonical 48px royal blue with circular action badge) -->
                         <Button x:Name="StartCheckButton"
                                 Style="{StaticResource GetStartedButtonStyle}"
                                 Click="StartCheckButton_Click"
@@ -1175,6 +1194,7 @@
                                 HorizontalAlignment="Left"
                                 HorizontalContentAlignment="Stretch"
                                 AutomationProperties.Name="Start Check"
+                                ToolTipService.ToolTip="Begin environment verification checks"
                                 TabIndex="0"
                                 Margin="0,0,0,40">
                             <Grid HorizontalAlignment="Stretch">
@@ -1185,16 +1205,24 @@
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Left" />
 
-                                <FontIcon x:Name="StartCheckArrowIcon"
-                                          Glyph="&#xE72A;"
-                                          FontSize="14"
-                                          Foreground="#FFFFFF"
-                                          VerticalAlignment="Center"
-                                          HorizontalAlignment="Right" />
+                                <Border x:Name="StartCheckArrowBadge"
+                                        Width="30"
+                                        Height="30"
+                                        CornerRadius="15"
+                                        Background="#1A75FF"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                    <FontIcon x:Name="StartCheckArrowIcon"
+                                              Glyph="&#xE72A;"
+                                              FontSize="13"
+                                              Foreground="#FFFFFF"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                                </Border>
                             </Grid>
                         </Button>
 
-                        <!-- 5. Footer: 4 Capabilities Breakdown (Account, Network, Internet, Security) -->
+                        <!-- 5. Footer: 4 Capabilities Breakdown (Interactive micro-interactions) -->
                         <Grid Width="380" HorizontalAlignment="Left">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1207,11 +1235,17 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- Column 1: Account Verification -->
-                            <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="8">
-                                <Border Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
+                            <StackPanel x:Name="CapCard1"
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Center"
+                                        Spacing="8"
+                                        Background="Transparent"
+                                        PointerEntered="CapCard_PointerEntered"
+                                        PointerExited="CapCard_PointerExited">
+                                <Border x:Name="CapIconBorder1" Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE77B;" FontSize="16" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
+                                <TextBlock x:Name="CapText1" FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
                                     <Run Text="Account" /><LineBreak /><Run Text="Verification" />
                                 </TextBlock>
                             </StackPanel>
@@ -1220,11 +1254,17 @@
                             <Border Grid.Column="1" Background="#1E293B" Height="40" VerticalAlignment="Center" />
 
                             <!-- Column 2: Network Check -->
-                            <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="8">
-                                <Border Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
+                            <StackPanel x:Name="CapCard2"
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Center"
+                                        Spacing="8"
+                                        Background="Transparent"
+                                        PointerEntered="CapCard_PointerEntered"
+                                        PointerExited="CapCard_PointerExited">
+                                <Border x:Name="CapIconBorder2" Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE701;" FontSize="16" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
+                                <TextBlock x:Name="CapText2" FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
                                     <Run Text="Network" /><LineBreak /><Run Text="Check" />
                                 </TextBlock>
                             </StackPanel>
@@ -1233,11 +1273,17 @@
                             <Border Grid.Column="3" Background="#1E293B" Height="40" VerticalAlignment="Center" />
 
                             <!-- Column 3: Internet Connection -->
-                            <StackPanel Grid.Column="4" HorizontalAlignment="Center" Spacing="8">
-                                <Border Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
+                            <StackPanel x:Name="CapCard3"
+                                        Grid.Column="4"
+                                        HorizontalAlignment="Center"
+                                        Spacing="8"
+                                        Background="Transparent"
+                                        PointerEntered="CapCard_PointerEntered"
+                                        PointerExited="CapCard_PointerExited">
+                                <Border x:Name="CapIconBorder3" Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE774;" FontSize="16" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
+                                <TextBlock x:Name="CapText3" FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
                                     <Run Text="Internet" /><LineBreak /><Run Text="Connection" />
                                 </TextBlock>
                             </StackPanel>
@@ -1246,11 +1292,17 @@
                             <Border Grid.Column="5" Background="#1E293B" Height="40" VerticalAlignment="Center" />
 
                             <!-- Column 4: Security Status -->
-                            <StackPanel Grid.Column="6" HorizontalAlignment="Center" Spacing="8">
-                                <Border Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
+                            <StackPanel x:Name="CapCard4"
+                                        Grid.Column="6"
+                                        HorizontalAlignment="Center"
+                                        Spacing="8"
+                                        Background="Transparent"
+                                        PointerEntered="CapCard_PointerEntered"
+                                        PointerExited="CapCard_PointerExited">
+                                <Border x:Name="CapIconBorder4" Width="40" Height="40" CornerRadius="8" Background="#131B2E" BorderBrush="#1E293B" BorderThickness="1" HorizontalAlignment="Center">
                                     <FontIcon Glyph="&#xE72E;" FontSize="16" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
+                                <TextBlock x:Name="CapText4" FontSize="11" FontWeight="Medium" Foreground="#94A3B8" TextAlignment="Center" LineHeight="15">
                                     <Run Text="Security" /><LineBreak /><Run Text="Status" />
                                 </TextBlock>
                             </StackPanel>
@@ -1461,7 +1513,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <ProgressBar x:Name="PreflightProgressBar" Grid.Column="0" Height="4" CornerRadius="2"
+                            <ProgressBar x:Name="PreflightProgressBar" Grid.Column="0" Height="6" CornerRadius="3"
                                          Background="#1E293B" Foreground="#0066FF" Minimum="0" Maximum="5" Value="0"
                                          VerticalAlignment="Center" Margin="0,0,16,0" />
                             <TextBlock x:Name="PreflightProgressCounter" Grid.Column="1" Text="0 / 5"
@@ -1489,15 +1541,48 @@
                                 <TextBlock x:Name="PreflightErrorDetails" Text="" FontSize="12" Foreground="#FCA5A5" TextWrapping="Wrap" LineHeight="16" />
                             </Border>
                             <Button x:Name="PreflightRetryButton"
+                                    Style="{StaticResource GetStartedButtonStyle}"
                                     Click="PreflightRetryButton_Click"
-                                    Content="Retry Diagnostic Checks"
+                                    PointerEntered="PreflightRetryButton_PointerEntered"
+                                    PointerExited="PreflightRetryButton_PointerExited"
+                                    PointerPressed="PreflightRetryButton_PointerPressed"
+                                    PointerReleased="PreflightRetryButton_PointerReleased"
                                     Width="380"
-                                    Height="40"
-                                    Background="#2563EB"
-                                    Foreground="#FFFFFF"
+                                    Height="48"
+                                    Padding="20,0"
+                                    Background="#0066FF"
+                                    BorderThickness="1"
+                                    BorderBrush="#2563EB"
                                     CornerRadius="8"
-                                    FontWeight="SemiBold"
-                                    FontSize="13" />
+                                    HorizontalAlignment="Left"
+                                    HorizontalContentAlignment="Stretch"
+                                    AutomationProperties.Name="Retry Diagnostic Checks"
+                                    ToolTipService.ToolTip="Re-run environment verification checks"
+                                    TabIndex="0">
+                                <Grid HorizontalAlignment="Stretch">
+                                    <TextBlock Text="Retry Diagnostic Checks"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FFFFFF"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Left" />
+
+                                    <Border x:Name="PreflightRetryArrowBadge"
+                                            Width="30"
+                                            Height="30"
+                                            CornerRadius="15"
+                                            Background="#1A75FF"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center">
+                                        <FontIcon x:Name="PreflightRetryArrowIcon"
+                                                  Glyph="&#xE72C;"
+                                                  FontSize="13"
+                                                  Foreground="#FFFFFF"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                    </Border>
+                                </Grid>
+                            </Button>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
