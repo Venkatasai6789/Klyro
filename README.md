@@ -46,13 +46,44 @@ Pre-compiled, self-contained **Windows x64** binaries are available directly via
 
 - **Self-Contained Standalone Executable**: No external .NET runtime installation required.
 - **SHA-256 Checksums**: Provided with every release for verification against supply-chain tampering.
-- **Direct Run**: Extract the archive and launch `Klyro.App.exe`.
+- **Direct Run**: Extract the archive and launch `Klyro.App.exe`, or run the guided setup wizard `Klyro.Setup.exe`.
+
+---
+
+## 💿 Software Installation Wizard (`Install-Klyro.ps1` & `Klyro.Setup.exe`)
+
+When installing Klyro, candidates and system administrators are guided through a cohesive 4-step modern graphical installation wizard:
+
+1. **Screen 01: License Agreement & Terms of Use**
+   - Full scrollable Terms and Conditions (MIT Software License, Academic Assessment Integrity, Keyboard Suppression & Lockdown Policies, Dual-WebView Network Handling, and Zero-Telemetry Privacy Commitment).
+   - Mandatory acceptance radial buttons:
+     - `( ) I accept the terms in the License Agreement`
+     - `(•) I do not accept the terms in the License Agreement` (Next button is strictly disabled until accepted).
+
+2. **Screen 02: Installation Options & Shortcuts**
+   - Target destination folder selection (defaults to `C:\Klyro` with real-time disk space calculation and folder browsing).
+   - Shortcut creation radial buttons:
+     - `(•) Create Desktop and Start Menu shortcuts (Recommended)`
+     - `( ) Create Desktop shortcut only`
+     - `( ) Create Start Menu shortcut only`
+     - `( ) Do not create any shortcuts`
+   - Automated file security: MOTW zone removal (`Zone.Identifier` unblocking) and Windows user access control permissions.
+
+3. **Screen 03: Ready to Install & Live Progress**
+   - Pre-install summary card displaying chosen target path, shortcut preferences, and security flags.
+   - Prominent **Install** action button.
+   - Smooth animated progress bar (0% $\rightarrow$ 100%) with real-time status ticker and live activity logging.
+
+4. **Screen 04: Installation Completed**
+   - Success badge and executable path confirmation.
+   - Interactive checkbox: `[✓] Launch Klyro Secure Assessment Browser now`.
+   - **Finish** button completing setup and seamlessly launching Klyro.
 
 ---
 
 ## 📸 User Interface Walkthrough
 
-Klyro features a cohesive 4-screen onboarding pipeline built with **WinUI 3** and modern hardware-accelerated composition.
+Klyro features a cohesive onboarding pipeline built with hardware-accelerated composition.
 
 ### Screen 01: Startup & Diagnostic Pipeline
 *Sequential pre-flight health checks validating runtime environments, network latency, and security hooks (10% $\rightarrow$ 100% Ready).*
@@ -243,9 +274,10 @@ Klyro/
 │   ├── Klyro.Core/                 # Core domain logic, network probes, guards, logging (.NET 8)
 │   ├── Klyro.App/                  # WinUI 3 desktop application & dual-WebView host
 │   ├── Klyro.Admin/                # Command-line administrative diagnostics & telemetry tool
-│   └── Klyro.Installer/            # Shell Launcher v2, WDAC & assigned access scripts
+│   └── Klyro.Installer/            # Modern WPF Setup Wizard, Shell Launcher v2, WDAC & assigned access scripts
 ├── tests/
 │   ├── Klyro.UnitTests/            # Preflight checks, timer, session recovery, audit logger
+│   ├── Klyro.InstallerTests/       # Installer options, radio button states, and EULA compliance tests
 │   ├── Klyro.SecurityTests/        # Allowlist filters, protocol blocks, download guards
 │   ├── Klyro.NetworkTests/         # Deterministic probes, latency damping, Wi-Fi service
 │   └── Klyro.RecoveryTests/        # Captive portal recovery controller & modal lifecycle

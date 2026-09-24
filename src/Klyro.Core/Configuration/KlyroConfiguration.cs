@@ -94,7 +94,7 @@ public sealed class NetworkOptions
 public sealed class SecurityOptions
 {
     [JsonPropertyName("exitPin")]
-    public string ExitPin { get; set; } = "123456";
+    public string ExitPin { get; set; } = "270905";
 
     [JsonPropertyName("allowNewWindows")]
     public bool AllowNewWindows { get; set; } = false;

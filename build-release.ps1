@@ -54,7 +54,22 @@ $dotnetExe = if ($env:USERPROFILE -and (Test-Path "$env:USERPROFILE\.dotnet\dotn
     -o $OutputDir
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Publish failed."
+    Write-Error "Publish of Klyro.App failed."
+}
+
+# 2b. Publish Klyro Setup Wizard
+Write-Host "`nPublishing Klyro Setup Wizard..." -ForegroundColor Yellow
+& $dotnetExe publish "$ScriptDir\src\Klyro.Installer\Klyro.Installer.csproj" `
+    -c Release `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:Version=$Version `
+    -o "$OutputDir\Setup"
+
+if (Test-Path "$OutputDir\Setup\Klyro.Installer.exe") {
+    Move-Item "$OutputDir\Setup\Klyro.Installer.exe" "$OutputDir\Klyro.Setup.exe" -Force
+    Remove-Item "$OutputDir\Setup" -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # 3. Compress Archive

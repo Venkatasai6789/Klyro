@@ -36,7 +36,7 @@ High-stakes university programming examinations (hosted on platforms such as Cod
 │  │  - SingleInstance Mutex (`Global\Klyro_Secure_Assessment_Browser_SingleInstance`) │  │
 │  │  - Low-Level Keyboard Hook (`WH_KEYBOARD_LL`: Win+G, Alt+Tab, Alt+F4, F11, F12)   │  │
 │  │  - AppWindow Fullscreen Presenter (No Taskbar, No Window Chrome)                 │  │
-│  │  - Invigilator Exit PIN Authorization Interceptor (Default: 123456)               │  │
+│  │  - Invigilator Exit PIN Authorization Interceptor (Default: 270905)               │  │
 │  │  - Non-Blocking Asynchronous Audit Logger (System.Threading.Channels)            │  │
 │  │  - Atomic Crash Recovery Session Store (`session_recovery.json`)                 │  │
 │  │                                                                                  │  │
@@ -491,6 +491,6 @@ To close Klyro at the conclusion of an examination:
 1. Click the red **[ Exit Exam ]** button in the top-right corner, or press **`Alt+F4`**.
 2. When the **Invigilator Authorization** modal appears, enter the PIN:
    ```
-   123456
+   270905
    ```
 3. Click **[ Authorize & Exit ]** or press Enter. The low-level keyboard hook uninstalls and the application exits cleanly.

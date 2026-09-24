@@ -1470,10 +1470,10 @@ public sealed partial class LaunchPage : Page
     private async void VerifyInvigilatorPin()
     {
         string enteredPin = InvigilatorPinBox.Password?.Trim() ?? string.Empty;
-        string expectedPin = _config?.Security?.ExitPin ?? "123456";
+        string expectedPin = _config?.Security?.ExitPin ?? "270905";
 
         if (string.Equals(enteredPin, expectedPin, StringComparison.Ordinal) ||
-            string.Equals(enteredPin, "123456", StringComparison.Ordinal))
+            string.Equals(enteredPin, "270905", StringComparison.Ordinal))
         {
             InvigilatorPinError.Visibility = Visibility.Collapsed;
             PageLog("Invigilator PIN successfully verified. Authorizing offline examination session.");

@@ -23,7 +23,7 @@ public class StartupPipelineTests : IDisposable
           ""application"": { ""name"": ""Klyro"", ""version"": ""1.0.0"" },
           ""exam"": { ""startUrl"": ""https://www.codechef.com/"" },
           ""network"": { ""portalUrl"": ""http://172.16.103.254:8090/"" },
-          ""security"": { ""exitPin"": ""123456"" },
+          ""security"": { ""exitPin"": ""270905"" },
           ""browser"": { ""allowedOrigins"": [""https://www.codechef.com""] }
         }";
         File.WriteAllText(Path.Combine(configDir, "default.json"), configJson);
