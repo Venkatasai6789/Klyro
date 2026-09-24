@@ -38,15 +38,17 @@ Traditional lockdown browsers often crash, wipe written student source code, or 
 
 ---
 
-## 🚀 Quick Download & Releases
+## 🚀 Quick Download & Setup (Windows x64)
 
-Pre-compiled, self-contained **Windows x64** binaries are available directly via GitHub Releases:
+### 📦 Recommended: Standalone Windows Setup Installer
+Download the official single-file installer executable directly via GitHub Releases:
 
-📦 **[Download Latest Klyro Executable (`Klyro-v1.0.0-win-x64.zip`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
+💿 **[Download Klyro Setup Installer (`Klyro-Setup-v1.0.0-win-x64.exe`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
 
-- **Self-Contained Standalone Executable**: No external .NET runtime installation required.
-- **SHA-256 Checksums**: Provided with every release for verification against supply-chain tampering.
-- **Direct Run**: Extract the archive and launch `Klyro.App.exe`, or run the guided setup wizard `Klyro.Setup.exe`.
+- **Single Self-Contained Executable**: Zero archive extraction or manual copying required. Simply run the installer executable to start the 4-step guided setup wizard.
+- **Embedded Application Payload**: Full secure browser engine, assets, and runtime dependencies bundled inside the single `.exe`.
+- **SHA-256 Checksum**: Cryptographically verifiable against supply-chain tampering.
+- **Portable ZIP Alternative**: `Klyro-v1.0.0-win-x64.zip` is also provided for portable lab deployments.
 
 ---
 

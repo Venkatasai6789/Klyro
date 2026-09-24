@@ -15,4 +15,8 @@
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\Klyro_Logo.png" />
   </ItemGroup>
+
+  <ItemGroup Condition="Exists('Resources\app.payload.zip')">
+    <EmbeddedResource Include="Resources\app.payload.zip" />
+  </ItemGroup>
 </Project>

@@ -1,6 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -105,21 +108,24 @@ public class InstallerEngine
             await Task.Run(() => StopKlyroProcesses(), ct);
             await Task.Delay(300, ct);
 
-            // 2. Locate source binaries or publish if running in source repo
-            Report(30, "Locating application binaries and packages...");
-            string sourceDir = await Task.Run(() => ResolveSourceBinariesDirectory(), ct);
-            await Task.Delay(200, ct);
-
-            // 3. Prepare destination directory
-            Report(45, $"Preparing destination folder {targetDir}...");
+            // 2. Prepare destination directory
+            Report(30, $"Preparing destination folder {targetDir}...");
             if (!Directory.Exists(targetDir))
             {
                 Directory.CreateDirectory(targetDir);
             }
 
-            // 4. Deploy binaries
-            Report(60, "Deploying application binaries and assets...");
-            await Task.Run(() => CopyDirectory(sourceDir, targetDir), ct);
+            // 3. Deploy binaries (first try embedded or co-located payload, then local source directory)
+            Report(45, "Deploying application binaries and components...");
+            bool payloadExtracted = await Task.Run(() => TryExtractPayload(targetDir), ct);
+
+            if (!payloadExtracted)
+            {
+                Report(50, "Locating application binaries and packages...");
+                string sourceDir = await Task.Run(() => ResolveSourceBinariesDirectory(), ct);
+                Report(60, "Deploying application binaries and assets...");
+                await Task.Run(() => CopyDirectory(sourceDir, targetDir), ct);
+            }
 
             // Copy config directory if available in repo
             string configSource = FindConfigSource();
@@ -219,6 +225,71 @@ public class InstallerEngine
                 }
             }
             catch { }
+        }
+    }
+
+    private bool TryExtractPayload(string targetDir)
+    {
+        try
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            string[] resourceNames = assembly.GetManifestResourceNames();
+            string? payloadResource = resourceNames.FirstOrDefault(r => r.EndsWith("app.payload.zip", StringComparison.OrdinalIgnoreCase));
+
+            Stream? stream = null;
+            if (!string.IsNullOrEmpty(payloadResource))
+            {
+                stream = assembly.GetManifestResourceStream(payloadResource);
+            }
+
+            if (stream == null)
+            {
+                string localZip = Path.Combine(AppContext.BaseDirectory, "app.payload.zip");
+                if (File.Exists(localZip))
+                {
+                    stream = File.OpenRead(localZip);
+                }
+            }
+
+            if (stream == null) return false;
+
+            using (stream)
+            using (var archive = new ZipArchive(stream, ZipArchiveMode.Read))
+            {
+                int total = archive.Entries.Count;
+                int count = 0;
+
+                foreach (var entry in archive.Entries)
+                {
+                    if (string.IsNullOrEmpty(entry.Name))
+                    {
+                        Directory.CreateDirectory(Path.Combine(targetDir, entry.FullName));
+                        continue;
+                    }
+
+                    string destPath = Path.Combine(targetDir, entry.FullName);
+                    string? parentDir = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
+                    {
+                        Directory.CreateDirectory(parentDir);
+                    }
+
+                    entry.ExtractToFile(destPath, overwrite: true);
+                    count++;
+
+                    if (count % 20 == 0 || count == total)
+                    {
+                        int pct = 45 + (int)((count / (double)total) * 28);
+                        Report(pct, $"Extracting {entry.Name} ({count}/{total})...");
+                    }
+                }
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

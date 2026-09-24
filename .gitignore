@@ -60,6 +60,8 @@ boot.log
 [Xx]86/
 [Aa][Rr][Mm]64/
 dist/
+artifacts/
+*.payload.zip
 output/
 .vs/
 .vscode/
