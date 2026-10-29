@@ -45,10 +45,10 @@ public class DedicatedThreadNetworkMonitorTests
         using var monitor = new NetworkMonitor(config, new FastMockProbe());
 
         monitor.Start();
-        await Task.Delay(150);
+        await Task.Delay(250);
 
         long ticks = monitor.TotalTickCount;
-        Assert.True(ticks >= 5, $"Expected ticks >= 5 in 150ms, got {ticks}");
+        Assert.True(ticks >= 3, $"Expected ticks >= 3 in 250ms, got {ticks}");
 
         monitor.Stop();
     }

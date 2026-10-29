@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-10-29
+
+### Added
+- **3-Layer Remote Access & Screen Sharing Detection Engine**:
+  - **Layer A (Terminal Services & Session Architecture)**: Native integration with `WTSQuerySessionInformationW` via `RemoteSessionDetector` and `WindowsSessionQueryProvider`. Distinguishes active RDP sessions, disconnected sessions (`WTSDisconnected`), and local console stations (`WinStationName == "Console"` / `%SESSIONNAME% == "Console"`).
+  - **Layer B (Process-Table & Remoting Daemon Inspection)**: Immediate zero-tolerance violation detection in `RemoteControlProcessDetector` for active remoting daemons and screen control binaries (`remoting_desktop`, `remote_assistance_host`, `remote_assistance_host_uiaccess`, `quickassist`, `msra`, `splashtop`, `TeamViewer`, `AnyDesk`).
+  - **Layer C (Top-Level Window Banner Scanning)**: Real-time scan via `WindowBannerDetector` using native Win32 `EnumWindows` and `GetWindowTextW` to identify screen-sharing indicator bars (e.g., `"Your desktop is currently shared with..."`, `"Chrome Remote Desktop"`, `"is sharing your screen"`, `"Quick Assist"`, `"AnyDesk"`).
+- **Active Exam Question Concealment & Instant Kiosk Restriction**:
+  - `SecurityWatchdog` scan loop accelerated to 1.5-second polling intervals during active exams.
+  - When unauthorized remote access or screen sharing is detected midway through an exam, `ExamWebView.Visibility = Visibility.Collapsed` instantly collapses and hides the exam DOM and coding problems, preventing external viewers or remote helpers from seeing test questions.
+  - The workstation immediately transitions to `RESTRICTED` state with a modal `SecurityRestrictionOverlay`, captures desktop screenshots for forensic audit, logs a timestamped incident, and provides guidance to the student.
+- **Self-Service Incident Resolution Portal & Administrative Server**:
+  - Integrated HTTP service in `Klyro.Admin` (`http://localhost:5050/admin` and `http://localhost:5050/security-incident`) allowing candidates to review security incident records, submit formal explanations, and trigger automated recheck authorization without invigilator device takeover.
+  - Incident data model and persistence engine (`src/Klyro.Core/Incidents/IncidentManager.cs`).
+- **Comprehensive Unit & Security Test Coverage**:
+  - Added `RemoteAccessDetectorTests.cs` (13 tests) and `IncidentManagerTests.cs` (10 tests), expanding the total test suite to **285 passing tests** across all 5 test projects.
+
+### Fixed
+- **RDP Disconnect False-Positive Glitch (Persistent Detection Until Reboot)**:
+  - Fixed issue where disconnecting a Remote Desktop session caused subsequent Klyro launches to continually detect remote access until a complete Windows machine reboot.
+  - The root cause was identified: when returning to the local physical console after an RDP disconnect, Windows leaves stale legacy `SM_REMOTESESSION` metric flags and cached remote client names.
+  - Resolved by prioritizing `WinStationName == "Console"` and `%SESSIONNAME% == "Console"` checks before evaluating legacy metrics, and classifying disconnected sessions as non-violating when configured.
+- **Incident Resolution Portal 400 Bad Request**:
+  - Fixed `400 (Bad Request)` error during review submission caused by case-sensitive JSON deserialization in .NET 8 Minimal APIs. Added `PropertyNameCaseInsensitive = true` and `[property: JsonPropertyName(...)]` attributes to request DTOs.
+- **Repeated Violation Suppression**:
+  - Added `_lastViolationKey` state tracking in `SecurityWatchdog` to guarantee that reconnecting an unauthorized tool or sharing session re-triggers the restriction overlay immediately, even if the violation category matches the previously dismissed incident.
+
+### Changed
+- Accelerated `SecurityWatchdog` evaluation cycle from 5.0s to 1.5s during the `IN_PROGRESS` exam state.
+- Updated Preflight Check 5 (`CheckSecureEnvironment`) to evaluate comprehensive remote access synthesis before exam entry.
+- Updated release build automation (`build-release.ps1` and `build-installer-x64.ps1`) to default to version 1.2.0.
+
+---
+
 ## [1.1.0] - 2026-09-25
 
 ### Added
@@ -132,6 +166,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.2.0]: https://github.com/Venkatasai6789/Klyro/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Venkatasai6789/Klyro/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Venkatasai6789/Klyro/releases/tag/v1.0.0
 [0.9.0]: https://github.com/Venkatasai6789/Klyro/releases/tag/v0.9.0

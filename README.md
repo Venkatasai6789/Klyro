@@ -6,8 +6,8 @@
 
 **Enterprise-Grade, Resilient Windows Kiosk Browser Engineered for High-Stakes Coding Examinations**
 
-[![GitHub Release](https://img.shields.io/github/v/release/Venkatasai6789/Klyro?color=0066FF&label=Release&logo=github)](https://github.com/Venkatasai6789/Klyro/releases)
-[![Tests Passing](https://img.shields.io/badge/Tests-155%20Passed-10B981?style=flat&logo=checkmarx)](https://github.com/Venkatasai6789/Klyro)
+[![GitHub Release](https://img.shields.io/badge/Release-v1.2.0-0066FF?logo=github)](https://github.com/Venkatasai6789/Klyro/releases)
+[![Tests Passing](https://img.shields.io/badge/Tests-285%20Passed-10B981?style=flat&logo=checkmarx)](https://github.com/Venkatasai6789/Klyro)
 [![Framework](https://img.shields.io/badge/.NET-8.0%20LTS-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![UI Framework](https://img.shields.io/badge/UI-WinUI%203%20%7C%20Windows%20App%20SDK-0078D4?logo=windows)](https://learn.microsoft.com/en-us/windows/apps/winui/winui3/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20(x64)-0078D7?logo=windows11)](https://www.microsoft.com/windows)
@@ -43,12 +43,12 @@ Traditional lockdown browsers often crash, wipe written student source code, or 
 ### 📦 Recommended: Standalone Windows Setup Installer
 Download the official single-file installer executable directly via GitHub Releases:
 
-💿 **[Download Klyro Setup Installer (`Klyro-Setup-v1.1.0-win-x64.exe`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
+💿 **[Download Klyro Setup Installer (`Klyro-Setup-v1.2.0-win-x64.exe`)](https://github.com/Venkatasai6789/Klyro/releases/latest)**
 
 - **Single Self-Contained Executable**: Zero archive extraction or manual copying required. Simply run the installer executable to start the 4-step guided setup wizard.
 - **Embedded Application Payload**: Full secure browser engine, assets, and runtime dependencies bundled inside the single `.exe`.
 - **SHA-256 Checksum**: Cryptographically verifiable against supply-chain tampering.
-- **Portable ZIP Alternative**: `Klyro-v1.1.0-win-x64.zip` is also provided for portable lab deployments.
+- **Portable ZIP Alternative**: `Klyro-v1.2.0-win-x64.zip` is also provided for portable lab deployments.
 
 ---
 
@@ -153,17 +153,26 @@ Klyro features a cohesive onboarding pipeline built with hardware-accelerated co
   4. Assessment Target Endpoint (e.g., `codechef.com`)
 - Damped state machine requires consecutive failures before triggering recovery, preventing UI disruption during transient Wi-Fi jitter.
 
-### 3. Layered Kiosk Security (Defense-in-Depth)
+### 3. Layered Kiosk Security & 3-Layer Remote Access Detection (Defense-in-Depth)
 - **Windows Shell Launcher v2**: Replaces `explorer.exe` on designated exam user accounts (`KLYRO-EXAM`), disabling task switching, desktop shells, and notification trays.
 - **Windows Defender Application Control (WDAC)**: Hardware-enforced policy whitelisting only signed Klyro binaries and Microsoft WebView2 dependencies.
 - **Low-Level Keyboard Hook**: Blocks disruptive and exploratory key combinations:
   - `Alt + Tab`, `Alt + Esc`, `Alt + Space`
   - `Windows Key`, `Ctrl + Esc`, `Ctrl + Shift + Esc`
   - `PrintScreen`, `Win + Shift + S`
-- **Security Watchdog**: Dedicated high-priority background thread continuously inspecting the process table for disallowed tools (Cheat Engine, Wireshark, screen recorders, virtualization tools).
+- **3-Layer Remote Access & Screen Sharing Detection Engine**:
+  - **Layer A (Terminal Services & Session Architecture)**: Directly queries Windows Terminal Services (`WTSQuerySessionInformationW`). Accurately differentiates active RDP connections from disconnected sessions (`WTSDisconnected`) and local console stations (`WinStationName == "Console"` / `%SESSIONNAME% == "Console"`). Eliminates the classic Windows artifact where disconnecting RDP leaves a stale `SM_REMOTESESSION` flag until system reboot.
+  - **Layer B (Process-Table & Remoting Daemon Inspection)**: Immediate zero-tolerance detection of remote access binaries, daemons, and background workers (`remoting_desktop`, `remote_assistance_host`, `remote_assistance_host_uiaccess`, `quickassist`, `msra`, `splashtop`, `TeamViewer`, `AnyDesk`).
+  - **Layer C (Top-Level Window Banner Scanning)**: Continuous Win32 window enumeration (`EnumWindows` / `GetWindowTextW`) scanning for active screen sharing indicator banners, including Chrome Remote Desktop (`"Your desktop is currently shared with..."`), Quick Assist, and conference overlays.
 - **Fail-Closed Protocol & Navigation Guards**: Hard block on unapproved URI protocols (`file:`, `mailto:`, `ms-settings:`, `cmd:`, `powershell:`), popups, downloads, and external hyperlinks.
 
-### 4. Ephemeral InPrivate Profiles & Privacy
+### 4. Active Exam Question Concealment & Incident Resolution
+- **Sub-2-Second Threat Mitigation**: The `SecurityWatchdog` runs an accelerated 1.5-second scan loop during active assessments.
+- **Instant Visual Concealment**: If a secondary device connects or remote assistance launches midway through an exam, `ExamWebView.Visibility = Visibility.Collapsed` immediately hides the exam DOM and coding questions from view, preventing remote helpers from seeing test content.
+- **Assessment Freeze & Incident Logging**: Engages a high-contrast `SecurityRestrictionOverlay`, transitions the `ExamStateMachine` to `RESTRICTED`, captures screen evidence, and posts an auditable incident to the local administration server.
+- **Self-Service Incident Resolution Portal**: Integrated web portal (`http://localhost:5050/security-incident`) allowing candidates to review the violation, submit an explanation, and request automated recheck authorization once the unauthorized tool or session is closed.
+
+### 5. Ephemeral InPrivate Profiles & Privacy
 - **Zero Local Data Retention**: Browser cache, cookies, passwords, and form submissions are isolated to ephemeral session profiles purged upon exit.
 - **Automated PII Redaction**: Asynchronous audit logging channel (`klyro_audit_*.jsonl`) automatically sanitizes session tokens, credentials, and query parameters before writing to disk.
 
@@ -175,17 +184,20 @@ Klyro features a cohesive onboarding pipeline built with hardware-accelerated co
 flowchart TD
     subgraph OS_Layer ["Layer 1 & 2: Windows Operating System"]
         A["Shell Launcher v2 (explorer.exe disabled)"] --- B["WDAC Policy & Keyboard Hook"]
+        WTS["WTS Session API & WinStation"] --- WIN["Top-Level Window Banners"]
     end
 
     subgraph Host_Layer ["Layer 3: Klyro Desktop Host (WinUI 3 / .NET 8)"]
         C["LaunchPage (Onboarding 1 -> 4)"] --> D["MainPage (Exam Shell)"]
         D --> E["Exam Timer & State Controller"]
-        D --> F["Background Security Watchdog"]
+        D --> F["Accelerated Security Watchdog (1.5s Loop)"]
+        F --> DET["3-Layer Remote Access Detector"]
+        F --> INC["Incident Manager & Resolution Portal"]
         D --> G["Async Audit Logger"]
     end
 
     subgraph Browser_Layer ["Layer 4: Dual-WebView Isolation"]
-        H["ExamWebView (Active Assessment)"]
+        H["ExamWebView (Active Assessment / Conceal on Threat)"]
         I["RecoveryWebView (Captive Portal Re-auth)"]
     end
 
@@ -218,7 +230,7 @@ cd Klyro
 ```
 
 ### 2. Run Test Suite
-Execute the 251 automated tests across unit, security, network, recovery, and installer domains:
+Execute the 285 automated tests across unit, security, network, recovery, and installer domains:
 ```powershell
 dotnet test
 ```
@@ -226,13 +238,13 @@ dotnet test
 ### 3. Build & Package Standalone Release
 Run the automated release packaging script:
 ```powershell
-.\build-release.ps1 -Version "1.1.0"
+.\build-release.ps1 -Version "1.2.0"
 ```
 The script will run the full test suite, compile the self-contained WinUI 3 binaries, and generate:
-- `dist/Klyro-Setup-v1.1.0-win-x64.exe` (Single-file standalone installer)
-- `dist/Klyro-Setup-v1.1.0-win-x64.exe.sha256`
-- `dist/Klyro-v1.1.0-win-x64.zip` (Portable lab archive)
-- `dist/Klyro-v1.1.0-win-x64.zip.sha256`
+- `dist/Klyro-Setup-v1.2.0-win-x64.exe` (Single-file standalone installer)
+- `dist/Klyro-Setup-v1.2.0-win-x64.exe.sha256`
+- `dist/Klyro-v1.2.0-win-x64.zip` (Portable lab archive)
+- `dist/Klyro-v1.2.0-win-x64.zip.sha256`
 
 ---
 

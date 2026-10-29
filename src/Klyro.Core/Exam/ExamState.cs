@@ -15,5 +15,6 @@ public enum ExamState
     RESUMING,
     COMPLETED,
     FAILED,
-    RECOVERY_REQUIRED
+    RECOVERY_REQUIRED,
+    RESTRICTED
 }

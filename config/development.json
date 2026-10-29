@@ -31,7 +31,18 @@
     "allowDevTools": true,
     "allowExternalProtocols": false,
     "strictNavigationAllowlist": true,
-    "clipboardPolicy": "Allowed"
+    "clipboardPolicy": "Allowed",
+    "enableRemoteDesktopMonitoring": true,
+    "blockOnRemoteDesktop": true,
+    "blockOnRemoteControlApps": true,
+    "permittedAccessibilityApps": [
+      "nvda",
+      "jaws",
+      "narrator",
+      "magnify",
+      "osk",
+      "displayswitch"
+    ]
   },
   "browser": {
     "allowedOrigins": [

@@ -10,7 +10,7 @@
     RequestedTheme="Dark"
     mc:Ignorable="d">
 
-    <Grid Background="#0B0F17">
+    <Grid x:Name="RootGrid" Background="#0B0F17">
         <Grid.RowDefinitions>
             <!-- Browser Chrome: Tab Strip (Row 0) + Navigation Toolbar (Row 1) -->
             <RowDefinition Height="Auto" />
@@ -455,6 +455,106 @@
                     </StackPanel>
                     <TextBlock x:Name="PreflightErrorMessage" Foreground="#EF4444" FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" Visibility="Collapsed" />
                 </StackPanel>
+            </Grid>
+
+            <!-- SECURITY RESTRICTION MODAL OVERLAY (Active Assessment Protection) -->
+            <Grid x:Name="SecurityRestrictionOverlay" Background="#E6080C14" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed" Canvas.ZIndex="30">
+                <Border Background="#131B2E" BorderBrush="#EF4444" BorderThickness="1.5" CornerRadius="14" Width="680" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
+                    <StackPanel Spacing="16">
+                        <!-- Header with Warning Icon -->
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <Border Width="36" Height="36" CornerRadius="8" Background="#381419" BorderBrush="#EF4444" BorderThickness="1">
+                                <FontIcon Glyph="&#xE7BA;" FontSize="18" Foreground="#EF4444" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock Text="SECURITY RESTRICTION ENFORCED" FontSize="11" FontWeight="SemiBold" CharacterSpacing="150" Foreground="#EF4444" />
+                                <TextBlock Text="Assessment Temporarily Restricted" FontSize="20" FontWeight="Bold" Foreground="#FFFFFF" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Subtitle -->
+                        <TextBlock Text="Klyro detected an unauthorized remote desktop, screen sharing, or remote-control session while your assessment was active."
+                                   FontSize="13" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="19" />
+
+                        <!-- Detected Issue Details Card -->
+                        <Border Background="#201015" BorderBrush="#50181F" BorderThickness="1" CornerRadius="8" Padding="14,10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Security Incident Details" FontSize="12" FontWeight="SemiBold" Foreground="#FCA5A5" />
+                                <TextBlock x:Name="RestrictionDetailsText" Text="Active remote session detected." FontSize="12" Foreground="#E2E8F0" TextWrapping="Wrap" LineHeight="16" />
+                                <TextBlock x:Name="RestrictionIncidentIdText" Text="Incident Reference: -" FontSize="11" Foreground="#64748B" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Code Preservation Assurance -->
+                        <Border Background="#102030" BorderBrush="#1E3A5F" BorderThickness="1" CornerRadius="8" Padding="14,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE946;" FontSize="15" Foreground="#38BDF8" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                <TextBlock Grid.Column="1" Text="Your code editor state, unsubmitted progress, and timer state have been preserved. No examination progress was lost."
+                                           FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="17" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Action Buttons -->
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="RestrictionRecheckButton"
+                                    Grid.Column="0"
+                                    Click="RestrictionRecheckButton_Click"
+                                    Height="42"
+                                    Background="#141C2E"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE72C;" FontSize="12" Foreground="#FFFFFF" />
+                                    <TextBlock Text="Recheck Environment" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="RestrictionGetHelpButton"
+                                    Grid.Column="2"
+                                    Click="RestrictionGetHelpButton_Click"
+                                    Height="42"
+                                    Background="#141C2E"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8A7;" FontSize="12" Foreground="#38BDF8" />
+                                    <TextBlock Text="Request Review" FontSize="12" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="RestrictionInvigilatorButton"
+                                    Grid.Column="4"
+                                    Click="RestrictionInvigilatorButton_Click"
+                                    Height="42"
+                                    Background="#0066FF"
+                                    BorderBrush="#2563EB"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    HorizontalAlignment="Stretch">
+                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8D7;" FontSize="13" Foreground="#FFFFFF" />
+                                    <TextBlock Text="Invigilator PIN" FontSize="12" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <!-- Captive Portal Recovery Modal Overlay (Kept active in background) -->

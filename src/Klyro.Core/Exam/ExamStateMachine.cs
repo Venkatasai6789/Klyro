@@ -67,7 +67,7 @@ public sealed class ExamStateMachine
             {
                 Timer.Start();
             }
-            else if (newState == ExamState.NETWORK_RECOVERY || newState == ExamState.PAUSED)
+            else if (newState == ExamState.NETWORK_RECOVERY || newState == ExamState.PAUSED || newState == ExamState.RESTRICTED)
             {
                 Timer.OnNetworkRecoveryStateChanged(isRecovering: true);
             }

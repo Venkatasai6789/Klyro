@@ -122,6 +122,29 @@ public sealed class SecurityOptions
 
     [JsonPropertyName("blockedProcesses")]
     public List<string> BlockedProcesses { get; set; } = new();
+
+    [JsonPropertyName("enableRemoteDesktopMonitoring")]
+    public bool EnableRemoteDesktopMonitoring { get; set; } = true;
+
+    [JsonPropertyName("blockOnRemoteDesktop")]
+    public bool BlockOnRemoteDesktop { get; set; } = true;
+
+    [JsonPropertyName("blockOnRemoteControlApps")]
+    public bool BlockOnRemoteControlApps { get; set; } = true;
+
+    [JsonPropertyName("allowDisconnectedSessions")]
+    public bool AllowDisconnectedSessions { get; set; } = false;
+
+    [JsonPropertyName("permittedAccessibilityApps")]
+    public List<string> PermittedAccessibilityApps { get; set; } = new()
+    {
+        "nvda",
+        "jaws",
+        "narrator",
+        "magnify",
+        "osk",
+        "displayswitch"
+    };
 }
 
 public sealed class BrowserOptions

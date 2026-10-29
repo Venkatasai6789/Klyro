@@ -6,6 +6,7 @@ using Klyro.Core.Authentication;
 using Klyro.Core.Configuration;
 using Klyro.Core.Network;
 using Klyro.Core.Preflight;
+using Klyro.Core.Security.RemoteAccess;
 using Xunit;
 
 namespace Klyro.UnitTests;
@@ -47,6 +48,14 @@ public class EnvironmentPreflightServiceTests
         }
     }
 
+    private sealed class MockSecurityPolicyEvaluator : ISecurityPolicyEvaluator
+    {
+        public RemoteAccessDetectionResult Result { get; set; } = RemoteAccessDetectionResult.ClearResult();
+        public RemoteAccessDetectionResult EvaluateCompliance() => Result;
+        public PolicyEnforcementAction DetermineAction(RemoteAccessDetectionResult result, bool isExamActive) =>
+            result.IsViolation ? (isExamActive ? PolicyEnforcementAction.RestrictActiveExam : PolicyEnforcementAction.BlockEntry) : PolicyEnforcementAction.Permit;
+    }
+
     [Fact]
     public async Task RunAllChecksAsync_WithValidUserAndProbes_PassesAll()
     {
@@ -57,7 +66,8 @@ public class EnvironmentPreflightServiceTests
             Security = new SecurityOptions { BlockedProcesses = new List<string> { "nonexistent_fake_process_xyz" } }
         };
 
-        var service = new EnvironmentPreflightService(config, probe);
+        var mockSec = new MockSecurityPolicyEvaluator();
+        var service = new EnvironmentPreflightService(config, probe, securityEvaluator: mockSec);
         var user = new AuthenticatedUser
         {
             DisplayName = "Test Student",
@@ -75,6 +85,34 @@ public class EnvironmentPreflightServiceTests
         Assert.All(items, item => Assert.Equal(PreflightCheckState.Passed, item.State));
         Assert.Contains(items, i => i.Id == PreflightCheckId.Account && i.Subtitle.Contains("University account verified"));
         Assert.Contains(items, i => i.Id == PreflightCheckId.Internet && i.Subtitle.Contains("42ms"));
+    }
+
+    [Fact]
+    public async Task RunAllChecksAsync_WhenRemoteAccessDetected_FailsSecureEnvironment()
+    {
+        var probe = new MockConnectivityProbe();
+        var mockSec = new MockSecurityPolicyEvaluator
+        {
+            Result = new RemoteAccessDetectionResult
+            {
+                Decision = SecurityPolicyDecision.ConfirmedViolation,
+                Category = DetectionCategory.WindowsRemoteDesktop,
+                Classification = EvidenceClassification.ActiveRemoteSession,
+                Details = "Active Microsoft RDP session detected."
+            }
+        };
+
+        var service = new EnvironmentPreflightService(probe: probe, securityEvaluator: mockSec);
+        var user = new AuthenticatedUser { DisplayName = "Student", Email = "student@university.edu" };
+
+        bool result = await service.RunAllChecksAsync(user);
+
+        Assert.False(result);
+        var secItem = service.CurrentItems.First(i => i.Id == PreflightCheckId.SecureEnvironment);
+        Assert.Equal(PreflightCheckState.Failed, secItem.State);
+        Assert.Equal("Remote desktop detected", secItem.Subtitle);
+        Assert.NotNull(service.LastSecurityResult);
+        Assert.True(service.LastSecurityResult.IsBlocked);
     }
 
     [Fact]
@@ -157,5 +195,73 @@ public class EnvironmentPreflightServiceTests
         {
             await service.RunAllChecksAsync(user, cancellationToken: cts.Token);
         });
+    }
+
+    private sealed class MockSecurityEvaluator : ISecurityPolicyEvaluator
+    {
+        public RemoteAccessDetectionResult Result { get; set; } = RemoteAccessDetectionResult.ClearResult();
+
+        public RemoteAccessDetectionResult EvaluateCompliance() => Result;
+
+        public PolicyEnforcementAction DetermineAction(RemoteAccessDetectionResult result, bool isExamActive) =>
+            result.IsViolation
+                ? (isExamActive ? PolicyEnforcementAction.RestrictActiveExam : PolicyEnforcementAction.BlockEntry)
+                : PolicyEnforcementAction.Permit;
+    }
+
+    [Fact]
+    public async Task RunAllChecksAsync_WhenRemoteAccessDetected_FailsSecureEnvironmentCheck()
+    {
+        var probe = new MockConnectivityProbe();
+        var secMock = new MockSecurityEvaluator
+        {
+            Result = new RemoteAccessDetectionResult
+            {
+                Decision = SecurityPolicyDecision.ConfirmedViolation,
+                Category = DetectionCategory.WindowsRemoteDesktop,
+                Details = "Active Windows Remote Desktop session detected."
+            }
+        };
+
+        var service = new EnvironmentPreflightService(probe: probe, securityEvaluator: secMock);
+        var user = new AuthenticatedUser { Email = "student@university.edu" };
+
+        bool passed = await service.RunAllChecksAsync(user);
+
+        Assert.False(passed);
+        var secItem = service.CurrentItems[4];
+        Assert.Equal(PreflightCheckId.SecureEnvironment, secItem.Id);
+        Assert.Equal(PreflightCheckState.Failed, secItem.State);
+        Assert.Equal("Remote desktop detected", secItem.Subtitle);
+        Assert.NotNull(service.LastSecurityResult);
+        Assert.True(service.LastSecurityResult.IsViolation);
+    }
+
+    [Fact]
+    public async Task RerunCheckAsync_AfterResolvingRemoteAccess_PassesSecureEnvironmentCheck()
+    {
+        var probe = new MockConnectivityProbe();
+        var secMock = new MockSecurityEvaluator
+        {
+            Result = new RemoteAccessDetectionResult
+            {
+                Decision = SecurityPolicyDecision.ConfirmedViolation,
+                Category = DetectionCategory.RemoteControlSoftware,
+                Details = "Active AnyDesk process detected."
+            }
+        };
+
+        var service = new EnvironmentPreflightService(probe: probe, securityEvaluator: secMock);
+        var user = new AuthenticatedUser { Email = "student@university.edu" };
+
+        await service.RunAllChecksAsync(user);
+        Assert.Equal(PreflightCheckState.Failed, service.CurrentItems[4].State);
+
+        // Resolve AnyDesk
+        secMock.Result = RemoteAccessDetectionResult.ClearResult();
+        var reran = await service.RerunCheckAsync(PreflightCheckId.SecureEnvironment, user);
+
+        Assert.Equal(PreflightCheckState.Passed, reran.State);
+        Assert.Equal("Environment secure", reran.Subtitle);
     }
 }

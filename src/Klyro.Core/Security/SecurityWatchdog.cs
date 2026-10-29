@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Klyro.Core.Configuration;
 using Klyro.Core.Logging;
+using Klyro.Core.Security.RemoteAccess;
 
 namespace Klyro.Core.Security;
 
@@ -41,6 +42,7 @@ public sealed class SecurityWatchdog : IDisposable
 
     private readonly IAuditLogger? _auditLogger;
     private readonly HashSet<string> _prohibitedProcesses;
+    private readonly SecurityPolicyEvaluator _policyEvaluator;
     private readonly CancellationTokenSource _cts = new();
     private readonly ManualResetEventSlim _wakeUpEvent = new(false);
 
@@ -48,16 +50,20 @@ public sealed class SecurityWatchdog : IDisposable
     private bool _isDisposed;
     private volatile bool _isRunning;
     private readonly HashSet<string> _alreadyLoggedViolations = new(StringComparer.OrdinalIgnoreCase);
+    private string? _lastViolationKey;
 
     public bool IsRunning => _isRunning;
     public Thread? WorkerThread => _watchdogThread;
     public IReadOnlySet<string> ProhibitedProcesses => _prohibitedProcesses;
+    public SecurityPolicyEvaluator PolicyEvaluator => _policyEvaluator;
 
     public event EventHandler<SecurityViolation>? ViolationDetected;
+    public event EventHandler<RemoteAccessDetectionResult>? RemoteAccessViolationDetected;
 
     public SecurityWatchdog(
         SecurityOptions? securityOptions = null,
-        IAuditLogger? auditLogger = null)
+        IAuditLogger? auditLogger = null,
+        SecurityPolicyEvaluator? policyEvaluator = null)
     {
         _auditLogger = auditLogger;
         _prohibitedProcesses = new HashSet<string>(DefaultProhibitedProcesses, StringComparer.OrdinalIgnoreCase);
@@ -71,6 +77,19 @@ public sealed class SecurityWatchdog : IDisposable
                     _prohibitedProcesses.Add(proc.Trim());
                 }
             }
+        }
+
+        if (policyEvaluator != null)
+        {
+            _policyEvaluator = policyEvaluator;
+        }
+        else
+        {
+            var sessionDetector = new RemoteSessionDetector(allowDisconnectedSessions: securityOptions?.AllowDisconnectedSessions ?? false);
+            var processDetector = new RemoteControlProcessDetector(
+                additionalBlocked: securityOptions?.BlockedProcesses,
+                accessibilityWhitelist: securityOptions?.PermittedAccessibilityApps);
+            _policyEvaluator = new SecurityPolicyEvaluator(sessionDetector, processDetector);
         }
     }
 
@@ -95,6 +114,14 @@ public sealed class SecurityWatchdog : IDisposable
         _wakeUpEvent.Set();
     }
 
+    /// <summary>
+    /// Executes an immediate synchronous evaluation of current remote-access and security compliance.
+    /// </summary>
+    public RemoteAccessDetectionResult CheckImmediateCompliance()
+    {
+        return _policyEvaluator.EvaluateCompliance();
+    }
+
     private void RunWatchdogLoop()
     {
         while (!_cts.IsCancellationRequested)
@@ -102,9 +129,10 @@ public sealed class SecurityWatchdog : IDisposable
             try
             {
                 EvaluateRunningProcesses();
+                EvaluateRemoteAccess();
 
-                // Wait 4 seconds between background scans
-                _wakeUpEvent.Wait(4000, _cts.Token);
+                // High-frequency active assessment protection: scan every 1.5 seconds
+                _wakeUpEvent.Wait(1500, _cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -114,6 +142,46 @@ public sealed class SecurityWatchdog : IDisposable
             {
                 _auditLogger?.Log(EventType.SECURITY_VIOLATION, "WATCHDOG_ERROR", $"Security watchdog loop exception: {ex.Message}");
             }
+        }
+    }
+
+    private void EvaluateRemoteAccess()
+    {
+        try
+        {
+            var result = _policyEvaluator.EvaluateCompliance();
+            if (result.IsViolation)
+            {
+                string dedupeKey = $"{result.Category}:{result.Details}";
+                if (_lastViolationKey != dedupeKey)
+                {
+                    _lastViolationKey = dedupeKey;
+                    _alreadyLoggedViolations.Add(dedupeKey);
+
+                    _auditLogger?.Log(
+                        EventType.SECURITY_VIOLATION,
+                        "REMOTE_ACCESS_VIOLATION",
+                        $"[Category={result.Category}] {result.Details}");
+
+                    RemoteAccessViolationDetected?.Invoke(this, result);
+
+                    var genericViolation = new SecurityViolation(
+                        result.Category.ToString(),
+                        result.ClientName ?? "RemoteAccess",
+                        result.Details,
+                        result.Timestamp);
+
+                    ViolationDetected?.Invoke(this, genericViolation);
+                }
+            }
+            else
+            {
+                _lastViolationKey = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _auditLogger?.Log(EventType.SECURITY_VIOLATION, "REMOTE_ACCESS_EVAL_ERROR", ex.Message);
         }
     }
 

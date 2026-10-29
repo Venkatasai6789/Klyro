@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Klyro.Core.Authentication;
+using Klyro.Core.Security.RemoteAccess;
 
 namespace Klyro.Core.Preflight;
 
@@ -20,6 +21,11 @@ public interface IEnvironmentPreflightService
     /// Current snapshot of all preflight checks.
     /// </summary>
     IReadOnlyList<PreflightItemProgress> CurrentItems { get; }
+
+    /// <summary>
+    /// Latest remote-access or security evaluation result, if any security check has completed.
+    /// </summary>
+    RemoteAccessDetectionResult? LastSecurityResult { get; }
 
     /// <summary>
     /// Executes all configured environment checks in deterministic diagnostic sequence.

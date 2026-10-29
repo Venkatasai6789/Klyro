@@ -128,6 +128,53 @@
                    Margin="8,-53,0,0"
                    Opacity="1"
                    IsHitTestVisible="False" />
+
+            <!-- Remote Access Prohibited Badge Overlay (matching Reference Screenshot 2) -->
+            <Grid x:Name="RemoteAccessProhibitedOverlay"
+                  Width="180"
+                  Height="180"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Margin="10,-35,0,0"
+                  Visibility="Collapsed"
+                  IsHitTestVisible="False">
+
+                <!-- Red Outer Ring & Dark Red Translucent Circle -->
+                <Border Width="170"
+                        Height="170"
+                        CornerRadius="85"
+                        Background="#B31A050B"
+                        BorderBrush="#EF4444"
+                        BorderThickness="5"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <Grid>
+                        <!-- Diagonal Prohibition Slash -->
+                        <Line X1="30" Y1="30" X2="140" Y2="140"
+                              Stroke="#EF4444"
+                              StrokeThickness="5"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round" />
+
+                        <!-- Center Computer Monitor Icon with Arrows -->
+                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- Monitor Outline -->
+                            <Border Width="68" Height="48"
+                                    BorderBrush="#EF4444"
+                                    BorderThickness="3"
+                                    CornerRadius="4"
+                                    Background="Transparent"
+                                    Margin="0,0,0,10">
+                                <!-- Arrows Inside Screen -->
+                                <FontIcon Glyph="&#xE8C4;" FontSize="20" Foreground="#EF4444" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <!-- Stand Base -->
+                            <Border Width="26" Height="3" Background="#EF4444" CornerRadius="1.5" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+                            <Border Width="4" Height="8" Background="#EF4444" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
 
         <!-- ============================================================ -->
@@ -1586,6 +1633,209 @@
                                     </Grid>
                                 </Button>
                             </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- ============================================================ -->
+                <!-- STATE 7: REMOTE ACCESS DETECTED FAILURE VIEW (Matching Screenshot 2) -->
+                <!-- ============================================================ -->
+                <Grid x:Name="RemoteAccessErrorStateGrid" Visibility="Collapsed" Opacity="0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="52,28,48,28" Spacing="0" MaxWidth="460" HorizontalAlignment="Left">
+
+                            <!-- 1. Section Accent Header -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,14">
+                                <Border Width="24"
+                                        Height="3"
+                                        CornerRadius="1.5"
+                                        Background="#0066FF"
+                                        VerticalAlignment="Center" />
+                                <TextBlock Text="SECURITY CHECK"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           CharacterSpacing="200"
+                                           Foreground="#94A3B8"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- 2. Main Heading: Remote access \n detected (Red) -->
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="Remote access"
+                                           FontSize="34"
+                                           FontWeight="Bold"
+                                           Foreground="#FFFFFF"
+                                           LineHeight="40" />
+                                <TextBlock Text="detected"
+                                           FontSize="34"
+                                           FontWeight="Bold"
+                                           Foreground="#EF4444"
+                                           LineHeight="40" />
+                            </StackPanel>
+
+                            <!-- 3. Description Copy -->
+                            <TextBlock Text="Klyro detected a remote desktop or remote access session on this device. For a secure assessment environment, remote access is not allowed."
+                                       FontSize="13"
+                                       Foreground="#94A3B8"
+                                       TextWrapping="Wrap"
+                                       LineHeight="19"
+                                       Margin="0,0,0,18" />
+
+                            <!-- 4. Detected Issue Card (Red Tint) -->
+                            <Border Background="#201015"
+                                    BorderBrush="#50181F"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="14,12"
+                                    Margin="0,0,0,20">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="48" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Icon Container with Alert Badge -->
+                                    <Grid Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <Border Width="40"
+                                                Height="40"
+                                                CornerRadius="8"
+                                                Background="#32141B"
+                                                BorderBrush="#50181F"
+                                                BorderThickness="1">
+                                            <FontIcon Glyph="&#xE7F4;" FontSize="18" Foreground="#EF4444" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <Border Width="16" Height="16" CornerRadius="8" Background="#EF4444" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-2,-2">
+                                            <TextBlock Text="!" FontSize="10" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
+                                        </Border>
+                                    </Grid>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="10,0,0,0">
+                                        <TextBlock Text="Detected issue" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" />
+                                        <TextBlock x:Name="RemoteAccessDetectedIssueText"
+                                                   Text="Active remote desktop or remote access session is running on this device."
+                                                   FontSize="11.5"
+                                                   Foreground="#94A3B8"
+                                                   TextWrapping="Wrap"
+                                                   LineHeight="16" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- 5. What You Can Do Section -->
+                            <TextBlock Text="What you can do" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" Margin="0,0,0,12" />
+
+                            <StackPanel Spacing="10" Margin="0,0,0,26">
+                                <!-- Step 1 -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="18" Height="18" CornerRadius="9" Background="#1E293B" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,1,0,0">
+                                        <TextBlock Text="1" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="Disconnect any remote desktop or screen sharing session." FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="17" />
+                                </Grid>
+
+                                <!-- Step 2 -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="18" Height="18" CornerRadius="9" Background="#1E293B" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,1,0,0">
+                                        <TextBlock Text="2" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="Close remote access applications (e.g., AnyDesk, TeamViewer, Chrome Remote Desktop, Windows Remote Desktop)." FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="17" />
+                                </Grid>
+
+                                <!-- Step 3 -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="18" Height="18" CornerRadius="9" Background="#1E293B" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,1,0,0">
+                                        <TextBlock Text="3" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="Click &quot;Check Again&quot; after disconnecting." FontSize="12" Foreground="#94A3B8" TextWrapping="Wrap" LineHeight="17" />
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- 6. Action Buttons Row: Check Again + Exit Klyro -->
+                            <Grid Margin="0,0,0,24">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Check Again Button -->
+                                <Button x:Name="RemoteAccessCheckAgainButton"
+                                        Grid.Column="0"
+                                        Click="RemoteAccessCheckAgainButton_Click"
+                                        Height="44"
+                                        Background="#141C2E"
+                                        BorderBrush="#334155"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        HorizontalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE72C;" FontSize="13" Foreground="#FFFFFF" />
+                                        <TextBlock Text="Check Again" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- Exit Klyro Button -->
+                                <Button x:Name="RemoteAccessExitButton"
+                                        Grid.Column="2"
+                                        Click="RemoteAccessExitButton_Click"
+                                        Height="44"
+                                        Background="#0066FF"
+                                        BorderBrush="#2563EB"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        HorizontalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <FontIcon Glyph="&#xE8FB;" FontSize="14" Foreground="#FFFFFF" />
+                                        <TextBlock Text="Exit Klyro" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <!-- 7. Footer: Admin Info & Get Help Link -->
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Grid Grid.Column="0" VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Grid.Column="0" Glyph="&#xE946;" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Grid.Column="1" Text="If you believe this is a mistake, contact your examination administrator."
+                                               FontSize="11.5"
+                                               Foreground="#64748B"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <HyperlinkButton x:Name="RemoteAccessGetHelpButton"
+                                                 Grid.Column="1"
+                                                 Click="RemoteAccessGetHelpButton_Click"
+                                                 Padding="4,2"
+                                                 VerticalAlignment="Center"
+                                                 Margin="8,0,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Get Help" FontSize="11.5" FontWeight="SemiBold" Foreground="#38BDF8" />
+                                        <FontIcon Glyph="&#xE8A7;" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </HyperlinkButton>
+                            </Grid>
+
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

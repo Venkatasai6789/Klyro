@@ -23,10 +23,23 @@ public static class Program
         {
             switch (command)
             {
+                case "serve":
+                case "web":
+                case "server":
+                case "portal":
+                case "--web":
+                    return await WebServer.RunAsync(args);
+
                 case "diagnostics":
                 case "diagnose":
                 case "--diag":
                     return await RunDiagnosticsAsync();
+
+                case "remote-check":
+                case "remote-access":
+                case "check-remote":
+                case "--remote":
+                    return RunRemoteAccessCheck();
 
                 case "validate-config":
                 case "validate":
@@ -50,6 +63,63 @@ public static class Program
             Console.ResetColor();
             return 2;
         }
+    }
+
+    private static int RunRemoteAccessCheck()
+    {
+        Console.WriteLine("\n[DYNAMIC REMOTE ACCESS DETECTION INSPECTION]");
+        Console.WriteLine("Querying live Windows OS native APIs and process table in real-time...\n");
+
+        var wtsProvider = new Klyro.Core.Security.RemoteAccess.WindowsSessionQueryProvider();
+        bool metricRemoteSession = wtsProvider.IsRemoteSessionMetricSet();
+        bool metricRemoteControl = wtsProvider.IsRemoteControlMetricSet();
+        var wtsInfo = wtsProvider.GetCurrentWtsSessionInfo();
+
+        Console.WriteLine("--- Layer A: Windows OS Native Session Metrics ---");
+        Console.WriteLine($"  GetSystemMetrics(SM_REMOTESESSION [0x1000]): {metricRemoteSession}");
+        Console.WriteLine($"  GetSystemMetrics(SM_REMOTECONTROL [0x2001]): {metricRemoteControl}");
+        Console.WriteLine($"  WTS Query Succeeded:                         {wtsInfo.QuerySucceeded}");
+        Console.WriteLine($"  WTS WinStation Name:                         {wtsInfo.WinStationName ?? "(none)"}");
+        Console.WriteLine($"  WTS Client Name:                             {wtsInfo.ClientName ?? "(none)"}");
+        Console.WriteLine($"  WTS Protocol Type:                           {wtsInfo.ProtocolType?.ToString() ?? "(0 = Console)"}");
+        Console.WriteLine($"  WTS Connect State:                           {wtsInfo.ConnectState?.ToString() ?? "(none)"}");
+
+        Console.WriteLine("\n--- Layer B: Real-time Process Table Enumeration ---");
+        var procProvider = new Klyro.Core.Security.RemoteAccess.SystemProcessProvider();
+        var procs = procProvider.GetRunningProcesses();
+        Console.WriteLine($"  Current Process Session ID:                  {procProvider.CurrentSessionId}");
+        Console.WriteLine($"  Total Live OS Processes Enumerated:          {procs.Count}");
+
+        var sessionDetector = new Klyro.Core.Security.RemoteAccess.RemoteSessionDetector(wtsProvider);
+        var sessionResult = sessionDetector.Evaluate();
+        Console.WriteLine($"\n--- Layer A Result: {sessionResult.Category} ---");
+        Console.WriteLine($"  Decision:       {sessionResult.Decision}");
+        Console.WriteLine($"  Classification: {sessionResult.Classification}");
+        Console.WriteLine($"  Details:        {sessionResult.Details}");
+
+        var procDetector = new Klyro.Core.Security.RemoteAccess.RemoteControlProcessDetector(procProvider);
+        var procResult = procDetector.Evaluate(hasActiveRemoteSessionMetric: sessionResult.Category == Klyro.Core.Security.RemoteAccess.DetectionCategory.WindowsRemoteDesktop);
+        Console.WriteLine($"\n--- Layer B Result: {procResult.Category} ---");
+        Console.WriteLine($"  Decision:       {procResult.Decision}");
+        Console.WriteLine($"  Classification: {procResult.Classification}");
+        Console.WriteLine($"  Details:        {procResult.Details}");
+        if (procResult.DetectedProcesses.Count > 0)
+        {
+            Console.WriteLine($"  Flagged Processes: {string.Join(", ", procResult.DetectedProcesses)}");
+        }
+
+        var evaluator = new Klyro.Core.Security.RemoteAccess.SecurityPolicyEvaluator(sessionDetector, procDetector);
+        var finalResult = evaluator.EvaluateCompliance();
+        var actionPreflight = evaluator.DetermineAction(finalResult, isExamActive: false);
+        var actionActiveExam = evaluator.DetermineAction(finalResult, isExamActive: true);
+
+        Console.WriteLine("\n--- Synthesized Security Policy Decision ---");
+        Console.WriteLine($"  Overall Decision:              {finalResult.Decision}");
+        Console.WriteLine($"  Policy Action (Preflight):     {actionPreflight}");
+        Console.WriteLine($"  Policy Action (Active Exam):   {actionActiveExam}");
+        Console.WriteLine($"  Evaluation Timestamp (UTC):    {finalResult.Timestamp:O}");
+
+        return finalResult.IsViolation ? 1 : 0;
     }
 
     private static async Task<int> RunDiagnosticsAsync()

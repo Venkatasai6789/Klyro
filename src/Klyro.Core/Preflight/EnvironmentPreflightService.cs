@@ -9,6 +9,7 @@ using Klyro.Core.Authentication;
 using Klyro.Core.Configuration;
 using Klyro.Core.Logging;
 using Klyro.Core.Network;
+using Klyro.Core.Security.RemoteAccess;
 
 namespace Klyro.Core.Preflight;
 
@@ -38,10 +39,12 @@ public sealed class EnvironmentPreflightService : IEnvironmentPreflightService
     private readonly KlyroConfiguration? _config;
     private readonly IConnectivityProbe _probe;
     private readonly IAuditLogger? _auditLogger;
+    private readonly ISecurityPolicyEvaluator _securityEvaluator;
     private readonly List<PreflightItemProgress> _items = new();
     private readonly object _lock = new();
 
     public event EventHandler<PreflightItemProgress>? ItemProgressChanged;
+    public RemoteAccessDetectionResult? LastSecurityResult { get; private set; }
 
     public IReadOnlyList<PreflightItemProgress> CurrentItems
     {
@@ -57,11 +60,17 @@ public sealed class EnvironmentPreflightService : IEnvironmentPreflightService
     public EnvironmentPreflightService(
         KlyroConfiguration? config = null,
         IConnectivityProbe? probe = null,
-        IAuditLogger? auditLogger = null)
+        IAuditLogger? auditLogger = null,
+        ISecurityPolicyEvaluator? securityEvaluator = null)
     {
         _config = config;
         _probe = probe ?? new ConnectivityProbe();
         _auditLogger = auditLogger;
+        _securityEvaluator = securityEvaluator ?? new SecurityPolicyEvaluator(
+            new RemoteSessionDetector(allowDisconnectedSessions: config?.Security?.AllowDisconnectedSessions ?? false),
+            new RemoteControlProcessDetector(
+                additionalBlocked: config?.Security?.BlockedProcesses,
+                accessibilityWhitelist: config?.Security?.PermittedAccessibilityApps));
         InitializeItems();
     }
 
@@ -69,6 +78,7 @@ public sealed class EnvironmentPreflightService : IEnvironmentPreflightService
     {
         lock (_lock)
         {
+            LastSecurityResult = null;
             InitializeItems();
         }
     }
@@ -431,6 +441,65 @@ public sealed class EnvironmentPreflightService : IEnvironmentPreflightService
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Any(a => a.Equals("--simulate-remote", StringComparison.OrdinalIgnoreCase) ||
+                                                          a.Equals("--remote-access-detected", StringComparison.OrdinalIgnoreCase)))
+            {
+                var simulated = new RemoteAccessDetectionResult
+                {
+                    Category = DetectionCategory.WindowsRemoteDesktop,
+                    Classification = EvidenceClassification.ActiveRemoteSession,
+                    Decision = SecurityPolicyDecision.ConfirmedViolation,
+                    Details = "Active remote desktop or remote access session is running on this device.",
+                    Timestamp = DateTimeOffset.UtcNow
+                };
+                LastSecurityResult = simulated;
+
+                return new PreflightItemProgress
+                {
+                    Id = PreflightCheckId.SecureEnvironment,
+                    Title = "Secure environment",
+                    Subtitle = "Remote access detected",
+                    State = PreflightCheckState.Failed,
+                    DiagnosticDetails = simulated.Details
+                };
+            }
+
+            // 1. Layer A & B Remote Access Security Policy Check
+            var complianceResult = _securityEvaluator.EvaluateCompliance();
+            LastSecurityResult = complianceResult;
+
+            if (complianceResult.Decision is SecurityPolicyDecision.ConfirmedViolation or SecurityPolicyDecision.MonitorUnavailable)
+            {
+                string subtitle = complianceResult.Category switch
+                {
+                    DetectionCategory.WindowsRemoteDesktop => "Remote desktop detected",
+                    DetectionCategory.RemoteControlSoftware => "Remote access detected",
+                    DetectionCategory.ScreenSharing => "Screen sharing detected",
+                    _ => "Security violation detected"
+                };
+
+                return new PreflightItemProgress
+                {
+                    Id = PreflightCheckId.SecureEnvironment,
+                    Title = "Secure environment",
+                    Subtitle = subtitle,
+                    State = PreflightCheckState.Failed,
+                    DiagnosticDetails = complianceResult.Details
+                };
+            }
+            else if (complianceResult.Decision == SecurityPolicyDecision.ReviewRequired)
+            {
+                return new PreflightItemProgress
+                {
+                    Id = PreflightCheckId.SecureEnvironment,
+                    Title = "Secure environment",
+                    Subtitle = "Review required",
+                    State = PreflightCheckState.Warning,
+                    DiagnosticDetails = complianceResult.Details,
+                    IsCritical = false
+                };
+            }
+
             var prohibited = new HashSet<string>(DefaultProhibitedProcesses, StringComparer.OrdinalIgnoreCase);
             if (_config?.Security?.BlockedProcesses != null)
             {
@@ -459,6 +528,10 @@ public sealed class EnvironmentPreflightService : IEnvironmentPreflightService
                 catch
                 {
                     // Ignore processes where process name access is denied
+                }
+                finally
+                {
+                    proc.Dispose();
                 }
             }
 

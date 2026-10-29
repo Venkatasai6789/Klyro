@@ -7,13 +7,13 @@
     WinUI 3 application, and packages the executable and runtime files into a distribution zip.
 
 .PARAMETER Version
-    The semantic version string (e.g. 1.1.0). Defaults to 1.1.0.
+    The semantic version string (e.g. 1.2.0). Defaults to 1.2.0.
 
 .EXAMPLE
-    .\build-release.ps1 -Version "1.1.0"
+    .\build-release.ps1 -Version "1.2.0"
 #>
 param(
-    [string]$Version = "1.1.0"
+    [string]$Version = "1.2.0"
 )
 
 $ErrorActionPreference = "Stop"

@@ -75,7 +75,7 @@ public partial class App : Application
             {
                 win.Activate();
                 var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(win);
-                if (hWnd != IntPtr.Zero)
+                if (hWnd != IntPtr.Zero && Program.IsWindowHandleVisible(hWnd))
                 {
                     Program.RestoreAndActivateWindow(hWnd);
                     Program.SignalActivationAcknowledged();

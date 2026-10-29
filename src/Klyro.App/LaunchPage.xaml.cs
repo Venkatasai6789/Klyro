@@ -552,6 +552,17 @@ public sealed partial class LaunchPage : Page
                     return;
                 }
 
+                if (cmdArgs.Any(a => a.Equals("--simulate-remote", StringComparison.OrdinalIgnoreCase) ||
+                                     a.Equals("--screen-error", StringComparison.OrdinalIgnoreCase) ||
+                                     a.Equals("--remote-access-detected", StringComparison.OrdinalIgnoreCase)))
+                {
+                    PageLog("CLI switch --simulate-remote / --screen-error detected. Displaying Remote Access Detected screen immediately...");
+                    StartupStateGrid.Visibility = Visibility.Collapsed;
+                    StartupStateGrid.Opacity = 0.0;
+                    ShowRemoteAccessErrorScreen("Active remote desktop or remote access session is running on this device.");
+                    return;
+                }
+
                 // UX Routing Decision:
                 // Returning Candidate -> Skip Screen 2 & 3, go directly to Screen 05 (Prepare your environment)
                 // New Candidate       -> Transition to Screen 02 (Welcome)
@@ -2089,6 +2100,12 @@ public sealed partial class LaunchPage : Page
     private void ResetPreflightCheckingUi()
     {
         PreflightRetryContainer.Visibility = Visibility.Collapsed;
+        RemoteAccessErrorStateGrid.Visibility = Visibility.Collapsed;
+        RemoteAccessErrorStateGrid.Opacity = 0.0;
+        RemoteAccessProhibitedOverlay.Visibility = Visibility.Collapsed;
+        PreflightCheckingStateGrid.Visibility = Visibility.Visible;
+        PreflightCheckingStateGrid.Opacity = 1.0;
+
         PreflightProgressBar.Value = 0;
         PreflightProgressCounter.Text = "0 / 5";
 
@@ -2301,8 +2318,17 @@ public sealed partial class LaunchPage : Page
             else
             {
                 var failedItem = _preflightService.CurrentItems.FirstOrDefault(i => i.State == PreflightCheckState.Failed);
-                PreflightErrorDetails.Text = failedItem?.DiagnosticDetails ?? "One or more required environment checks failed.";
-                PreflightRetryContainer.Visibility = Visibility.Visible;
+                var secResult = _preflightService.LastSecurityResult;
+
+                if (failedItem?.Id == PreflightCheckId.SecureEnvironment || secResult?.IsBlocked == true)
+                {
+                    ShowRemoteAccessErrorScreen(secResult?.Details ?? failedItem?.DiagnosticDetails);
+                }
+                else
+                {
+                    PreflightErrorDetails.Text = failedItem?.DiagnosticDetails ?? "One or more required environment checks failed.";
+                    PreflightRetryContainer.Visibility = Visibility.Visible;
+                }
             }
         }
         catch (OperationCanceledException)
@@ -2318,6 +2344,76 @@ public sealed partial class LaunchPage : Page
         finally
         {
             _preflightService.ItemProgressChanged -= onProgress;
+        }
+    }
+
+    private void ShowRemoteAccessErrorScreen(string? details)
+    {
+        PageLog($"Showing Remote Access Error screen (Screenshot 2). Details: {details}");
+        PreflightCheckingStateGrid.Visibility = Visibility.Collapsed;
+        PreflightCheckingStateGrid.Opacity = 0.0;
+
+        RemoteAccessDetectedIssueText.Text = string.IsNullOrWhiteSpace(details)
+            ? "Active remote desktop or remote access session is running on this device."
+            : details;
+
+        RemoteAccessProhibitedOverlay.Visibility = Visibility.Visible;
+        RemoteAccessProhibitedOverlay.Opacity = 1.0;
+
+        RemoteAccessErrorStateGrid.Visibility = Visibility.Visible;
+        RemoteAccessErrorStateGrid.Opacity = 1.0;
+
+        var cmdArgs = Environment.GetCommandLineArgs();
+        for (int i = 0; i < cmdArgs.Length; i++)
+        {
+            if ((cmdArgs[i].Equals("--screenshot-error", StringComparison.OrdinalIgnoreCase) ||
+                 cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase)) && i + 1 < cmdArgs.Length)
+            {
+                var snapPath = cmdArgs[i + 1];
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    await Task.Delay(500);
+                    await CaptureScreenshotAsync(snapPath);
+                });
+                break;
+            }
+        }
+    }
+
+    private void RemoteAccessCheckAgainButton_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Remote Access 'Check Again' clicked. Returning to preflight diagnostics...");
+        RemoteAccessErrorStateGrid.Visibility = Visibility.Collapsed;
+        RemoteAccessErrorStateGrid.Opacity = 0.0;
+        RemoteAccessProhibitedOverlay.Visibility = Visibility.Collapsed;
+
+        PreflightCheckingStateGrid.Visibility = Visibility.Visible;
+        PreflightCheckingStateGrid.Opacity = 1.0;
+
+        _ = RunPreflightChecksAsync();
+    }
+
+    private void RemoteAccessExitButton_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Remote Access 'Exit Klyro' clicked. Terminating application...");
+        App.ExitCompletely();
+    }
+
+    private void RemoteAccessGetHelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        PageLog("Remote Access 'Get Help' clicked. Launching incident resolution portal...");
+        try
+        {
+            var targetUri = "http://localhost:5050/security-incident";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = targetUri,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            PageLog($"Failed to open external browser for resolution help: {ex.Message}");
         }
     }
 
@@ -2759,14 +2855,11 @@ public sealed partial class LaunchPage : Page
             var dir = System.IO.Path.GetDirectoryName(fullPath) ?? AppContext.BaseDirectory;
             System.IO.Directory.CreateDirectory(dir);
 
-            var folder = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(dir);
-            var file = await folder.CreateFileAsync(System.IO.Path.GetFileName(fullPath), Windows.Storage.CreationCollisionOption.ReplaceExisting);
-
-            using (var stream = await file.OpenAsync(Windows.Storage.FileAccessMode.ReadWrite))
+            using (var memStream = new Windows.Storage.Streams.InMemoryRandomAccessStream())
             {
                 var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
                     Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId,
-                    stream);
+                    memStream);
 
                 var reader = Windows.Storage.Streams.DataReader.FromBuffer(pixelBuffer);
                 byte[] pixels = new byte[pixelBuffer.Length];
@@ -2782,6 +2875,13 @@ public sealed partial class LaunchPage : Page
                     pixels);
 
                 await encoder.FlushAsync();
+
+                memStream.Seek(0);
+                byte[] fileBytes = new byte[memStream.Size];
+                var streamReader = new Windows.Storage.Streams.DataReader(memStream);
+                await streamReader.LoadAsync((uint)memStream.Size);
+                streamReader.ReadBytes(fileBytes);
+                await System.IO.File.WriteAllBytesAsync(fullPath, fileBytes);
             }
 
             PageLog($"Screenshot successfully saved to {fullPath} ({rtb.PixelWidth}x{rtb.PixelHeight}, {new System.IO.FileInfo(fullPath).Length} bytes).");

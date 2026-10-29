@@ -9,16 +9,18 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
+using Klyro.Core.Authentication;
 using Klyro.Core.Browser;
 using Klyro.Core.Configuration;
 using Klyro.Core.Exam;
 using Klyro.Core.Health;
+using Klyro.Core.Incidents;
 using Klyro.Core.Logging;
 using Klyro.Core.Network;
 using Klyro.Core.Persistence;
 using Klyro.Core.Recovery;
-using Klyro.Core.Authentication;
 using Klyro.Core.Security;
+using Klyro.Core.Security.RemoteAccess;
 using Klyro.Core.Tabs;
 
 namespace Klyro_App;
@@ -193,6 +195,13 @@ public sealed partial class MainPage : Page
                     ShowNotice($"Security warning: {violation.Details}", InfoBarSeverity.Warning);
                 });
             };
+            _securityWatchdog.RemoteAccessViolationDetected += (s, detectionResult) =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    HandleRuntimeRemoteAccessViolation(detectionResult);
+                });
+            };
             _securityWatchdog.Start();
             BootLog("Multi-threaded security watchdog started on dedicated thread.");
 
@@ -208,6 +217,25 @@ public sealed partial class MainPage : Page
             // 7. Execute Pre-flight Checks
             await RunPreflightValidationAsync();
             BootLog("All subsystems initialized. Preflight complete. Application ready.");
+
+            var cmdArgs = Environment.GetCommandLineArgs();
+            if (cmdArgs.Any(a => a.Equals("--simulate-restricted", StringComparison.OrdinalIgnoreCase)))
+            {
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    await Task.Delay(1200);
+                    var simResult = new RemoteAccessDetectionResult
+                    {
+                        Decision = SecurityPolicyDecision.ConfirmedViolation,
+                        Category = DetectionCategory.ScreenSharing,
+                        Classification = EvidenceClassification.ActiveProcess,
+                        Details = "Active remote desktop / screen sharing indicator window detected: \"Your desktop is currently shared with pvenkatsai333@gmail.com\" (remoting_desktop).",
+                        DetectedProcesses = new[] { "remoting_desktop" },
+                        Timestamp = DateTimeOffset.UtcNow
+                    };
+                    HandleRuntimeRemoteAccessViolation(simResult);
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -1949,5 +1977,178 @@ public sealed partial class MainPage : Page
             }
         }
         return new KlyroConfiguration();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Runtime Remote Access Enforcement & Security Restriction
+    // ═══════════════════════════════════════════════════════════
+
+    private SecurityIncident? _activeIncident;
+
+    private void HandleRuntimeRemoteAccessViolation(RemoteAccessDetectionResult detectionResult)
+    {
+        try
+        {
+            var session = _sessionStore?.LoadActiveSession();
+            string sessionId = session?.SessionId ?? Guid.NewGuid().ToString("N");
+            string? contestId = _config.Exam.ContestId;
+            string? candidateEmail = _authenticatedCandidate?.Email;
+
+            _activeIncident = IncidentManager.Instance.RecordIncident(
+                detectionResult,
+                sessionId,
+                contestId,
+                candidateEmail);
+
+            if (_examStateMachine != null && _examStateMachine.CurrentState == ExamState.ACTIVE)
+            {
+                _examStateMachine.TransitionTo(ExamState.RESTRICTED);
+            }
+
+            if (_isExamWebViewInitialized)
+            {
+                ExamWebView.Visibility = Visibility.Collapsed;
+            }
+
+            RestrictionDetailsText.Text = detectionResult.Details;
+            RestrictionIncidentIdText.Text = $"Incident Reference: {_activeIncident.IncidentId}";
+            SecurityRestrictionOverlay.Visibility = Visibility.Visible;
+
+            _auditLogger?.Log(
+                EventType.SECURITY_RESTRICTED,
+                "RESTRICTED",
+                $"Exam restricted during active contest: {detectionResult.Details}",
+                examId: contestId);
+
+            var cmdArgs = Environment.GetCommandLineArgs();
+            for (int i = 0; i < cmdArgs.Length; i++)
+            {
+                if ((cmdArgs[i].Equals("--screenshot-restricted", StringComparison.OrdinalIgnoreCase) ||
+                     cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase)) && i + 1 < cmdArgs.Length)
+                {
+                    var snapPath = cmdArgs[i + 1];
+                    DispatcherQueue.TryEnqueue(async () =>
+                    {
+                        await Task.Delay(800);
+                        await CaptureScreenshotAsync(snapPath);
+                    });
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "boot.log"), $"[{DateTime.UtcNow:O}] [Security Restriction Error] {ex}\n"); } catch { }
+        }
+    }
+
+    private void RestrictionRecheckButton_Click(object sender, RoutedEventArgs e)
+    {
+        var check = _securityWatchdog?.CheckImmediateCompliance();
+        if (check != null && check.IsViolation)
+        {
+            ShowNotice($"Security violation still active: {check.Details}. Please disconnect remote access before rechecking.", InfoBarSeverity.Error);
+            return;
+        }
+
+        // Environment is clear
+        if (_activeIncident != null)
+        {
+            IncidentManager.Instance.ResolveIncident(_activeIncident.IncidentId, "CandidateRecheckCleared");
+        }
+
+        SecurityRestrictionOverlay.Visibility = Visibility.Collapsed;
+        if (_isExamWebViewInitialized)
+        {
+            ExamWebView.Visibility = Visibility.Visible;
+        }
+        if (_examStateMachine != null && _examStateMachine.CurrentState == ExamState.RESTRICTED)
+        {
+            _examStateMachine.TransitionTo(ExamState.ACTIVE);
+            ShowNotice("Security verification passed. Examination resumed.", InfoBarSeverity.Success);
+            _auditLogger?.Log(EventType.EXAM_RESUMED, "RESUMED_AFTER_RESTRICTION", "Security recheck passed; active exam resumed.", examId: _config.Exam.ContestId);
+        }
+    }
+
+    private void RestrictionGetHelpButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string refId = _activeIncident?.IncidentId ?? "active";
+            var url = $"http://localhost:5050/security-incident?ref={refId}";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            ShowNotice($"Failed to open resolution browser: {ex.Message}", InfoBarSeverity.Error);
+        }
+    }
+
+    private void RestrictionInvigilatorButton_Click(object sender, RoutedEventArgs e)
+    {
+        PromptForExitPin();
+    }
+
+    private async Task CaptureScreenshotAsync(string filePath)
+    {
+        try
+        {
+            var rtb = new Microsoft.UI.Xaml.Media.Imaging.RenderTargetBitmap();
+            await rtb.RenderAsync(RootGrid);
+            var pixelBuffer = await rtb.GetPixelsAsync();
+
+            var fullPath = System.IO.Path.GetFullPath(filePath);
+            var dir = System.IO.Path.GetDirectoryName(fullPath) ?? AppContext.BaseDirectory;
+            System.IO.Directory.CreateDirectory(dir);
+
+            using (var memStream = new Windows.Storage.Streams.InMemoryRandomAccessStream())
+            {
+                var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
+                    Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId,
+                    memStream);
+
+                var reader = Windows.Storage.Streams.DataReader.FromBuffer(pixelBuffer);
+                byte[] pixels = new byte[pixelBuffer.Length];
+                reader.ReadBytes(pixels);
+
+                encoder.SetPixelData(
+                    Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+                    Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied,
+                    (uint)rtb.PixelWidth,
+                    (uint)rtb.PixelHeight,
+                    96,
+                    96,
+                    pixels);
+
+                await encoder.FlushAsync();
+
+                memStream.Seek(0);
+                byte[] fileBytes = new byte[memStream.Size];
+                var streamReader = new Windows.Storage.Streams.DataReader(memStream);
+                await streamReader.LoadAsync((uint)memStream.Size);
+                streamReader.ReadBytes(fileBytes);
+                await System.IO.File.WriteAllBytesAsync(fullPath, fileBytes);
+            }
+
+            PageLog($"Screenshot successfully saved to {fullPath} ({rtb.PixelWidth}x{rtb.PixelHeight}, {new System.IO.FileInfo(fullPath).Length} bytes).");
+        }
+        catch (Exception ex)
+        {
+            PageLog($"CaptureScreenshotAsync failed: {ex}");
+        }
+    }
+
+    private static void PageLog(string msg)
+    {
+        try
+        {
+            var logPath = System.IO.Path.Combine(AppContext.BaseDirectory, "boot.log");
+            System.IO.File.AppendAllText(logPath, $"[{DateTime.UtcNow:O}] [MainPage] {msg}\n");
+        }
+        catch { }
     }
 }

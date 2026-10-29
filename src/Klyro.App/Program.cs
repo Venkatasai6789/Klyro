@@ -38,12 +38,41 @@ public static class Program
     private const uint SEM_NOOPENFILEERRORBOX = 0x8000;
 
     [DllImport("user32.dll")]
+    public static extern bool AllowSetForegroundWindow(uint dwProcessId);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_SHOWWINDOW = 0x0040;
     private const int SW_RESTORE = 9;
+
+    public static bool IsWindowHandleVisible(IntPtr hWnd)
+    {
+        try
+        {
+            return hWnd != IntPtr.Zero && IsWindowVisible(hWnd);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public static void RestoreAndActivateWindow(IntPtr hWnd)
     {
@@ -52,6 +81,9 @@ public static class Program
             try
             {
                 ShowWindow(hWnd, SW_RESTORE);
+                SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                BringWindowToTop(hWnd);
                 SetForegroundWindow(hWnd);
             }
             catch { }
@@ -176,6 +208,9 @@ public static class Program
                     bool activatedSuccessfully = false;
                     try
                     {
+                        // Transfer foreground activation privilege to the running instance
+                        AllowSetForegroundWindow((uint)others[0].Id);
+
                         if (EventWaitHandle.TryOpenExisting(ActivateEventName, out var existingEvent))
                         {
                             existingEvent.Set();
@@ -200,38 +235,18 @@ public static class Program
                         return;
                     }
 
-                    // If primary process exists but did not acknowledge, check its uptime.
-                    // If it is freshly starting up (< 20 seconds old), DO NOT kill it — let it finish starting!
-                    bool isZombie = false;
-                    try
+                    // Primary process did not acknowledge activation or has no visible window
+                    Log($"Primary process PID {others[0].Id} did not acknowledge activation or had no visible window. Terminating stale background instance...");
+                    foreach (var other in others)
                     {
-                        var uptime = DateTime.Now - others[0].StartTime;
-                        isZombie = uptime.TotalSeconds > 20;
-                    }
-                    catch
-                    {
-                        isZombie = false;
-                    }
-
-                    if (isZombie)
-                    {
-                        Log($"Primary process PID {others[0].Id} did not acknowledge activation and is older than 20s (headless/zombie process). Terminating zombie...");
-                        foreach (var other in others)
+                        try
                         {
-                            try
-                            {
-                                other.Kill(entireProcessTree: true);
-                                other.WaitForExit(1000);
-                            }
-                            catch { }
+                            other.Kill(entireProcessTree: true);
+                            other.WaitForExit(1000);
                         }
-                        Log("Zombie process terminated. Proceeding as fresh primary instance.");
+                        catch { }
                     }
-                    else
-                    {
-                        Log($"Primary process PID {others[0].Id} is actively initializing. Exiting secondary instance cleanly.");
-                        return;
-                    }
+                    Log("Stale background process terminated. Proceeding as fresh primary instance.");
                 }
                 else
                 {
@@ -243,7 +258,9 @@ public static class Program
             try
             {
                 _activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateEventName);
+                _activationEvent.Reset();
                 _activationAckEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivateAckEventName);
+                _activationAckEvent.Reset();
 
                 var listener = new Thread(() =>
                 {
